@@ -1,0 +1,8 @@
+{
+  "name": "Guru Gedara Educational Centre",
+  "description": "A modern full-stack tuition class website with student, tutor, and admin dashboards, automated bookings, integrated calendars, notification triggers, and payments tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

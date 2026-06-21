@@ -1,0 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+  
+  --color-brand-accent: #6366f1; /* Premium Royal Indigo */
+  --color-brand-accent-glow: rgba(99, 102, 241, 0.15);
+}
+
+/* Custom layout & component rules to enforce the "Sleek Interface" paradigm */
+@layer utilities {
+  .sleek-card {
+    background-color: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 1.5rem; /* Highly rounded 24px */
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.01), 0 10px 30px -10px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sleek-card:hover {
+    border-color: rgba(99, 102, 241, 0.25);
+    box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.06), 0 20px 50px -15px rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+  }
+  
+  .sleek-input {
+    width: 100%;
+    font-size: 0.75rem;
+    padding: 0.65rem 0.875rem;
+    background-color: #f8fafc;
+    border: 1px solid rgba(226, 232, 240, 1);
+    border-radius: 0.875rem; /* 14px */
+    outline: none;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .sleek-input:focus {
+    background-color: #ffffff;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+
+  .sleek-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+    background-color: #0f172a; /* Slate 900 */
+    border-radius: 0.875rem;
+    transition: all 0.23s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+  }
+
+  .sleek-btn-primary:hover {
+    background-color: #020617; /* Slate 950 */
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .sleek-btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .sleek-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #334155;
+    background-color: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 1);
+    border-radius: 0.875rem;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+  }
+
+  .sleek-btn-secondary:hover {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .sleek-btn-accent {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #6366f1; /* Royal Indigo */
+    border-radius: 0.875rem;
+    transition: all 0.23s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.2);
+    cursor: pointer;
+  }
+
+  .sleek-btn-accent:hover {
+    background-color: #4f46e5;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .sleek-badge-mono {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+}
+
+/* Global scrollbar tuning to match sleek aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Custom visual adjustments */
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

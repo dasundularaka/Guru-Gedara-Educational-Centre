@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user is accessing their own document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if user is an admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.uid == 'admin_demo' || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // Check if user is a tutor
+    function isTutor() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'tutor';
+    }
+
+    // Users rules
+    match /users/{userId} {
+      allow read: if true; // anyone can browse tutor profiles
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Classes rules
+    match /classes/{classId} {
+      allow read: if true; // anyone can browse classes
+      allow write: if isTutor() || isAdmin();
+    }
+
+    // Bookings rules
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Payments rules
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Notifications rules
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || resource.data.userId == 'all');
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Direct Messages rules
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
