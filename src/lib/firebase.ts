@@ -5,8 +5,8 @@ import { initializeFirestore } from 'firebase/firestore';
 // Static fallbacks in case config import fails or isn't fully ready
 const firebaseConfig = {
   apiKey: "AIzaSyDggYCXk67au0H7W7fOS2EpqqjEGMJeJLU",
-  authDomain: "jittery-avatar-nrwfn.firebaseapp.com",
-  projectId: "jittery-avatar-nrwfn",
+  authDomain: "gurugedaraedu.netlify.app",
+  projectId: "gurugedara",
   storageBucket: "jittery-avatar-nrwfn.firebasestorage.app",
   messagingSenderId: "726461356342",
   appId: "1:726461356342:web:6a2fa99cdcd210d4b5bb97",
