@@ -138,7 +138,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   };
 
   return (
-    <nav className="bg-white/80 backdrop-blur-md border-b border-slate-250 sticky top-0 z-50 shadow-[0_1px_2px_rgba(0,0,0,0.01)]" id="main_navigation">
+    <>
+      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-250 sticky top-0 z-50 shadow-[0_1px_2px_rgba(0,0,0,0.01)]" id="main_navigation">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
@@ -437,11 +438,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           </motion.div>
         )}
       </AnimatePresence>
+    </nav>
 
-      {/* Notifications Settings Panel Dialog overlay */}
-      <AnimatePresence>
-        {showSettings && (
-          <div className="fixed inset-0 z-55 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+    {/* Notifications Settings Panel Dialog overlay */}
+    <AnimatePresence>
+      {showSettings && (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -539,7 +541,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
       {/* Profile Details Modal */}
       <AnimatePresence>
         {showProfileDetails && currentUser && (
-          <div className="fixed inset-0 z-55 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -741,7 +743,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
       {/* Logout Confirmation Modal */}
       <AnimatePresence>
         {showLogoutConfirm && (
-          <div className="fixed inset-0 z-55 overflow-y-auto bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -776,6 +778,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           </div>
         )}
       </AnimatePresence>
-    </nav>
+    </>
   );
 };

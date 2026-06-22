@@ -15,6 +15,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [sortBy, setSortBy] = useState("default");
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'open' | 'full'>('all');
   
   const [filteredClasses, setFilteredClasses] = useState<ClassItem[]>([]);
 
@@ -40,7 +41,14 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
       );
     }
 
-    // 3. Sorting logic
+    // 3. Availability Filter
+    if (availabilityFilter === "open") {
+      result = result.filter(c => c.bookedSlots < c.maxSlots);
+    } else if (availabilityFilter === "full") {
+      result = result.filter(c => c.bookedSlots >= c.maxSlots);
+    }
+
+    // 4. Sorting logic
     if (sortBy === "price_asc") {
       result.sort((a, b) => a.price - b.price);
     } else if (sortBy === "price_desc") {
@@ -50,7 +58,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
 
     setFilteredClasses(result);
-  }, [classes, searchTerm, selectedSubject, sortBy]);
+  }, [classes, searchTerm, selectedSubject, sortBy, availabilityFilter]);
 
   return (
     <div className="bg-slate-50/40 min-h-screen py-10" id="classes_search_viewport">
@@ -65,10 +73,10 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
 
         {/* Filters and search blocks */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.01)] p-5 sm:p-7 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
             
             {/* Search Input */}
-            <div className="relative md:col-span-2">
+            <div className="relative md:col-span-5">
               <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <Search className="w-4 h-4" />
               </span>
@@ -82,7 +90,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
             </div>
 
             {/* Subject Selector */}
-            <div>
+            <div className="md:col-span-2">
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
@@ -94,8 +102,21 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
               </select>
             </div>
 
+            {/* Availability status Selector */}
+            <div className="md:col-span-3">
+              <select
+                value={availabilityFilter}
+                onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'open' | 'full')}
+                className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+              >
+                <option value="all">Availability: All Classes</option>
+                <option value="open">Availability: Available Slots</option>
+                <option value="full">Availability: Fully Booked</option>
+              </select>
+            </div>
+
             {/* Sort order Selector */}
-            <div>
+            <div className="md:col-span-2">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -139,7 +160,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
               We couldn't spot any registered tuition class matched to: "{searchTerm || selectedSubject}".
             </p>
             <button
-              onClick={() => { setSearchTerm(""); setSelectedSubject("All Subjects"); setSortBy("default"); }}
+              onClick={() => { setSearchTerm(""); setSelectedSubject("All Subjects"); setSortBy("default"); setAvailabilityFilter("all"); }}
               className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all cursor-pointer"
             >
               Reset Search Parameters

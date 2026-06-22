@@ -17,6 +17,7 @@ export interface UserProfile {
   pendingPhotoURL?: string;
   phone?: string;
   password?: string;
+  isPasswordResetRequired?: boolean;
   createdAt: string;
   
   // Specific properties
@@ -107,4 +108,8 @@ export interface NotificationSettings {
   announcements: boolean;
   messages: boolean;
   emailSync: boolean;
+  emailClassRevisions?: boolean;
+  emailBookingStatus?: boolean;
+  emailStudyMaterials?: boolean;
+  emailPerformanceLogs?: boolean;
 }

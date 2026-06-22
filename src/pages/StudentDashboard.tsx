@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { Booking, Payment, NotificationItem } from '../types';
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
-  const { currentUser, showToast, notifications, refreshNotifications, notificationSettings, updateNotificationSettings, classes, refreshClasses } = useApp();
+  const { currentUser, showToast, notifications, refreshNotifications, notificationSettings, updateNotificationSettings, classes, refreshClasses, refreshUserProfile } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications'>('schedule');
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
@@ -48,9 +49,12 @@ export const StudentDashboard: React.FC = () => {
   };
 
   useEffect(() => {
+    if (refreshUserProfile && currentUser) {
+      refreshUserProfile().catch(console.warn);
+    }
     fetchDashboardData();
     refreshClasses();
-  }, [currentUser]);
+  }, [currentUser?.uid]);
 
   const handleCancelBooking = async (bookingId: string, classId: string) => {
     if (!window.confirm("Are you sure you want to cancel this tuition slot?")) return;
@@ -75,7 +79,13 @@ export const StudentDashboard: React.FC = () => {
   if (!currentUser) return null;
 
   return (
-    <div className="bg-slate-50/40 min-h-screen py-10" id="student_workspace">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="bg-slate-50/40 min-h-screen py-10"
+      id="student_workspace"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Workspace Title Header */}
@@ -128,17 +138,26 @@ export const StudentDashboard: React.FC = () => {
             
             {/* 1. Schedule View Tab */}
             {activeSubTab === 'schedule' && (
-              <div>
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
                 <CalendarView 
                   userRole="student" 
                   userBookings={studentBookings} 
                 />
-              </div>
+              </motion.div>
             )}
 
             {/* 2. Enrolled Classes & Receipts List Tab */}
             {activeSubTab === 'classes' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+              >
                 
                 {/* Bookings left col */}
                 <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
@@ -268,19 +287,28 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
-              </div>
+              </motion.div>
             )}
 
             {/* 3. Direct Chat Panel Tab */}
             {activeSubTab === 'chat' && (
-              <div>
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
                 <ChatWidget currentUserId={currentUser.uid} currentUserRole="student" />
-              </div>
+              </motion.div>
             )}
 
             {/* 4. Notifications tab */}
             {activeSubTab === 'notifications' && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start animate-fade-in">
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start"
+              >
                 
                 {/* Lists alerts */}
                 <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6">
@@ -368,6 +396,64 @@ export const StudentDashboard: React.FC = () => {
                         className="w-4 h-4 rounded text-blue-600"
                       />
                     </div>
+                    
+                    {/* Specific Email Triggers Section */}
+                    <div className="border-t pt-4 border-dashed border-gray-100 space-y-3.5">
+                      <h4 className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-650 font-mono">Email Notification Triggers</h4>
+                      
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-gray-750">Class revisions & timing alterations</span>
+                          <span className="block text-[9px] text-gray-400">Receive alerts when schedule slots or links change</span>
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={!!notificationSettings.emailClassRevisions}
+                          onChange={(e) => updateNotificationSettings({ emailClassRevisions: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-gray-750">Booking & enrollment receipts</span>
+                          <span className="block text-[9px] text-gray-400">Receive confirmations on seat reservations</span>
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={!!notificationSettings.emailBookingStatus}
+                          onChange={(e) => updateNotificationSettings({ emailBookingStatus: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-gray-750">New course worksheets & handouts</span>
+                          <span className="block text-[9px] text-gray-400">Alert me when files or handouts are distributed</span>
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={!!notificationSettings.emailStudyMaterials}
+                          onChange={(e) => updateNotificationSettings({ emailStudyMaterials: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-gray-750">Grade & performance analysis reports</span>
+                          <span className="block text-[9px] text-gray-400">Receive monthly progress summaries and charts</span>
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={!!notificationSettings.emailPerformanceLogs}
+                          onChange={(e) => updateNotificationSettings({ emailPerformanceLogs: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between border-t pt-4 border-dashed border-gray-100">
                       <div>
                         <span className="text-xs font-bold text-blue-700">Inbox Copy Sync</span>
@@ -383,13 +469,13 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
-              </div>
+              </motion.div>
             )}
 
           </div>
         )}
 
       </div>
-    </div>
+    </motion.div>
   );
 };

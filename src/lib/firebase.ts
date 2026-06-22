@@ -1,16 +1,17 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
+import firebaseConfigData from '../../firebase-applet-config.json';
 
-// Static fallbacks in case config import fails or isn't fully ready
+// Support client-side overrides when hosted on any external hosting service
 const firebaseConfig = {
-  apiKey: "AIzaSyDggYCXk67au0H7W7fOS2EpqqjEGMJeJLU",
-  authDomain: "gurugedaraedu.netlify.app",
-  projectId: "gurugedara",
-  storageBucket: "jittery-avatar-nrwfn.firebasestorage.app",
-  messagingSenderId: "726461356342",
-  appId: "1:726461356342:web:6a2fa99cdcd210d4b5bb97",
-  firestoreDatabaseId: "ai-studio-5c44d2d2-5b10-4b50-b344-701e5e839624"
+  apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || firebaseConfigData.apiKey,
+  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigData.authDomain,
+  projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID || firebaseConfigData.projectId,
+  storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigData.storageBucket,
+  messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigData.messagingSenderId,
+  appId: (import.meta as any).env.VITE_FIREBASE_APP_ID || firebaseConfigData.appId,
+  firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || firebaseConfigData.firestoreDatabaseId
 };
 
 const app = initializeApp(firebaseConfig);
@@ -23,4 +24,5 @@ export const db = initializeFirestore(app, {
 }, firebaseConfig.firestoreDatabaseId || '(default)');
 
 export const auth = getAuth(app);
+export { firebaseConfig };
 export default app;

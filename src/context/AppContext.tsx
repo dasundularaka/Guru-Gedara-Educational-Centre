@@ -31,6 +31,7 @@ interface AppContextType {
   classes: any[];
   refreshClasses: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -47,7 +48,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     payments: true,
     announcements: true,
     messages: true,
-    emailSync: false
+    emailSync: false,
+    emailClassRevisions: true,
+    emailBookingStatus: true,
+    emailStudyMaterials: true,
+    emailPerformanceLogs: true
   });
 
   // Handle toast notifications
@@ -385,6 +390,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const refreshUserProfile = async () => {
+    if (!currentUser) return;
+    try {
+      const latestProfile = await firestoreService.getUserProfile(currentUser.uid);
+      if (latestProfile) {
+        setCurrentUser(latestProfile);
+        localStorage.setItem('local_running_session', JSON.stringify(latestProfile));
+      }
+    } catch (e) {
+      console.warn("Failed user profile reload.", e);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -405,7 +423,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       classes,
       refreshClasses,
       syncClasses: firestoreService.getClasses,
-      updateProfile
+      updateProfile,
+      refreshUserProfile
     }}>
       {children}
     </AppContext.Provider>

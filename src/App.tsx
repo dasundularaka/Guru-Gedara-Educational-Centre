@@ -8,6 +8,7 @@ import { Auth } from './pages/Auth';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { TutorDashboard } from './pages/TutorDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { RestrictedPasswordReset } from './pages/RestrictedPasswordReset';
 import { 
   CheckCircle, 
   XOctagon, 
@@ -45,10 +46,53 @@ function MainAppContent() {
 
   // Reset tab selection to matching home dashboard once logged in if they click Auth
   useEffect(() => {
-    if (currentUser && currentTab === 'auth') {
+    if (currentUser?.isPasswordResetRequired) {
+      setCurrentTab('auth');
+    } else if (currentUser && currentTab === 'auth') {
       setCurrentTab('home');
     }
   }, [currentUser, currentTab]);
+
+  if (currentUser?.isPasswordResetRequired) {
+    return (
+      <div className="flex flex-col min-h-screen bg-slate-50">
+        <main className="flex-grow">
+          <RestrictedPasswordReset />
+        </main>
+        
+        {/* Global active feedback Toast Notification message Banner */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="fixed bottom-6 right-6 z-55 max-w-sm rounded-2xl p-4 shadow-2xl flex items-start gap-3 bg-white border border-gray-100 font-sans"
+              id="tuition_toast_alert"
+            >
+              <div className="mt-0.5 flex-shrink-0">
+                {toast.type === 'success' && <CheckCircle className="w-5.2 h-5.2 text-emerald-500" />}
+                {toast.type === 'error' && <XOctagon className="w-5.2 h-5.2 text-red-500" />}
+                {toast.type === 'info' && <Info className="w-5.2 h-5.2 text-blue-500" />}
+              </div>
+              
+              <div className="flex-grow pr-4">
+                <p className="text-xs font-bold text-gray-900 leading-tight">Tuition Alert System</p>
+                <p className="text-xs text-gray-500 mt-1 leading-snug">{toast.message}</p>
+              </div>
+
+              <button
+                onClick={hideToast}
+                className="text-gray-400 hover:text-gray-600 p-0.5 rounded-lg transition-colors absolute top-2 right-2"
+              >
+                <XOctagon className="w-4 h-4 text-gray-300" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
