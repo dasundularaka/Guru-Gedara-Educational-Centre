@@ -378,7 +378,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="alex@gg.com"
+                    placeholder="alex@example.com"
                     className="w-full text-xs px-3.5 py-2 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
@@ -411,7 +411,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="alex@gg.com"
+                    placeholder="alex@example.com"
                     className="w-full text-xs px-3.5 py-2 border border-slate-200 rounded-xl outline-none focus:border-indigo-550 font-mono"
                   />
                 </div>
@@ -491,7 +491,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="alex@gg.com"
+                placeholder="alex@example.com"
                 className="w-full text-xs px-3.5 py-2 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
               />
             </div>

@@ -236,64 +236,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e: any) {
       setLoading(false);
       // Fallback: If Firebase auth fails or is offline
-      // we can verify if they typed specified admin, tutor or student test credentials!
+      // we can verify if they typed specified admin, tutor or student test credentials,
+      // or if they registered a custom account, or fallback gracefully with any custom domain!
       const lowercaseEmail = email.toLowerCase();
       
-      // Check password override for default accounts or custom registered accounts
+      // 1. Check for custom registered users in local storage first
+      const rJSON = localStorage.getItem('local_registered_users');
+      const rUsers: UserProfile[] = rJSON ? JSON.parse(rJSON) : [];
+      const match = rUsers.find(u => u.email.toLowerCase() === lowercaseEmail);
+      if (match) {
+        const expectedCustomPass = match.password || 'test123';
+        if (pass === expectedCustomPass) {
+          if (match.role === 'student' && match.status === 'pending') {
+            throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+          }
+          localStorage.setItem('local_running_session', JSON.stringify(match));
+          setCurrentUser(match);
+          showToast(`Logged in successfully as ${match.name}!`, "success");
+          return match;
+        } else {
+          throw new Error("Incorrect password entered for custom account.");
+        }
+      }
+
+      // 2. Check for password overrides for default demo credentials (admin, tutor, student)
       const overridesJSON = localStorage.getItem('local_password_overrides');
       const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
       const expectedPassword = overrides[lowercaseEmail] || 'test123';
 
       if (pass !== expectedPassword) {
-        // Run check on custom registered users in local storage
-        const rJSON = localStorage.getItem('local_registered_users');
-        const rUsers: UserProfile[] = rJSON ? JSON.parse(rJSON) : [];
-        const match = rUsers.find(u => u.email.toLowerCase() === lowercaseEmail);
-        if (match) {
-          const expectedCustomPass = match.password || 'test123';
-          if (pass === expectedCustomPass) {
-            if (match.role === 'student' && match.status === 'pending') {
-              throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
-            }
-            localStorage.setItem('local_running_session', JSON.stringify(match));
-            setCurrentUser(match);
-            showToast(`Logged in successfully as ${match.name}!`, "success");
-            return match;
-          } else {
-            throw new Error("Incorrect password entered for custom account.");
-          }
-        }
         throw new Error(e.message || "Invalid password credentials.");
       }
 
+      // 3. Match keyword roles (with their typed email preserved)
       if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
         const dummy = await handleSimulatedDemo('student');
-        dummy.email = 'student@gg.com';
-        dummy.name = 'Scholar Student';
-        dummy.status = dummy.status || 'approved';
-        localStorage.setItem('local_running_session', JSON.stringify(dummy));
-        setCurrentUser(dummy);
+        const customUser = {
+          ...dummy,
+          email: lowercaseEmail,
+          name: 'Scholar Student',
+          status: 'approved'
+        };
+        localStorage.setItem('local_running_session', JSON.stringify(customUser));
+        setCurrentUser(customUser);
         showToast("Logged in successfully as Student Scholar!", "success");
-        return dummy;
+        return customUser;
       } else if (lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor')) {
         const dummy = await handleSimulatedDemo('tutor');
-        dummy.email = 'tutor@gg.com';
-        dummy.name = 'Faculty Tutor';
-        localStorage.setItem('local_running_session', JSON.stringify(dummy));
-        setCurrentUser(dummy);
+        const customUser = {
+          ...dummy,
+          email: lowercaseEmail,
+          name: 'Faculty Tutor'
+        };
+        localStorage.setItem('local_running_session', JSON.stringify(customUser));
+        setCurrentUser(customUser);
         showToast("Logged in successfully as Faculty Tutor!", "success");
-        return dummy;
+        return customUser;
       } else if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
         const dummy = await handleSimulatedDemo('admin');
-        dummy.email = 'admin@gg.com';
-        dummy.name = 'Academy Administrator';
-        localStorage.setItem('local_running_session', JSON.stringify(dummy));
-        setCurrentUser(dummy);
+        const customUser = {
+          ...dummy,
+          email: lowercaseEmail,
+          name: 'Academy Administrator'
+        };
+        localStorage.setItem('local_running_session', JSON.stringify(customUser));
+        setCurrentUser(customUser);
         showToast("Logged in successfully as Academy Administrator!", "success");
-        return dummy;
+        return customUser;
       }
+
+      // 4. Default Fallback: Allow login from ANY custom domain!
+      const dummy = await handleSimulatedDemo('student');
+      const emailPrefix = lowercaseEmail.split('@')[0] || 'scholar';
+      const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
       
-      throw new Error(e.message || "Failed credentials verification.");
+      const customUser = {
+        ...dummy,
+        email: lowercaseEmail,
+        name: `${displayName} Student`,
+        displayName: displayName,
+        status: 'approved'
+      };
+      
+      localStorage.setItem('local_running_session', JSON.stringify(customUser));
+      setCurrentUser(customUser);
+      showToast(`Logged in successfully with '${lowercaseEmail}'!`, "success");
+      return customUser;
     }
   };
 
