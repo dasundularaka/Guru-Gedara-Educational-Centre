@@ -55,6 +55,7 @@ export interface ClassItem {
   maxSlots: number;
   bookedSlots: number;
   tags?: string[];
+  imageUrl?: string;
 }
 
 export interface Booking {

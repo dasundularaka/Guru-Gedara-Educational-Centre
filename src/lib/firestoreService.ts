@@ -186,6 +186,43 @@ export const firestoreService = {
     return registered.find(u => u.uid === uid) || null;
   },
 
+  async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
+    const cleanEmail = email.trim().toLowerCase();
+    
+    if (isUsingCloud) {
+       try {
+         const usersRef = collection(db, 'users');
+         const q = query(usersRef, where('email', '==', cleanEmail));
+         const qSnap = await getDocs(q);
+         if (!qSnap.empty) {
+           const userData = qSnap.docs[0].data() as UserProfile;
+           return userData;
+         }
+       } catch (e) {
+         console.warn("Falling back search by email", e);
+       }
+    }
+    
+    // Check tutors
+    const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
+    const tutorMatch = tutors.find(t => t.email.toLowerCase() === cleanEmail);
+    if (tutorMatch) return tutorMatch;
+    
+    // Demo student
+    if (cleanEmail === "alex.mercer@example.com") {
+      return this.getUserProfile('student_demo');
+    }
+    
+    // Demo admin
+    if (cleanEmail === "admin.academy@example.com") {
+      return this.getUserProfile('admin_demo');
+    }
+    
+    // Dynamically registered users
+    const registered = handleFallback<UserProfile>('local_registered_users', []);
+    return registered.find(u => u.email.toLowerCase() === cleanEmail) || null;
+  },
+
   async createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<UserProfile> {
     const fullProfile: UserProfile = {
       uid,

@@ -5,6 +5,8 @@ import { firestoreService } from '../lib/firestoreService';
 import { Booking, Payment, NotificationItem } from '../types';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
+import { StudentProgressTracker } from '../components/StudentProgressTracker';
+import { StudentModuleRoadmap } from '../components/StudentModuleRoadmap';
 import { 
   BookOpen, 
   CreditCard, 
@@ -17,12 +19,14 @@ import {
   X, 
   XOctagon, 
   Hourglass,
-  Sliders
+  Sliders,
+  TrendingUp,
+  Compass
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
   const { currentUser, showToast, notifications, refreshNotifications, notificationSettings, updateNotificationSettings, classes, refreshClasses, refreshUserProfile } = useApp();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap'>('schedule');
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
@@ -109,6 +113,18 @@ export const StudentDashboard: React.FC = () => {
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'classes' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <BookOpen className="w-4 h-4 text-indigo-400" /> Classes & Ledger
+            </button>
+            <button
+              onClick={() => setActiveSubTab('performance')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'performance' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              <TrendingUp className="w-4 h-4 text-indigo-400" /> Progress Tracker
+            </button>
+            <button
+              onClick={() => setActiveSubTab('roadmap')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'roadmap' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              <Compass className="w-4 h-4 text-indigo-400" /> Syllabus Roadmap
             </button>
             <button
               onClick={() => setActiveSubTab('chat')}
@@ -287,6 +303,36 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
+              </motion.div>
+            )}
+
+            {/* Academic Performance & Analytics Tab */}
+            {activeSubTab === 'performance' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <StudentProgressTracker
+                  currentUser={currentUser}
+                  userBookings={studentBookings}
+                  classes={classes}
+                />
+              </motion.div>
+            )}
+
+            {/* Syllabus Roadmap Tab */}
+            {activeSubTab === 'roadmap' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <StudentModuleRoadmap
+                  currentUser={currentUser}
+                  userBookings={studentBookings}
+                  classes={classes}
+                />
               </motion.div>
             )}
 

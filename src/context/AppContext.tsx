@@ -95,7 +95,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(true);
       if (firebaseUser) {
         try {
+          const email = firebaseUser.email || '';
           let profile = await firestoreService.getUserProfile(firebaseUser.uid);
+          
+          if (!profile && email) {
+            const matchedProfile = await firestoreService.getUserProfileByEmail(email);
+            if (matchedProfile) {
+              const mergedProfile = { ...matchedProfile, uid: firebaseUser.uid };
+              await firestoreService.createUserProfile(firebaseUser.uid, mergedProfile);
+              profile = mergedProfile;
+            }
+          }
+          
           if (!profile) {
             // Auto create database profile for newly signed in OAuth users
             profile = await firestoreService.createUserProfile(firebaseUser.uid, {
@@ -172,8 +183,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
+      const email = result.user.email || '';
       
-      const profile = await firestoreService.getUserProfile(result.user.uid);
+      let profile = await firestoreService.getUserProfile(result.user.uid);
+      
+      if (!profile && email) {
+        const matchedProfile = await firestoreService.getUserProfileByEmail(email);
+        if (matchedProfile) {
+          const mergedProfile = { ...matchedProfile, uid: result.user.uid };
+          await firestoreService.createUserProfile(result.user.uid, mergedProfile);
+          profile = mergedProfile;
+        }
+      }
+      
       if (profile) {
         setCurrentUser(profile);
         showToast(`Welcome back, ${profile.name}!`, "success");
@@ -271,11 +293,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 3. Match keyword roles (with their typed email preserved)
       if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
         const dummy = await handleSimulatedDemo('student');
-        const customUser = {
+        const customUser: UserProfile = {
           ...dummy,
           email: lowercaseEmail,
           name: 'Scholar Student',
-          status: 'approved'
+          status: 'approved' as const
         };
         localStorage.setItem('local_running_session', JSON.stringify(customUser));
         setCurrentUser(customUser);
@@ -310,12 +332,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const emailPrefix = lowercaseEmail.split('@')[0] || 'scholar';
       const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
       
-      const customUser = {
+      const customUser: UserProfile = {
         ...dummy,
         email: lowercaseEmail,
         name: `${displayName} Student`,
         displayName: displayName,
-        status: 'approved'
+        status: 'approved' as const
       };
       
       localStorage.setItem('local_running_session', JSON.stringify(customUser));

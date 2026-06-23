@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { UserProfile } from '../types';
 import { Star, Award, GraduationCap, DollarSign, Mail, Send, X, MessageSquareReply } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface TutorCardProps {
   tutor: UserProfile;
@@ -46,7 +47,12 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
   };
 
   return (
-    <div className="sleek-card p-6 flex flex-col justify-between h-full bg-white" id={`tutor_card_${tutor.uid}`}>
+    <motion.div
+      whileHover={{ y: -5, scale: 1.015, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className="sleek-card p-6 flex flex-col justify-between h-full bg-white"
+      id={`tutor_card_${tutor.uid}`}
+    >
       <div>
         {/* Profile Header */}
         <div className="flex gap-4 items-start mb-5">
@@ -198,6 +204,6 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

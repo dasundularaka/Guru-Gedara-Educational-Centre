@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem } from '../types';
-import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck } from 'lucide-react';
+import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface ClassCardProps {
   item: ClassItem;
@@ -14,7 +15,19 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
   const { currentUser, showToast, refreshClasses } = useApp();
   const [loading, setLoading] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("Visa ending in 4242");
+  const [paymentMethod, setPaymentMethod] = useState("Stripe Gateway (Visa ending in 4242)");
+
+  // Secure payment gateway state variables
+  const [gatewayType, setGatewayType] = useState<'stripe' | 'paypal'>('stripe');
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("4242 •••• •••• 4242");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
+
+  const [payPalEmail, setPayPalEmail] = useState("");
+  const [payPalPassword, setPayPalPassword] = useState("");
+  const [isPayPalLoggedIn, setIsPayPalLoggedIn] = useState(false);
+  const [showPayPalLoginForm, setShowPayPalLoginForm] = useState(false);
 
   const spotsLeft = item.maxSlots - item.bookedSlots;
   const isFull = spotsLeft <= 0;
@@ -58,6 +71,25 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
 
   const executeEnrollment = async () => {
     if (!currentUser) return;
+
+    let transactionDesc = "";
+    if (gatewayType === 'stripe') {
+      if (!cardName.trim() || !cardExpiry.trim() || !cardCvc.trim() || !cardNumber.trim()) {
+        showToast("Please complete all Stripe Credit Card fields.", "error");
+        return;
+      }
+      const cleanNum = cardNumber.replace(/\s+/g, '');
+      const lastFour = cleanNum.slice(-4) || '4242';
+      transactionDesc = `Stripe Card: Visa ending in ${lastFour}`;
+    } else {
+      if (!isPayPalLoggedIn) {
+        showToast("Please log in to your secure Sandbox PayPal account.", "error");
+        setShowPayPalLoginForm(true);
+        return;
+      }
+      transactionDesc = `PayPal Account: ${payPalEmail || 'student@paypal.sandbox'}`;
+    }
+
     setLoading(true);
     try {
       // 1. Save payment record
@@ -67,7 +99,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
         item.id, 
         item.title, 
         item.price, 
-        paymentMethod,
+        transactionDesc,
         'paid'
       );
 
@@ -104,33 +136,78 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
   };
 
   return (
-    <div className="sleek-card overflow-hidden flex flex-col h-full bg-white" id={`class_card_${item.id}`}>
-      {/* Decorative Subject Cover */}
-      <div className="p-6 bg-linear-to-br from-slate-50 to-slate-100/45 border-b border-slate-100 relative">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getSubjectColor(item.subject)}`}>
-          {item.subject}
-        </span>
-        <h4 className="mt-3 text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer">
-          {item.title}
-        </h4>
-        
-        {/* Tutor row */}
-        <div className="mt-4 flex items-center gap-2.5">
-          {item.tutorPhoto ? (
-            <img 
-              referrerPolicy="no-referrer"
-              className="h-6 w-6 rounded-full object-cover border border-slate-200" 
-              src={item.tutorPhoto} 
-              alt={item.tutorName} 
-            />
-          ) : (
-            <div className="h-6 w-6 rounded-full bg-slate-100 text-slate-650 flex items-center justify-center text-[10px] font-bold">
-              <User className="w-3 h-3" />
+    <motion.div
+      whileHover={{ y: -5, scale: 1.015, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className="sleek-card overflow-hidden flex flex-col h-full bg-white group transition-all duration-300"
+      id={`class_card_${item.id}`}
+    >
+      {item.imageUrl ? (
+        <div className="h-40 w-full relative overflow-hidden bg-slate-900">
+          <img 
+            referrerPolicy="no-referrer"
+            src={item.imageUrl} 
+            alt={item.title} 
+            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ease-out"
+          />
+          <span className={`absolute top-3 left-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border shadow-sm backdrop-blur-md bg-white/90 ${getSubjectColor(item.subject)}`}>
+            {item.subject}
+          </span>
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3.5">
+            <div className="flex items-center gap-2">
+              {item.tutorPhoto ? (
+                <img 
+                  referrerPolicy="no-referrer"
+                  className="h-5 w-5 rounded-full object-cover border border-white/40" 
+                  src={item.tutorPhoto} 
+                  alt={item.tutorName} 
+                />
+              ) : (
+                <div className="h-5 w-5 rounded-full bg-white/20 text-white flex items-center justify-center text-[9px] font-bold">
+                  <User className="w-2.5 h-2.5" />
+                </div>
+              )}
+              <span className="text-[11px] text-white/90 font-medium whitespace-nowrap">by {item.tutorName}</span>
             </div>
-          )}
-          <span className="text-xs text-slate-650 font-medium">by {item.tutorName}</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Decorative Subject Cover Fallback */
+        <div className="p-6 bg-linear-to-br from-slate-50 to-slate-100/45 border-b border-slate-100 relative">
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getSubjectColor(item.subject)}`}>
+            {item.subject}
+          </span>
+          <h4 className="mt-3 text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer">
+            {item.title}
+          </h4>
+          
+          {/* Tutor row */}
+          <div className="mt-4 flex items-center gap-2.5">
+            {item.tutorPhoto ? (
+              <img 
+                referrerPolicy="no-referrer"
+                className="h-6 w-6 rounded-full object-cover border border-slate-200" 
+                src={item.tutorPhoto} 
+                alt={item.tutorName} 
+              />
+            ) : (
+              <div className="h-6 w-6 rounded-full bg-slate-100 text-slate-650 flex items-center justify-center text-[10px] font-bold">
+                <User className="w-3 h-3" />
+              </div>
+            )}
+            <span className="text-xs text-slate-650 font-medium">by {item.tutorName}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Conditionally render Title outside the cover if we have a layout with imageUrl */}
+      {item.imageUrl && (
+        <div className="px-6 pt-5 pb-1">
+          <h4 className="text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer">
+            {item.title}
+          </h4>
+        </div>
+      )}
 
       {/* Details body */}
       <div className="p-6 flex-1 flex flex-col justify-between">
@@ -186,49 +263,177 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
 
       {/* Pay Mockup Modal overlay */}
       {showPayModal && (
-        <div className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-150 shadow-2xl relative">
+        <div className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4" id="payment_gateway_modal">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-150 shadow-2xl relative font-sans">
+            <button 
+              onClick={() => setShowPayModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-650 p-1.5 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-2">
               <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
-              Tuition Fees Checkout
+              Secure Payment Gateway
             </h3>
-            <p className="text-xs text-slate-500 mb-5">Complete secure test booking for the following schedule:</p>
+            <p className="text-xs text-slate-500 mb-5">Select a secure checkout channel to enroll in this course:</p>
 
-            <div className="bg-slate-50 p-4 rounded-2xl mb-5 border border-slate-100">
+            <div className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100">
               <span className="text-[9px] uppercase font-mono text-indigo-600 font-bold tracking-wider block">{item.subject} Class</span>
               <p className="text-sm font-extrabold text-slate-900 mt-1">{item.title}</p>
-              <div className="flex justify-between items-center mt-3 text-xs text-slate-650">
-                <span>Monthly Recurring Bill:</span>
-                <span className="font-extrabold text-slate-900">${item.price}.00</span>
+              <div className="flex justify-between items-center mt-3 text-xs text-slate-650 pt-2.5 border-t border-dashed border-slate-200">
+                <span>Monthly Recurring fees Amount:</span>
+                <span className="font-extrabold text-slate-900 font-mono">${item.price}.00</span>
               </div>
             </div>
 
-            <div className="space-y-3 mb-6">
-              <label className="block text-xs font-extrabold text-slate-700">Choose Academic Card Payment Method:</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("Visa ending in 4242")}
-                  className={`p-3.5 rounded-xl border text-left flex flex-col gap-1.5 transition-all ${paymentMethod === 'Visa ending in 4242' ? 'border-indigo-600 bg-indigo-50/30' : 'border-slate-200 hover:bg-slate-50'}`}
-                >
-                  <CreditCard className="w-4 h-4 text-indigo-600" />
-                  <span className="text-[10px] font-bold font-mono">VISA **** 4242</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("Student Credit Wallet")}
-                  className={`p-3.5 rounded-xl border text-left flex flex-col gap-1.5 transition-all ${paymentMethod === 'Student Credit Wallet' ? 'border-indigo-600 bg-indigo-50/30' : 'border-slate-200 hover:bg-slate-50'}`}
-                >
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span className="text-[10px] font-bold font-mono">Scholarship Wallet</span>
-                </button>
-              </div>
+            {/* Gateway Selection Tabs */}
+            <div className="grid grid-cols-2 gap-2.5 mb-5">
+              <button
+                type="button"
+                onClick={() => setGatewayType('stripe')}
+                className={`py-2 px-3.5 rounded-xl border-2 text-center text-xs font-bold transition-all cursor-pointer ${gatewayType === 'stripe' ? 'border-indigo-600 bg-indigo-50/20 text-indigo-900' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+              >
+                Stripe Gateway
+              </button>
+              <button
+                type="button"
+                onClick={() => setGatewayType('paypal')}
+                className={`py-2 px-3.5 rounded-xl border-2 text-center text-xs font-bold transition-all cursor-pointer ${gatewayType === 'paypal' ? 'border-indigo-600 bg-indigo-50/20 text-indigo-900' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+              >
+                PayPal Gateway
+              </button>
             </div>
+
+            {/* Stripe Card Field Form */}
+            {gatewayType === 'stripe' && (
+              <div className="space-y-3 mb-6 transition-all">
+                <div className="flex justify-between items-center text-[10px] uppercase font-mono text-slate-400 font-extrabold">
+                  <span>Enter Card Credentials</span>
+                  <span className="text-indigo-600">Stripe Secure SSL</span>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-650 mb-1">Cardholder Name:</label>
+                    <input
+                      required
+                      type="text"
+                      value={cardName}
+                      onChange={(e) => setCardName(e.target.value)}
+                      placeholder="e.g. Elena Rostova"
+                      className="w-full text-xs px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-650 mb-1">Credit Card Number:</label>
+                    <div className="relative">
+                      <input
+                        required
+                        type="text"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        placeholder="4242 4242 4242 4242"
+                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white font-mono"
+                      />
+                      <CreditCard className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-650 mb-1">Expiry Date:</label>
+                      <input
+                        required
+                        type="text"
+                        value={cardExpiry}
+                        onChange={(e) => setCardExpiry(e.target.value)}
+                        placeholder="MM/YY"
+                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white font-mono text-center"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-650 mb-1">CVC Code:</label>
+                      <input
+                        required
+                        type="password"
+                        maxLength={4}
+                        value={cardCvc}
+                        onChange={(e) => setCardCvc(e.target.value)}
+                        placeholder="123"
+                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:bg-white font-mono text-center"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PayPal Sandbox Gateway */}
+            {gatewayType === 'paypal' && (
+              <div className="space-y-3 mb-6 transition-all text-xs">
+                <div className="flex justify-between items-center text-[10px] uppercase font-mono text-slate-400 font-extrabold">
+                  <span>PayPal Express Checkout</span>
+                  <span className="text-amber-500">Sandbox Sandbox</span>
+                </div>
+
+                {!isPayPalLoggedIn ? (
+                  <div className="p-4 border border-amber-100 rounded-2xl bg-amber-50/20 space-y-3">
+                    <span className="text-[10px] font-extrabold block text-amber-700 leading-snug">🔒 A PayPal Login session is required to proceed:</span>
+                    <div className="space-y-2">
+                      <input
+                        type="email"
+                        value={payPalEmail}
+                        onChange={(e) => setPayPalEmail(e.target.value)}
+                        placeholder="PayPal Email: e.g. student@sandbox.com"
+                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-mono"
+                      />
+                      <input
+                        type="password"
+                        value={payPalPassword}
+                        onChange={(e) => setPayPalPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!payPalEmail.trim() || !payPalPassword.trim()) {
+                          showToast("Please enter email and password credentials for PayPal.", "error");
+                          return;
+                        }
+                        setIsPayPalLoggedIn(true);
+                        showToast("PayPal security session verified successfully!", "success");
+                      }}
+                      className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] rounded-lg tracking-wider"
+                    >
+                      Authenticate PayPal credentials
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 border border-emerald-100 bg-emerald-55/10 rounded-2xl text-center space-y-1">
+                    <p className="text-emerald-700 text-[10px] font-bold">✓ PayPal Account Authorized</p>
+                    <p className="text-slate-500 text-[10px] font-mono font-semibold">{payPalEmail}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPayPalLoggedIn(false);
+                      }}
+                      className="text-[9px] text-red-500 font-bold hover:underline"
+                    >
+                      Disconnect account
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowPayModal(false)}
-                className="w-1/2 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                className="w-1/2 py-2.5 border border-slate-250 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Go Back
               </button>
@@ -243,6 +448,6 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
