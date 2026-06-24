@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { firestoreService } from '../lib/firestoreService';
-import { UserProfile, NotificationSettings, NotificationItem } from '../types';
+import { UserProfile, NotificationSettings, NotificationItem, Review } from '../types';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -32,6 +32,11 @@ interface AppContextType {
   refreshClasses: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
+  reviews: Review[];
+  refreshReviews: () => Promise<void>;
+  createReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => Promise<Review>;
+  updateReviewStatus: (reviewId: string, status: 'approved' | 'rejected' | 'flagged') => Promise<void>;
+  deleteReview: (reviewId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -42,6 +47,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cloudSync, setCloudSync] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     reminders: true,
@@ -74,6 +80,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const refreshReviews = async () => {
+    try {
+      const r = await firestoreService.getReviews();
+      setReviews(r);
+    } catch (e) {
+      console.warn("Error fetching reviews", e);
+    }
+  };
+
+  const createReview = async (reviewData: Omit<Review, 'id' | 'createdAt'>) => {
+    try {
+      const newReview = await firestoreService.createReview(reviewData);
+      await refreshReviews();
+      showToast("Review submitted successfully! It will appear once approved.", "success");
+      return newReview;
+    } catch (e: any) {
+      showToast("Failed to submit review.", "error");
+      throw e;
+    }
+  };
+
+  const updateReviewStatus = async (reviewId: string, status: 'approved' | 'rejected' | 'flagged') => {
+    try {
+      await firestoreService.updateReviewStatus(reviewId, status);
+      await refreshReviews();
+      showToast(`Review status updated to ${status}.`, "success");
+    } catch (e: any) {
+      showToast("Failed to update review status.", "error");
+      throw e;
+    }
+  };
+
+  const deleteReview = async (reviewId: string) => {
+    try {
+      await firestoreService.deleteReview(reviewId);
+      await refreshReviews();
+      showToast("Review deleted successfully.", "success");
+    } catch (e: any) {
+      showToast("Failed to delete review.", "error");
+      throw e;
+    }
+  };
+
   // Sync / Seed database on load
   useEffect(() => {
     const initializeApp = async () => {
@@ -81,6 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await firestoreService.seedDatabase();
         setCloudSync(firestoreService.isCloudConnected());
         await refreshClasses();
+        await refreshReviews();
       } catch (e) {
         console.warn("Firebase seeding failure, continuing locally.", e);
         setCloudSync(false);
@@ -474,7 +524,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshClasses,
       syncClasses: firestoreService.getClasses,
       updateProfile,
-      refreshUserProfile
+      refreshUserProfile,
+      reviews,
+      refreshReviews,
+      createReview,
+      updateReviewStatus,
+      deleteReview
     }}>
       {children}
     </AppContext.Provider>

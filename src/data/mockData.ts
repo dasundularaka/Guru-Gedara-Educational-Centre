@@ -1,4 +1,4 @@
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review } from '../types';
 
 export const INITIAL_TUTORS: UserProfile[] = [
   {
@@ -296,3 +296,77 @@ export const INITIAL_MESSAGES: DirectMessage[] = [
     createdAt: new Date(Date.now() - 9 * 3600 * 1000).toISOString()
   }
 ];
+
+export const INITIAL_REVIEWS: Review[] = [
+  {
+    id: "review_1",
+    studentId: "student_demo",
+    studentName: "Alex Mercer",
+    studentPhotoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    tutorId: "tutor_sarah",
+    tutorName: "Dr. Sarah Jenkins",
+    classId: "class_calc_abc",
+    classTitle: "AP Calculus AB: Mastering the Core",
+    rating: 5,
+    comment: "Dr. Sarah J. explains calculus with amazing clarity. The visual slide examples helped me solve optimization limits in less than a minute. Highly recommend this class!",
+    status: "approved",
+    createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
+  },
+  {
+    id: "review_2",
+    studentId: "student_demo",
+    studentName: "Alex Mercer",
+    studentPhotoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+    tutorId: "tutor_marcus",
+    tutorName: "Prof. Marcus Chen",
+    classId: "class_physics_mechanics",
+    classTitle: "Newtonian Physics & Classical Mechanics",
+    rating: 4,
+    comment: "Excellent diagrams and virtual lab animations on vectors. I wish there were a few more advanced exercises, but it is perfect for high school physics prep.",
+    status: "approved",
+    createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+  },
+  {
+    id: "review_3",
+    studentId: "student_lucas",
+    studentName: "Lucas Vance",
+    studentPhotoURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+    tutorId: "tutor_sarah",
+    tutorName: "Dr. Sarah Jenkins",
+    classId: "class_algebra_basics",
+    classTitle: "Algebra Foundations & Linear Functions",
+    rating: 5,
+    comment: "This course took me from completely failing linear equations to scoring 95% on my algebra test. Sarah is super patient and helpful!",
+    status: "approved",
+    createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString()
+  },
+  {
+    id: "review_4",
+    studentId: "student_emma",
+    studentName: "Emma Watson",
+    studentPhotoURL: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+    tutorId: "tutor_elena",
+    tutorName: "Elena Rostova",
+    classId: "class_creative_writing",
+    classTitle: "Creative Writing Workshop & Narrative Voice",
+    rating: 5,
+    comment: "Elena's peer review circles are so warm and encouraging. I finally have the confidence to write and share my stories!",
+    status: "approved",
+    createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
+  },
+  {
+    id: "review_5",
+    studentId: "student_toxic",
+    studentName: "Spammy Bob",
+    studentPhotoURL: "https://api.dicebear.com/7.x/adventurer/svg?seed=bob",
+    tutorId: "tutor_david",
+    tutorName: "David Kross",
+    classId: "class_coding_web",
+    classTitle: "Web Development Essentials: HTML, CSS, JS",
+    rating: 1,
+    comment: "This class is completely useless buy my bitcoin courses at spamlink.com instead!!!",
+    status: "pending",
+    createdAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString()
+  }
+];
+

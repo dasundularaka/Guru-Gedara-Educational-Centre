@@ -14,14 +14,15 @@ import {
   increment
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
   INITIAL_BOOKINGS, 
   INITIAL_PAYMENTS, 
   INITIAL_NOTIFICATIONS,
-  INITIAL_MESSAGES
+  INITIAL_MESSAGES,
+  INITIAL_REVIEWS
 } from '../data/mockData';
 
 // Track connection model
@@ -112,6 +113,9 @@ export const firestoreService = {
         }
         for (const m of INITIAL_MESSAGES) {
           await setDoc(doc(db, 'messages', m.id), m);
+        }
+        for (const r of INITIAL_REVIEWS) {
+          await setDoc(doc(db, 'reviews', r.id), r);
         }
         console.log("Database seeded successfully!");
       }
@@ -810,5 +814,95 @@ export const firestoreService = {
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
     const filtered = payments.filter(p => p.id !== paymentId);
     saveFallback('local_payments', filtered);
+  },
+
+  // -------------------------------------------------------------
+  // REVIEWS & RATINGS
+  // -------------------------------------------------------------
+  async getReviews(): Promise<Review[]> {
+    let cloudReviews: Review[] = [];
+    if (isUsingCloud) {
+      try {
+        const snap = await getDocs(collection(db, 'reviews'));
+        cloudReviews = snap.docs.map(doc => doc.data() as Review);
+      } catch (e) {
+        console.warn("Fallback reading reviews.", e);
+      }
+    }
+    const localReviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
+    const reviewMap = new Map<string, Review>();
+    localReviews.forEach(r => reviewMap.set(r.id, r));
+    cloudReviews.forEach(r => reviewMap.set(r.id, r));
+    const mergedList = Array.from(reviewMap.values());
+
+    if (cloudReviews.length > 0) {
+      saveFallback('local_reviews', mergedList);
+    }
+    return mergedList;
+  },
+
+  async createReview(reviewData: Omit<Review, 'id' | 'createdAt'>): Promise<Review> {
+    const id = "review_" + Math.random().toString(36).substr(2, 9);
+    const newReview: Review = {
+      ...reviewData,
+      id,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'reviews', id), newReview);
+        
+        await this.triggerNotification(
+          'admin_demo',
+          'New Review Submitted',
+          `${newReview.studentName} left a ${newReview.rating}-star review for ${newReview.classTitle || newReview.tutorName}. Needs approval.`,
+          'announcement'
+        );
+      } catch (e) {
+        console.warn("Fallback creating review", e);
+      }
+    }
+
+    const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
+    reviews.push(newReview);
+    saveFallback('local_reviews', reviews);
+
+    // Also trigger admin notification locally
+    await this.triggerNotification(
+      'admin_demo',
+      'New Review Submitted',
+      `${newReview.studentName} left a ${newReview.rating}-star review for ${newReview.classTitle || newReview.tutorName}. Needs approval.`,
+      'announcement'
+    );
+
+    return newReview;
+  },
+
+  async updateReviewStatus(reviewId: string, status: 'approved' | 'rejected' | 'flagged'): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await updateDoc(doc(db, 'reviews', reviewId), { status });
+      } catch (e) {
+        console.warn("Fallback updating review status", e);
+      }
+    }
+
+    const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
+    const updated = reviews.map(r => r.id === reviewId ? { ...r, status } : r);
+    saveFallback('local_reviews', updated);
+  },
+
+  async deleteReview(reviewId: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'reviews', reviewId));
+      } catch (e) {
+        console.warn("Failed to delete review from Firestore.", e);
+      }
+    }
+    const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
+    const filtered = reviews.filter(r => r.id !== reviewId);
+    saveFallback('local_reviews', filtered);
   }
 };

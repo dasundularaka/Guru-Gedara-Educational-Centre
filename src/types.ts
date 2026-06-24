@@ -114,3 +114,19 @@ export interface NotificationSettings {
   emailStudyMaterials?: boolean;
   emailPerformanceLogs?: boolean;
 }
+
+export interface Review {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentPhotoURL?: string;
+  tutorId?: string; // Optional: associated tutor
+  tutorName?: string;
+  classId?: string; // Optional: associated class
+  classTitle?: string;
+  rating: number; // 1-5
+  comment: string;
+  status: 'pending' | 'approved' | 'rejected' | 'flagged';
+  createdAt: string;
+}
+

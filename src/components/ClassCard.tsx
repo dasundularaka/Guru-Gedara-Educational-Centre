@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem } from '../types';
-import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X } from 'lucide-react';
+import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ReviewsModal } from './ReviewsModal';
 
 interface ClassCardProps {
   item: ClassItem;
@@ -12,9 +13,10 @@ interface ClassCardProps {
 }
 
 export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRedirectToLogin }) => {
-  const { currentUser, showToast, refreshClasses } = useApp();
+  const { currentUser, showToast, refreshClasses, reviews } = useApp();
   const [loading, setLoading] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Stripe Gateway (Visa ending in 4242)");
 
   // Secure payment gateway state variables
@@ -31,6 +33,11 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
 
   const spotsLeft = item.maxSlots - item.bookedSlots;
   const isFull = spotsLeft <= 0;
+
+  const classReviews = (reviews || []).filter(r => r.classId === item.id && r.status === 'approved');
+  const avgRating = classReviews.length > 0 
+    ? classReviews.reduce((sum, r) => sum + r.rating, 0) / classReviews.length 
+    : 5.0;
 
   // Render subject-colored pills
   const getSubjectColor = (subject: string) => {
@@ -245,20 +252,32 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
         </div>
 
         {/* Dynamic button control based on user role */}
-        <button
-          onClick={handleBookingClick}
-          disabled={isFull || currentUser?.role === 'tutor' || currentUser?.role === 'admin'}
-          className={`mt-5 w-full text-center py-2.5 px-4 rounded-xl text-xs font-bold transition-all duration-230 cursor-pointer ${
-            isFull 
-              ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-              : currentUser?.role === 'tutor' || currentUser?.role === 'admin'
-                ? 'bg-slate-50 text-slate-350 cursor-not-allowed border border-slate-150'
-                : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10'
-          }`}
-          id={`enroll_btn_${item.id}`}
-        >
-          {isFull ? 'Limit Reached' : 'Secure Premium Seat'}
-        </button>
+        <div className="flex gap-2 mt-5">
+          <button
+            onClick={() => setShowReviewsModal(true)}
+            className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            title="View course student reviews"
+          >
+            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+            <span className="font-mono text-xs">{avgRating.toFixed(1)}</span>
+            <span className="text-[10px] text-slate-400 font-semibold">({classReviews.length})</span>
+          </button>
+
+          <button
+            onClick={handleBookingClick}
+            disabled={isFull || currentUser?.role === 'tutor' || currentUser?.role === 'admin'}
+            className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold transition-all duration-230 cursor-pointer ${
+              isFull 
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                : currentUser?.role === 'tutor' || currentUser?.role === 'admin'
+                  ? 'bg-slate-50 text-slate-350 cursor-not-allowed border border-slate-150'
+                  : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10'
+            }`}
+            id={`enroll_btn_${item.id}`}
+          >
+            {isFull ? 'Limit Reached' : 'Secure Premium Seat'}
+          </button>
+        </div>
       </div>
 
       {/* Pay Mockup Modal overlay */}
@@ -448,6 +467,15 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
           </div>
         </div>
       )}
+
+      {/* Course Reviews Modal */}
+      <ReviewsModal
+        isOpen={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+        title={`Student Reviews for ${item.title}`}
+        targetName={item.title}
+        reviews={classReviews}
+      />
     </motion.div>
   );
 };

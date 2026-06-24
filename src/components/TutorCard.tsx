@@ -4,20 +4,27 @@ import { firestoreService } from '../lib/firestoreService';
 import { UserProfile } from '../types';
 import { Star, Award, GraduationCap, DollarSign, Mail, Send, X, MessageSquareReply } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ReviewsModal } from './ReviewsModal';
 
 interface TutorCardProps {
   tutor: UserProfile;
 }
 
 export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
-  const { currentUser, showToast } = useApp();
+  const { currentUser, showToast, reviews } = useApp();
   const [showChatModal, setShowChatModal] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
 
   // Retrieve detail sections
   const details = tutor.tutorDetails;
   if (!details) return null;
+
+  const tutorReviews = reviews.filter(r => r.tutorId === tutor.uid && r.status === 'approved');
+  const avgRating = tutorReviews.length > 0 
+    ? tutorReviews.reduce((sum, r) => sum + r.rating, 0) / tutorReviews.length 
+    : 5.0;
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,8 +81,15 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
             
             {/* Badges and rating */}
             <div className="flex items-center gap-1.5 mt-1.5">
-              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-              <span className="text-xs font-bold text-slate-800 font-mono">{details.rating?.toFixed(1) || '5.0'}</span>
+              <button 
+                onClick={() => setShowReviewsModal(true)}
+                className="flex items-center gap-1 bg-amber-50 hover:bg-amber-100 border border-amber-100 px-2 py-0.5 rounded-lg text-xs font-bold text-slate-800 transition-colors cursor-pointer"
+                title="View verified tutor reviews"
+              >
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                <span className="font-mono text-xs">{avgRating.toFixed(1)}</span>
+                <span className="text-[9px] text-slate-400">({tutorReviews.length})</span>
+              </button>
               <span className="text-[10px] text-slate-400 font-semibold">({details.experience}+ Years Exp)</span>
             </div>
           </div>
@@ -146,7 +160,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-150 shadow-2xl relative">
             <button 
               onClick={() => setShowChatModal(false)}
-              className="absolute top-4 right-4 text-slate-450 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-50 transition-colors"
+              className="absolute top-4 right-4 text-slate-450 hover:text-slate-650 p-1.5 rounded-xl hover:bg-slate-50 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -204,6 +218,15 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
           </div>
         </div>
       )}
+
+      {/* Reviews Modal */}
+      <ReviewsModal
+        isOpen={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+        title={`Student Reviews for ${tutor.name}`}
+        targetName={tutor.name}
+        reviews={tutorReviews}
+      />
     </motion.div>
   );
 };

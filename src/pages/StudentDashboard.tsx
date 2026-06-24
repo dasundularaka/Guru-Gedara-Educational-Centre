@@ -21,16 +21,68 @@ import {
   Hourglass,
   Sliders,
   TrendingUp,
-  Compass
+  Compass,
+  Star
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
-  const { currentUser, showToast, notifications, refreshNotifications, notificationSettings, updateNotificationSettings, classes, refreshClasses, refreshUserProfile } = useApp();
+  const { currentUser, showToast, notifications, refreshNotifications, notificationSettings, updateNotificationSettings, classes, refreshClasses, refreshUserProfile, createReview } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap'>('schedule');
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Review states
+  const [showSubmitReviewModal, setShowSubmitReviewModal] = useState(false);
+  const [reviewTargetBooking, setReviewTargetBooking] = useState<Booking | null>(null);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewComment, setReviewComment] = useState<string>("");
+  const [submittingReview, setSubmittingReview] = useState<boolean>(false);
+
+  const getRatingLabel = (rating: number) => {
+    switch (rating) {
+      case 5: return "Excellent - Pure Excellence!";
+      case 4: return "Good - Very Helpful";
+      case 3: return "Average - Satisfactory";
+      case 2: return "Poor - Needs Improvement";
+      case 1: return "Very Poor - Disappointing";
+      default: return "";
+    }
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !reviewTargetBooking) return;
+    if (!reviewComment.trim()) {
+      showToast("Please write a short comment about your experience.", "info");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await createReview({
+        studentId: currentUser.uid,
+        studentName: currentUser.name,
+        studentPhotoURL: currentUser.photoURL,
+        tutorId: reviewTargetBooking.tutorId,
+        tutorName: reviewTargetBooking.tutorName,
+        classId: reviewTargetBooking.classId,
+        classTitle: reviewTargetBooking.classTitle,
+        rating: reviewRating,
+        comment: reviewComment,
+        status: 'pending' // Submitted to moderation queue first!
+      });
+      setShowSubmitReviewModal(false);
+      setReviewComment("");
+      setReviewRating(5);
+      setReviewTargetBooking(null);
+    } catch (err) {
+      showToast("Error submitting review.", "error");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     if (!currentUser) return;
@@ -227,7 +279,7 @@ export const StudentDashboard: React.FC = () => {
                       {studentBookings.filter(b => b.status === "active").map((b) => (
                         <div 
                           key={b.id} 
-                          className="p-4 border border-blue-50 bg-blue-50/10 rounded-2xl flex justify-between items-center transition-all hover:border-blue-200"
+                          className="p-4 border border-blue-50 bg-blue-50/10 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all hover:border-blue-200"
                         >
                           <div>
                             <span className="text-[9px] font-bold font-mono tracking-wider text-blue-600 uppercase">Enrolled Course Slot</span>
@@ -236,12 +288,25 @@ export const StudentDashboard: React.FC = () => {
                             <p className="text-[11px] text-blue-600 font-medium mt-1 font-mono">Sessions: {b.dayOfWeek}s at {b.timeSlot}</p>
                           </div>
                           
-                          <button
-                            onClick={() => handleCancelBooking(b.id, b.classId)}
-                            className="p-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 rounded-xl transition-all cursor-pointer font-bold text-xs flex items-center gap-1"
-                          >
-                            <XOctagon className="w-4 h-4" /> Cancel Seat
-                          </button>
+                          <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                              onClick={() => {
+                                setReviewTargetBooking(b);
+                                setReviewRating(5);
+                                setReviewComment("");
+                                setShowSubmitReviewModal(true);
+                              }}
+                              className="flex-1 sm:flex-initial px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 rounded-xl transition-all cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-100"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Rate Class
+                            </button>
+                            <button
+                              onClick={() => handleCancelBooking(b.id, b.classId)}
+                              className="flex-1 sm:flex-initial px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 rounded-xl transition-all cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 border border-red-100"
+                            >
+                              <XOctagon className="w-3.5 h-3.5" /> Cancel
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -522,6 +587,104 @@ export const StudentDashboard: React.FC = () => {
         )}
 
       </div>
+
+      {/* Interactive Review & Rating Submission Modal Overlay */}
+      {showSubmitReviewModal && reviewTargetBooking && (
+        <div className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4" id="submit_review_form_overlay">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-150 shadow-2xl relative font-sans">
+            <button 
+              onClick={() => {
+                setShowSubmitReviewModal(false);
+                setReviewTargetBooking(null);
+              }}
+              className="absolute top-4 right-4 text-slate-450 hover:text-slate-650 p-1.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-5">
+              <span className="text-[9px] uppercase font-mono text-indigo-600 font-bold tracking-wider block">Write a Review</span>
+              <h3 className="text-base font-extrabold text-slate-900 mt-1 leading-snug">Share Your Academic Feedback</h3>
+              <p className="text-xs text-slate-400 mt-1">Submit feedback for your class to guide scholars and help educators improve.</p>
+            </div>
+
+            <div className="bg-indigo-50/30 p-3.5 rounded-2xl border border-indigo-100/40 mb-4 text-xs">
+              <span className="text-[9px] uppercase font-mono text-indigo-600 font-bold tracking-wider block">Course Title</span>
+              <p className="font-bold text-slate-800 mt-0.5">{reviewTargetBooking.classTitle}</p>
+              <p className="text-slate-500 mt-1 text-[10px]">Instructor: <span className="font-semibold text-slate-700">{reviewTargetBooking.tutorName}</span></p>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-4">
+              {/* Star Selector */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-2">Your Rating Grade:</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewRating(star)}
+                        className="p-1 hover:scale-110 transition-transform cursor-pointer"
+                      >
+                        <Star 
+                          className={`w-7 h-7 ${
+                            star <= reviewRating 
+                              ? 'fill-amber-400 text-amber-400' 
+                              : 'text-slate-200 fill-slate-200'
+                          }`} 
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-600 ml-1">
+                    {getRatingLabel(reviewRating)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Comment text area */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-2">Written Review Comments:</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="How was the teaching style? Were the custom slide workbook exercises useful? Explain what went well or what could be improved..."
+                  className="w-full text-xs rounded-xl p-3 border border-slate-200 outline-none focus:border-indigo-600 font-sans leading-relaxed bg-slate-50 focus:bg-white transition-all focus:ring-4 focus:ring-indigo-100"
+                ></textarea>
+              </div>
+
+              {/* Terms hint */}
+              <p className="text-[10px] text-slate-400 italic">
+                * Note: To prevent spamming, your submitted review enters our admin moderation pipeline and will display publicly once approved.
+              </p>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSubmitReviewModal(false);
+                    setReviewTargetBooking(null);
+                  }}
+                  className="w-1/2 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-650 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReview || !reviewComment.trim()}
+                  className="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {submittingReview ? 'Submitting...' : 'Submit Review'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };

@@ -44,18 +44,27 @@ import {
   EyeOff,
   BarChart3,
   Download,
-  Sparkles
+  Sparkles,
+  Star
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { currentUser, showToast, refreshClasses } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins'>('analytics');
+  const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview } = useApp();
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [classesList, setClassesList] = useState<ClassItem[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
   const [bookingsList, setBookingsList] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Review status filters
+  const [reviewFilterStatus, setReviewFilterStatus] = useState<string>("all");
+
+  const filteredReviews = (reviews || []).filter(r => {
+    if (reviewFilterStatus === "all") return true;
+    return r.status === reviewFilterStatus;
+  });
 
   // Recharts Monthly Trends Data processor
   const getMonthlyData = () => {
@@ -928,6 +937,13 @@ export const AdminDashboard: React.FC = () => {
             >
               <ShieldCheck className="w-4 h-4 text-emerald-500" /> Administrative Staff
             </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'reviews' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+              id="admin_tab_reviews"
+            >
+              <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse" /> Moderate Reviews
+            </button>
           </div>
         </div>
 
@@ -1226,14 +1242,14 @@ export const AdminDashboard: React.FC = () => {
                                   )}
                                   <button 
                                     onClick={() => openEditModal('payment', p)}
-                                    className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-150 text-blue-600"
+                                    className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-150 text-blue-600 cursor-pointer"
                                     title="Edit payment details"
                                   >
                                     <Edit className="w-3.5 h-3.5" />
                                   </button>
                                   <button 
                                     onClick={() => handleDeletePayment(p.id, p.classTitle || "Transaction Record") }
-                                    className="p-1 rounded bg-red-50 hover:bg-red-100 border border-red-105 text-red-600"
+                                    className="p-1 rounded bg-red-50 hover:bg-red-100 border border-red-105 text-red-600 cursor-pointer"
                                     title="Delete transaction record"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1537,7 +1553,7 @@ export const AdminDashboard: React.FC = () => {
                             ) : (
                               <button
                                 onClick={() => handleAssignTutorUsername(tut.uid)}
-                                className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-700 hover:bg-indigo-100 rounded text-[9px] font-black transition-colors"
+                                className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-700 hover:bg-indigo-100 rounded text-[9px] font-black transition-colors cursor-pointer"
                               >
                                 Allocate ID
                               </button>
@@ -1922,6 +1938,204 @@ export const AdminDashboard: React.FC = () => {
               </motion.div>
             )}
 
+            {/* Tab 8: reviews moderation queue */}
+            {activeTab === 'reviews' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm font-sans space-y-6 animate-fade-in"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 border-gray-150/60">
+                  <div>
+                    <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                      <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                      Student Reviews Moderation Office
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Approve or delete reviews left by students to ensure academic standards and prevent spamming.
+                    </p>
+                  </div>
+
+                  {/* Filter tabs */}
+                  <div className="flex gap-1.5 bg-slate-50 border border-slate-150 p-1 rounded-xl text-xs font-bold text-slate-500">
+                    {['all', 'pending', 'approved', 'flagged'].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setReviewFilterStatus(status)}
+                        className={`px-3 py-1 rounded-lg transition-all capitalize cursor-pointer ${
+                          reviewFilterStatus === status 
+                            ? 'bg-blue-600 text-white shadow-sm' 
+                            : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reviews List */}
+                <div className="space-y-4">
+                  {filteredReviews.length === 0 ? (
+                    <div className="text-center py-16 bg-slate-50 border border-slate-100 rounded-3xl">
+                      <Star className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                      <h4 className="text-sm font-extrabold text-slate-800">No matching reviews</h4>
+                      <p className="text-xs text-slate-400 mt-1">There are no reviews matching your status filter selection.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredReviews.map((review) => {
+                        const isPending = review.status === 'pending';
+                        const isApproved = review.status === 'approved';
+                        const isFlagged = review.status === 'flagged';
+
+                        return (
+                          <div 
+                            key={review.id} 
+                            className={`p-5 rounded-2xl border transition-all ${
+                              isPending 
+                                ? 'bg-amber-50/25 border-amber-200 shadow-sm shadow-amber-100/10' 
+                                : isFlagged 
+                                  ? 'bg-red-50/10 border-red-200' 
+                                  : 'bg-white border-slate-150 shadow-xs'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex items-center gap-2.5">
+                                {review.studentPhotoURL ? (
+                                  <img 
+                                    src={review.studentPhotoURL} 
+                                    alt={review.studentName} 
+                                    className="w-8 h-8 rounded-full object-cover border border-slate-200" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center">
+                                    {review.studentName.substring(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-xs font-bold text-slate-850 block leading-tight">{review.studentName}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium block mt-1">{new Date(review.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
+                                </div>
+                              </div>
+
+                              {/* Status badges */}
+                              <div>
+                                {isPending && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    Pending Moderation
+                                  </span>
+                                )}
+                                {isApproved && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    Approved
+                                  </span>
+                                )}
+                                {isFlagged && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-800 border border-red-200">
+                                    Flagged
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Ratings stars */}
+                            <div className="flex items-center gap-1.5 mt-3">
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star 
+                                    key={star} 
+                                    className={`w-3.5 h-3.5 ${
+                                      star <= review.rating 
+                                        ? 'fill-amber-400 text-amber-400' 
+                                        : 'text-slate-150 fill-slate-150'
+                                    }`} 
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-[10px] font-mono font-bold text-slate-500">
+                                ({review.rating}.0 / 5)
+                              </span>
+                            </div>
+
+                            {/* Targets */}
+                            <div className="mt-2 space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px] text-slate-655 font-medium">
+                              {review.classTitle && (
+                                <p>
+                                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider font-mono">Course:</span> {review.classTitle}
+                                </p>
+                              )}
+                              {review.tutorName && (
+                                <p>
+                                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider font-mono">Faculty:</span> Dr. {review.tutorName}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Comment */}
+                            <p className="text-xs text-slate-650 leading-relaxed font-sans mt-3 border-l-2 border-slate-200 pl-3 italic">
+                              "{review.comment}"
+                            </p>
+
+                            {/* Moderation actions */}
+                            <div className="flex gap-2.5 mt-4 border-t border-slate-105 pt-3 flex-wrap">
+                              {!isApproved && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await updateReviewStatus(review.id, 'approved');
+                                      showToast("Review approved successfully.", "success");
+                                    } catch (e) {
+                                      showToast("Error updating review status.", "error");
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-150 text-emerald-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                >
+                                  Approve
+                                </button>
+                              )}
+                              {!isFlagged && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await updateReviewStatus(review.id, 'flagged');
+                                      showToast("Review flagged.", "info");
+                                    } catch (e) {
+                                      showToast("Error updating review status.", "error");
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-yellow-50 hover:bg-yellow-100 border border-yellow-150 text-yellow-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                >
+                                  Flag Content
+                                </button>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm("Are you sure you want to delete this student review completely?")) {
+                                    try {
+                                      await deleteReview(review.id);
+                                      showToast("Review deleted successfully.", "success");
+                                    } catch (e) {
+                                      showToast("Error deleting review.", "error");
+                                    }
+                                  }
+                                }}
+                                className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 border border-red-150 text-red-650 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ml-auto"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
           </div>
         )}
 
@@ -2073,7 +2287,7 @@ export const AdminDashboard: React.FC = () => {
 
                       {!autoGeneratePassword && (
                         <div>
-                          <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Set Password</label>
+                          <label className="block text-[9px] font-bold text-gray-550 uppercase tracking-widest font-mono mb-1">Set Password</label>
                           <div className="relative">
                             <input 
                               required={!autoGeneratePassword}
@@ -2086,7 +2300,7 @@ export const AdminDashboard: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setShowPasswordText(!showPasswordText)}
-                              className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                              className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                             >
                               {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
@@ -2245,7 +2459,7 @@ export const AdminDashboard: React.FC = () => {
 
                       {!autoGeneratePassword && (
                         <div>
-                          <label className="block text-[9px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Set Password</label>
+                          <label className="block text-[9px] font-bold text-gray-550 uppercase tracking-widest font-mono mb-1">Set Password</label>
                           <div className="relative">
                             <input 
                               required={!autoGeneratePassword}
@@ -2258,7 +2472,7 @@ export const AdminDashboard: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setShowPasswordText(!showPasswordText)}
-                              className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                              className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                             >
                               {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
