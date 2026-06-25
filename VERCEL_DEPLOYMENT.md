@@ -38,6 +38,21 @@ Your backend is already successfully provisioned and secured on Firebase. The se
 
 ---
 
-## 4. Why Vercel Works with this Setup
+## 4. Enabling Google Sign-In on Your Vercel Domain
+
+For Google Sign-In to succeed on your custom Vercel domain (e.g., `gurugedaraedu.vercel.app` or `your-custom-domain.com`), you must add that domain to the **Authorized Domains** whitelist in your Firebase Console. Without this step, Firebase will block the OAuth popup connection with an `auth/unauthorized-domain` error.
+
+### Step-by-Step Instructions:
+1. Open the [Firebase Console](https://console.firebase.google.com/) and click on your project **`jittery-avatar-nrwfn`**.
+2. From the left sidebar, click on **Authentication**.
+3. At the top of the Authentication panel, click on the **Settings** tab.
+4. In the left-hand navigation list of the Settings panel, click on **Authorized domains**.
+5. Click the **Add domain** button.
+6. Enter your exact Vercel deployment URL domain (e.g., `gurugedaraedu.vercel.app`), without the `https://` prefix or any trailing slashes.
+7. Click **Add**.
+
+---
+
+## 5. Why Vercel Works with this Setup
 * **`vercel.json` Support**: The project includes a pre-configured `vercel.json` file in the root directory. This tells Vercel's server to redirect all client-side router requests (like `/classes`, `/students`, `/payments`) back to `/index.html` seamlessly so that refresh actions do not throw a `404 Not Found` error.
 * **Direct Serverless Connection**: Because the database client (`src/lib/firebase.ts`) is configured with proxy-friendly force long-polling configurations, your client-side UI deployed on Vercel communicates directly and securely with your Firebase Firestore instance and Auth instances from anywhere on the internet!
