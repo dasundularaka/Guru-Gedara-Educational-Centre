@@ -7,8 +7,8 @@ This guide describes how to host your **gurugedara** frontend user interface (UI
 ## 1. Firebase Backend (Already Active)
 Your backend is already successfully provisioned and secured on Firebase. The security rules (`firestore.rules`) have been deployed to your active Firebase Project.
 
-* **Firebase Project ID:** `jittery-avatar-nrwfn`
-* **Firestore Custom Database ID:** `ai-studio-5c44d2d2-5b10-4b50-b344-701e5e839624`
+* **Firebase Project ID:** `gurugedara-prod`
+* **Firestore Custom Database ID:** `(default)`
 
 ---
 
@@ -26,13 +26,13 @@ Your backend is already successfully provisioned and secured on Firebase. The se
 
 | Key | Value |
 | :--- | :--- |
-| **`VITE_FIREBASE_API_KEY`** | `AIzaSyDggYCXk67au0H7W7fOS2EpqqjEGMJeJLU` |
-| **`VITE_FIREBASE_AUTH_DOMAIN`** | `jittery-avatar-nrwfn.firebaseapp.com` |
-| **`VITE_FIREBASE_PROJECT_ID`** | `jittery-avatar-nrwfn` |
-| **`VITE_FIREBASE_STORAGE_BUCKET`** | `jittery-avatar-nrwfn.firebasestorage.app` |
-| **`VITE_FIREBASE_MESSAGING_SENDER_ID`** | `726461356342` |
-| **`VITE_FIREBASE_APP_ID`** | `1:726461356342:web:6a2fa99cdcd210d4b5bb97` |
-| **`VITE_FIREBASE_DATABASE_ID`** | `ai-studio-5c44d2d2-5b10-4b50-b344-701e5e839624` |
+| **`VITE_FIREBASE_API_KEY`** | `AIzaSyAeNptO2frLoS2ZCb82Eb6GgZoip5q2C0I` |
+| **`VITE_FIREBASE_AUTH_DOMAIN`** | `gurugedara-prod.firebaseapp.com` |
+| **`VITE_FIREBASE_PROJECT_ID`** | `gurugedara-prod` |
+| **`VITE_FIREBASE_STORAGE_BUCKET`** | `gurugedara-prod.firebasestorage.app` |
+| **`VITE_FIREBASE_MESSAGING_SENDER_ID`** | `380777950459` |
+| **`VITE_FIREBASE_APP_ID`** | `1:380777950459:web:b991891b6bfd667d90945e` |
+| **`VITE_FIREBASE_DATABASE_ID`** | `(default)` |
 
 5. Click **Deploy**. Vercel will build the frontend and serve your static web application under a fast production domain!
 
@@ -42,14 +42,31 @@ Your backend is already successfully provisioned and secured on Firebase. The se
 
 For Google Sign-In to succeed on your custom Vercel domain (e.g., `gurugedaraedu.vercel.app` or `your-custom-domain.com`), you must add that domain to the **Authorized Domains** whitelist in your Firebase Console. Without this step, Firebase will block the OAuth popup connection with an `auth/unauthorized-domain` error.
 
-### Step-by-Step Instructions:
-1. Open the [Firebase Console](https://console.firebase.google.com/) and click on your project **`jittery-avatar-nrwfn`**.
-2. From the left sidebar, click on **Authentication**.
-3. At the top of the Authentication panel, click on the **Settings** tab.
-4. In the left-hand navigation list of the Settings panel, click on **Authorized domains**.
+### Method A: Using the Firebase Console Settings Tab
+1. Open the [Firebase Console](https://console.firebase.google.com/) and click on your project **`gurugedara-prod`**.
+2. From the left-hand sidebar menu, click on **Authentication**.
+3. Look at the horizontal tabs at the top of the main Authentication dashboard: **`Users`**, **`Sign-in method`**, **`Templates`**, and **`Settings`**. Click on the **`Settings`** tab.
+4. On the left side of this newly opened settings page, you will see a small vertical menu (usually containing items like *Authorized domains*, *User deletion*, *SMS region policy*). Click on **Authorized domains**.
 5. Click the **Add domain** button.
 6. Enter your exact Vercel deployment URL domain (e.g., `gurugedaraedu.vercel.app`), without the `https://` prefix or any trailing slashes.
 7. Click **Add**.
+
+---
+
+### Method B: Google Cloud Console Fallback (If Authorized Domains is missing or hidden in Firebase)
+Since Firebase Authentication runs entirely on top of Google Cloud Identity services, you can add your custom domain directly through the Google Cloud Console. This is a robust, fail-proof alternative:
+
+1. Open the [Google Cloud Console Credentials Page](https://console.cloud.google.com/apis/credentials).
+2. Select your project **`gurugedara-prod`** from the project drop-down selector at the top menu bar.
+3. Look under the section labeled **OAuth 2.0 Client IDs**.
+4. Locate the client ID used for your web app (typically named **`Web client (auto created by Google Service)`**) and click the **Pencil icon (Edit)** on the right-hand side.
+5. Scroll down to the **Authorized JavaScript origins** section.
+6. Click **+ ADD URI** and paste your Vercel deployment URL:
+   * `https://gurugedaraedu.vercel.app`
+7. Scroll down to the **Authorized redirect URIs** section.
+8. Click **+ ADD URI** and paste your callback redirection URL:
+   * `https://gurugedaraedu.vercel.app/__/auth/handler`
+9. Click the **Save** button at the bottom of the page. Allow up to 5 minutes for Google's global OAuth servers to replicate this configuration.
 
 ---
 
