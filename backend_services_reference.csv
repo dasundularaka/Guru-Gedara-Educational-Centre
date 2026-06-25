@@ -1,0 +1,137 @@
+"ID","Component Name","File Path","Description","Code Segment"
+"1","Firestore Security Rules","/firestore.rules","Enforces role-based access control (RBAC) at the database layer, checking permissions for students, tutors, and administrators.","rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() && (request.auth.uid == 'admin_demo' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+    function isTutor() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'tutor';
+    }
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwner(userId) || isAdmin();
+    }
+    match /classes/{classId} {
+      allow read: if true;
+      allow write: if isTutor() || isAdmin();
+    }
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || resource.data.userId == 'all');
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}"
+"2","Firebase Setup Client","/src/lib/firebase.ts","Initializes the Firebase Client SDK app and exports Firestore and Auth client objects with special configuration overrides for sandboxed frames.","import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { initializeFirestore } from 'firebase/firestore';
+import firebaseConfigData from '../../firebase-applet-config.json';
+
+const firebaseConfig = {
+  apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || firebaseConfigData.apiKey,
+  authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigData.authDomain,
+  projectId: (import.meta as any).env.VITE_FIREBASE_PROJECT_ID || firebaseConfigData.projectId,
+  storageBucket: (import.meta as any).env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigData.storageBucket,
+  messagingSenderId: (import.meta as any).env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigData.messagingSenderId,
+  appId: (import.meta as any).env.VITE_FIREBASE_APP_ID || firebaseConfigData.appId,
+  firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || firebaseConfigData.firestoreDatabaseId
+};
+
+const app = initializeApp(firebaseConfig);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+}, firebaseConfig.firestoreDatabaseId || '(default)');
+
+export const auth = getAuth(app);
+export { firebaseConfig };
+export default app;"
+"3","Delete User Profile Method","/src/lib/firestoreService.ts (User Deletion)","Asynchronously deletes a user profile document from Firestore with dynamic LocalStorage fallback support.","async deleteUserProfile(uid: string): Promise<void> {
+  if (isUsingCloud) {
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+      return;
+    } catch (e) {
+      console.warn(""Fallback to delete user locally"", e);
+    }
+  }
+  const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
+  const filteredTutors = tutors.filter(t => t.uid !== uid);
+  saveFallback('local_users_tutors', filteredTutors);
+
+  const registered = handleFallback<UserProfile>('local_registered_users', []);
+  const filteredReg = registered.filter(r => r.uid !== uid);
+  saveFallback('local_registered_users', filteredReg);
+}"
+"4","Create & Edit Tuition Class Subject","/src/lib/firestoreService.ts (Classes management)","Admin and tutor methods for adding, launching, editing, and deleting classes in the curriculum directory.","async createClass(classData: Omit<ClassItem, 'id'>): Promise<ClassItem> {
+  const id = ""class_"" + Math.random().toString(36).substr(2, 9);
+  const newClass: ClassItem = { ...classData, id };
+  if (isUsingCloud) {
+    try {
+      await setDoc(doc(db, 'classes', id), newClass);
+    } catch (e) {
+      console.warn(""Fallback local creation for class"", e);
+    }
+  }
+  const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
+  const mergedList = [...items.filter(c => c.id !== id), newClass];
+  saveFallback('local_classes', mergedList);
+  return newClass;
+}"
+"5","Create ledger transaction","/src/lib/firestoreService.ts (Financial Tracker)","Saves tuition transactions in Firestore or local storage, computing revenue and keeping student account ledgers balanced.","async createPayment(studentId: string, studentName: string, classId: string, classTitle: string, amount: number, paymentMethod: string, status: 'paid' | 'pending' | 'failed' = 'paid'): Promise<Payment> {
+  const id = ""pay_"" + Math.random().toString(36).substr(2, 9);
+  const newPay: Payment = {
+    id,
+    studentId,
+    studentName,
+    classId,
+    classTitle,
+    amount,
+    date: new Date().toISOString(),
+    status,
+    paymentMethod
+  };
+  if (isUsingCloud) {
+    try {
+      await setDoc(doc(db, 'payments', id), newPay);
+    } catch (e) {
+      console.warn(""Fallback triggers local payment storage"", e);
+    }
+  }
+  const localPayments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
+  const mergedList = [...localPayments.filter(p => p.id !== id), newPay];
+  saveFallback('local_payments', mergedList);
+  return newPay;
+}"
+"6","Update Review Status","/src/lib/firestoreService.ts (Moderation Queue)","Allows administrators to approve, reject, flag, or completely delete student-authored course reviews.","async updateReviewStatus(reviewId: string, status: 'approved' | 'rejected' | 'flagged'): Promise<void> {
+  if (isUsingCloud) {
+    try {
+      await updateDoc(doc(db, 'reviews', reviewId), { status });
+      return;
+    } catch (e) {
+      console.warn(""Fallback local review status modification"", e);
+    }
+  }
+  const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
+  const updated = reviews.map(r => r.id === reviewId ? { ...r, status } : r);
+  saveFallback('local_reviews', updated);
+}"
