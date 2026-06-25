@@ -13,7 +13,7 @@ import {
   arrayUnion,
   increment
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review } from '../types';
 import { 
   INITIAL_CLASSES, 
@@ -27,6 +27,7 @@ import {
 
 // Track connection model
 let isUsingCloud = true;
+let isOriginalCloud = true;
 
 // Helper to check and fallback
 function handleFallback<T>(localKey: string, initialData: T[]): T[] {
@@ -46,13 +47,30 @@ function saveFallback<T>(localKey: string, data: T[]): void {
   localStorage.setItem(localKey, JSON.stringify(data));
 }
 
-export const firestoreService = {
+// Dynamically synchronize cloud flag based on whether there's a live Firebase Auth session
+// vs. a simulated sandbox local session. This prevents unauthenticated cloud queries from failing
+// and overwriting locally saved additions, edits, or deletions in sandbox mode.
+function syncCloudFlag() {
+  if (!isOriginalCloud) {
+    isUsingCloud = false;
+    return;
+  }
+  const hasLocalSession = !!localStorage.getItem('local_running_session');
+  if (hasLocalSession && !auth.currentUser) {
+    isUsingCloud = false;
+  } else {
+    isUsingCloud = true;
+  }
+}
+
+const firestoreServiceRaw = {
   isCloudConnected() {
     return isUsingCloud;
   },
 
   setCloudConnected(status: boolean) {
-    isUsingCloud = status;
+    isOriginalCloud = status;
+    syncCloudFlag();
   },
 
   // -------------------------------------------------------------
@@ -906,3 +924,10 @@ export const firestoreService = {
     saveFallback('local_reviews', filtered);
   }
 };
+
+export const firestoreService = new Proxy(firestoreServiceRaw, {
+  get(target: any, prop: string | symbol, receiver: any) {
+    syncCloudFlag();
+    return Reflect.get(target, prop, receiver);
+  }
+});

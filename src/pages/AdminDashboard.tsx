@@ -204,10 +204,9 @@ export const AdminDashboard: React.FC = () => {
   const [tutorSearchName, setTutorSearchName] = useState("");
   const [tutorSearchUsername, setTutorSearchUsername] = useState("");
 
-  // Reusable custom delete confirmation state
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
-    type: 'student' | 'tutor' | 'class' | 'payment' | 'user';
+    type: 'student' | 'tutor' | 'class' | 'payment' | 'user' | 'review';
     id: string;
     title: string;
   }>({
@@ -670,6 +669,9 @@ export const AdminDashboard: React.FC = () => {
       } else if (type === 'payment') {
         await firestoreService.deletePayment(id);
         showToast("Ledger transaction record deleted successfully.", "success");
+      } else if (type === 'review') {
+        await deleteReview(id);
+        showToast("Review deleted successfully.", "success");
       }
       setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
       await fetchAdminDatasets();
@@ -2112,15 +2114,13 @@ export const AdminDashboard: React.FC = () => {
                                 </button>
                               )}
                               <button
-                                onClick={async () => {
-                                  if (window.confirm("Are you sure you want to delete this student review completely?")) {
-                                    try {
-                                      await deleteReview(review.id);
-                                      showToast("Review deleted successfully.", "success");
-                                    } catch (e) {
-                                      showToast("Error deleting review.", "error");
-                                    }
-                                  }
+                                onClick={() => {
+                                  setDeleteConfirm({
+                                    isOpen: true,
+                                    type: 'review',
+                                    id: review.id,
+                                    title: `${review.studentName}'s review`
+                                  });
                                 }}
                                 className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 border border-red-150 text-red-650 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ml-auto"
                               >

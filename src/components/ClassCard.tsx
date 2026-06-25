@@ -21,14 +21,14 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
 
   // Secure payment gateway state variables
   const [gatewayType, setGatewayType] = useState<'stripe' | 'paypal'>('stripe');
-  const [cardName, setCardName] = useState("");
-  const [cardNumber, setCardNumber] = useState("4242 •••• •••• 4242");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvc, setCardCvc] = useState("");
+  const [cardName, setCardName] = useState("Alex Mercer");
+  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
+  const [cardExpiry, setCardExpiry] = useState("12/28");
+  const [cardCvc, setCardCvc] = useState("242");
 
-  const [payPalEmail, setPayPalEmail] = useState("");
-  const [payPalPassword, setPayPalPassword] = useState("");
-  const [isPayPalLoggedIn, setIsPayPalLoggedIn] = useState(false);
+  const [payPalEmail, setPayPalEmail] = useState("alex.mercer@sandbox.com");
+  const [payPalPassword, setPayPalPassword] = useState("sandbox123");
+  const [isPayPalLoggedIn, setIsPayPalLoggedIn] = useState(true);
   const [showPayPalLoginForm, setShowPayPalLoginForm] = useState(false);
 
   const spotsLeft = item.maxSlots - item.bookedSlots;

@@ -19,9 +19,13 @@ const app = initializeApp(firebaseConfig);
 // Critical: In AI Studio Firebase setup, the firestore database ID may be custom.
 // We must initialize standard firestore with this custom ID and use force long-polling/fetch-streams disabled
 // to survive container networks, sandboxed iframes, or proxy connection restrictions.
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
-}, firebaseConfig.firestoreDatabaseId || '(default)');
+const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)' 
+  ? firebaseConfig.firestoreDatabaseId 
+  : undefined;
+
+export const db = dbId
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, dbId)
+  : initializeFirestore(app, { experimentalForceLongPolling: true });
 
 export const auth = getAuth(app);
 export { firebaseConfig };

@@ -48,6 +48,17 @@ export const TutorDashboard: React.FC = () => {
   const [newImageUrl, setNewImageUrl] = useState("");
   const [generatingBanner, setGeneratingBanner] = useState(false);
 
+  // Custom state-driven delete confirmation modal
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    classId: string;
+    classTitle: string;
+  }>({
+    isOpen: false,
+    classId: '',
+    classTitle: ''
+  });
+
   // Tutor Profile states
   const [profName, setProfName] = useState("");
   const [profQualification, setProfQualification] = useState("");
@@ -148,16 +159,28 @@ export const TutorDashboard: React.FC = () => {
     setShowAddClass(true);
   };
 
-  const handleDeleteClass = async (classId: string, classTitle: string) => {
-    if (window.confirm(`Are you sure you want to permanently delete '${classTitle}' from your curriculum?`)) {
-      try {
-        await firestoreService.deleteClass(classId);
-        showToast(`Course '${classTitle}' deleted successfully.`, "success");
-        await refreshClasses();
-        await fetchTutorData();
-      } catch (e) {
-        showToast("Failed to delete class.", "error");
-      }
+  const handleDeleteClass = (classId: string, classTitle: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      classId,
+      classTitle
+    });
+  };
+
+  const executeClassDeletion = async () => {
+    const { classId, classTitle } = deleteConfirm;
+    if (!classId) return;
+    try {
+      setLoading(true);
+      await firestoreService.deleteClass(classId);
+      showToast(`Course '${classTitle}' deleted successfully.`, "success");
+      setDeleteConfirm({ isOpen: false, classId: '', classTitle: '' });
+      await refreshClasses();
+      await fetchTutorData();
+    } catch (e) {
+      showToast("Failed to delete class.", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -988,6 +1011,37 @@ export const TutorDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom state-driven deletion confirmation modal */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl text-center relative animate-fade-in font-sans">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto mb-4 animate-bounce">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-bold text-slate-900 mb-2">Delete Course</h2>
+            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+              Are you sure you want to permanently delete <span className="font-extrabold text-blue-950">"{deleteConfirm.classTitle}"</span> from your curriculum? All current registrations and slots will be permanently affected.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm({ isOpen: false, classId: '', classTitle: '' })}
+                className="w-1/2 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-750 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Keep Class
+              </button>
+              <button
+                type="button"
+                onClick={executeClassDeletion}
+                className="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Yes, Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

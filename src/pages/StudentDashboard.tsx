@@ -40,6 +40,19 @@ export const StudentDashboard: React.FC = () => {
   const [reviewComment, setReviewComment] = useState<string>("");
   const [submittingReview, setSubmittingReview] = useState<boolean>(false);
 
+  // Custom state-driven cancellation confirm modal
+  const [cancelConfirm, setCancelConfirm] = useState<{
+    isOpen: boolean;
+    bookingId: string;
+    classId: string;
+    classTitle: string;
+  }>({
+    isOpen: false,
+    bookingId: '',
+    classId: '',
+    classTitle: ''
+  });
+
   const getRatingLabel = (rating: number) => {
     switch (rating) {
       case 5: return "Excellent - Pure Excellence!";
@@ -112,23 +125,37 @@ export const StudentDashboard: React.FC = () => {
     refreshClasses();
   }, [currentUser?.uid]);
 
-  const handleCancelBooking = async (bookingId: string, classId: string) => {
-    if (!window.confirm("Are you sure you want to cancel this tuition slot?")) return;
+  const handleCancelBooking = (bookingId: string, classId: string, classTitle: string) => {
+    setCancelConfirm({
+      isOpen: true,
+      bookingId,
+      classId,
+      classTitle
+    });
+  };
+
+  const executeCancellation = async () => {
+    const { bookingId, classId, classTitle } = cancelConfirm;
+    if (!bookingId) return;
     try {
+      setLoading(true);
       await firestoreService.cancelBooking(bookingId, classId);
       
       // Trigger notification alert
       await firestoreService.triggerNotification(
         currentUser!.uid,
         "Tuition Class Cancelled",
-        "Your booking slot has been successfully removed. Refund evaluation is on review.",
+        `Your booking slot for '${classTitle}' has been successfully removed. Refund evaluation is on review.`,
         "reminder"
       );
       
       showToast("Class booking cancelled successfully.", "info");
+      setCancelConfirm({ isOpen: false, bookingId: '', classId: '', classTitle: '' });
       await fetchDashboardData();
     } catch (e) {
       showToast("Failed booking cancellation.", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -301,7 +328,7 @@ export const StudentDashboard: React.FC = () => {
                               <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Rate Class
                             </button>
                             <button
-                              onClick={() => handleCancelBooking(b.id, b.classId)}
+                              onClick={() => handleCancelBooking(b.id, b.classId, b.classTitle)}
                               className="flex-1 sm:flex-initial px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 rounded-xl transition-all cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 border border-red-100"
                             >
                               <XOctagon className="w-3.5 h-3.5" /> Cancel
@@ -682,6 +709,37 @@ export const StudentDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom state-driven cancellation confirmation modal */}
+      {cancelConfirm.isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl text-center relative animate-fade-in font-sans">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto mb-4 animate-bounce">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-bold text-slate-900 mb-2">Cancel Enrollment</h2>
+            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+              Are you sure you want to withdraw and cancel your tuition seat in <span className="font-extrabold text-indigo-950">"{cancelConfirm.classTitle}"</span>? Refund evaluations are subject to review.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => setCancelConfirm({ isOpen: false, bookingId: '', classId: '', classTitle: '' })}
+                className="w-1/2 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Keep Booking
+              </button>
+              <button
+                type="button"
+                onClick={executeCancellation}
+                className="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Yes, Cancel Seat
+              </button>
+            </div>
           </div>
         </div>
       )}

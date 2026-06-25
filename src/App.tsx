@@ -42,7 +42,7 @@ function DashboardRouter() {
 
 function MainAppContent() {
   const [currentTab, setCurrentTab] = useState('home');
-  const { toast, hideToast, cloudSync, currentUser } = useApp();
+  const { toast, hideToast, cloudSync, currentUser, loading } = useApp();
 
   // Reset tab selection to matching home dashboard once logged in if they click Auth
   useEffect(() => {
@@ -52,6 +52,47 @@ function MainAppContent() {
       setCurrentTab('home');
     }
   }, [currentUser, currentTab]);
+
+  if (loading) {
+    return (
+      <div 
+        className="flex flex-col items-center justify-center min-h-screen bg-slate-50/50" 
+        id="central_loading_screen"
+      >
+        <div className="flex flex-col items-center space-y-6 max-w-sm px-6 py-8 bg-white border border-slate-100 rounded-3xl shadow-xl shadow-slate-100/50 text-center">
+          <div className="relative flex items-center justify-center">
+            {/* outer aesthetic ring */}
+            <div className="absolute w-16 h-16 border-4 border-blue-100 rounded-full"></div>
+            {/* dynamic motion spinner */}
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+              className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full z-10"
+              id="central_spinner_ring"
+            />
+            {/* center micro icon or dot */}
+            <div className="absolute w-3.5 h-3.5 bg-blue-600 rounded-full animate-pulse z-20"></div>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold tracking-tight text-slate-800 font-sans">gurugedaraedu</h3>
+            <p className="text-xs text-slate-500 font-mono tracking-wider uppercase animate-pulse">
+              Authenticating Session
+            </p>
+          </div>
+          
+          <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-blue-500 rounded-full"
+              animate={{ x: [-40, 40] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              style={{ width: '60%' }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (currentUser?.isPasswordResetRequired) {
     return (
