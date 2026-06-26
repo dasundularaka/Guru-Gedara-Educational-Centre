@@ -1368,7 +1368,7 @@ export const AdminDashboard: React.FC = () => {
 
                             <div className="flex gap-1.5 flex-wrap pt-1 items-center">
                               <span className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-150 rounded text-[9px] font-extrabold">
-                                {stud.studentDetails?.grade || stud.grade || 'Grade 11'}
+                                {stud.studentDetails?.grade || (stud as any).grade || 'Grade 11'}
                               </span>
                               {stud.username && (
                                 <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-800 border border-slate-205 rounded font-mono text-[9px] font-black">
@@ -1547,7 +1547,7 @@ export const AdminDashboard: React.FC = () => {
                           <p className="text-gray-500 text-[11px]">Degree: <span className="font-bold text-gray-800 font-sans">{tut.tutorDetails?.qualification || 'Certified Professional'}</span></p>
                           
                           <div className="flex gap-1.5 flex-wrap pt-1">
-                            <span className="font-extrabold text-emerald-850 font-mono text-[11px] bg-emerald-50 px-2 py-0.5 border border-emerald-150 rounded">${tut.tutorDetails?.hourlyRate || tut.hourlyRate || 35}/Hr</span>
+                            <span className="font-extrabold text-emerald-850 font-mono text-[11px] bg-emerald-50 px-2 py-0.5 border border-emerald-150 rounded">${tut.tutorDetails?.hourlyRate || (tut as any).hourlyRate || 35}/Hr</span>
                             {tut.username ? (
                               <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-800 border border-slate-205 rounded font-mono text-[9px] font-bold">
                                 ID: {tut.username}

@@ -29,6 +29,37 @@ import {
 let isUsingCloud = true;
 let isOriginalCloud = true;
 
+// Helper to stringify objects with circular reference protection and custom type exclusions
+export function safeStringify(obj: any): string {
+  try {
+    const cache = new Set();
+    const result = JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (cache.has(value)) {
+          return undefined; // Duplicate reference found, prune it
+        }
+        // Exclude known internal Firebase/Firestore classes with circular/complex internals
+        if (value.constructor && (
+          value.constructor.name === 'Firestore' || 
+          value.constructor.name === 'Auth' || 
+          value.constructor.name === 'Y2' || 
+          value.constructor.name === 'Ka' ||
+          value.constructor.name === 'FirebaseAppImpl'
+        )) {
+          return undefined;
+        }
+        cache.add(value);
+      }
+      return value;
+    });
+    cache.clear();
+    return result;
+  } catch (err) {
+    console.warn("[safeStringify] Error stringifying object, returning fallback empty object structure", err);
+    return '{}';
+  }
+}
+
 // Helper to check and fallback
 function handleFallback<T>(localKey: string, initialData: T[]): T[] {
   const local = localStorage.getItem(localKey);
@@ -39,12 +70,20 @@ function handleFallback<T>(localKey: string, initialData: T[]): T[] {
       // ignore
     }
   }
-  localStorage.setItem(localKey, JSON.stringify(initialData));
+  try {
+    localStorage.setItem(localKey, safeStringify(initialData));
+  } catch (err) {
+    console.warn(`[safeStringify] Failed to save initial local storage for key ${localKey}`, err);
+  }
   return initialData;
 }
 
 function saveFallback<T>(localKey: string, data: T[]): void {
-  localStorage.setItem(localKey, JSON.stringify(data));
+  try {
+    localStorage.setItem(localKey, safeStringify(data));
+  } catch (err) {
+    console.warn(`[safeStringify] Failed to save fallback local storage for key ${localKey}`, err);
+  }
 }
 
 // Dynamically synchronize cloud flag based on whether there's a live Firebase Auth session
@@ -343,7 +382,11 @@ const firestoreServiceRaw = {
     const overridesJSON = localStorage.getItem('local_password_overrides');
     const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
     overrides[email.toLowerCase()] = newPass;
-    localStorage.setItem('local_password_overrides', JSON.stringify(overrides));
+    try {
+      localStorage.setItem('local_password_overrides', safeStringify(overrides));
+    } catch (err) {
+      console.warn("[safeStringify] Failed to save local_password_overrides", err);
+    }
     return true;
   },
 

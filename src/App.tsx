@@ -40,6 +40,123 @@ function DashboardRouter() {
   }
 }
 
+function CentralLoadingScreen() {
+  const [statusIdx, setStatusIdx] = useState(0);
+  const statuses = [
+    "Establishing secure tunnel...",
+    "Syncing academic credentials...",
+    "Loading student databases...",
+    "Configuring smart workspace..."
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStatusIdx((prev) => (prev + 1) % statuses.length);
+    }, 1200);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div 
+      className="flex flex-col items-center justify-center min-h-screen bg-slate-50/60 relative overflow-hidden" 
+      id="central_loading_screen"
+    >
+      {/* Decorative ambient background glows */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-48 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      
+      <div className="relative flex flex-col items-center space-y-7 max-w-sm w-[90%] px-8 py-10 bg-white/90 backdrop-blur-md border border-slate-100 rounded-3xl shadow-2xl shadow-slate-200/50 text-center">
+        
+        {/* Beautiful multi-layered orbital loader */}
+        <div className="relative w-24 h-24 flex items-center justify-center">
+          
+          {/* Outer Ring 1: Slow rotating glowing ring with particle */}
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+            className="absolute inset-0 border border-dashed border-slate-200 rounded-full"
+          />
+          
+          {/* Glowing particle orbiting on outer ring */}
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+            className="absolute inset-0 z-10"
+          >
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-blue-600 rounded-full shadow-lg shadow-blue-500/50" />
+          </motion.div>
+
+          {/* Middle Ring 2: Medium speed counter-rotating gradient circle */}
+          <motion.div 
+            animate={{ rotate: -360 }}
+            transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }}
+            className="absolute w-18 h-18 border-2 border-transparent border-t-indigo-600 border-r-indigo-400 rounded-full"
+          />
+
+          {/* Inner Ring 3: Fast rotating neon blue highlight */}
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+            className="absolute w-12 h-12 border-2 border-transparent border-b-cyan-500 rounded-full"
+          />
+
+          {/* Center Pulse Core with Glowing Icon */}
+          <motion.div 
+            animate={{ scale: [0.95, 1.05, 0.95] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+            className="absolute w-8 h-8 bg-blue-50 border border-blue-100 rounded-full flex items-center justify-center z-20 shadow-inner"
+          >
+            <GraduationCap className="w-4.5 h-4.5 text-blue-600" />
+          </motion.div>
+          
+          {/* Central radial background flare */}
+          <div className="absolute w-10 h-10 bg-blue-500/10 rounded-full blur-md" />
+        </div>
+
+        <div className="space-y-2">
+          {/* Custom logo lettering with character spacing */}
+          <h3 className="text-sm font-extrabold tracking-[0.25em] text-slate-800 uppercase font-sans">
+            GURU GEDARA
+          </h3>
+          
+          {/* Smooth cycling authenticating text */}
+          <div className="h-5 flex items-center justify-center">
+            <AnimatePresence mode="wait">
+              <motion.p 
+                key={statusIdx}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.2 }}
+                className="text-xs text-indigo-600 font-semibold tracking-wide font-sans uppercase"
+              >
+                {statuses[statusIdx]}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Elegant infinite-scroll load bar */}
+        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden relative">
+          <motion.div 
+            className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full"
+            animate={{ 
+              left: ["-100%", "100%"],
+              width: ["20%", "40%", "20%"]
+            }}
+            transition={{ 
+              repeat: Infinity, 
+              duration: 1.8, 
+              ease: "easeInOut" 
+            }}
+          />
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 function MainAppContent() {
   const [currentTab, setCurrentTab] = useState('home');
   const { toast, hideToast, cloudSync, currentUser, loading } = useApp();
@@ -54,44 +171,7 @@ function MainAppContent() {
   }, [currentUser, currentTab]);
 
   if (loading) {
-    return (
-      <div 
-        className="flex flex-col items-center justify-center min-h-screen bg-slate-50/50" 
-        id="central_loading_screen"
-      >
-        <div className="flex flex-col items-center space-y-6 max-w-sm px-6 py-8 bg-white border border-slate-100 rounded-3xl shadow-xl shadow-slate-100/50 text-center">
-          <div className="relative flex items-center justify-center">
-            {/* outer aesthetic ring */}
-            <div className="absolute w-16 h-16 border-4 border-blue-100 rounded-full"></div>
-            {/* dynamic motion spinner */}
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
-              className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full z-10"
-              id="central_spinner_ring"
-            />
-            {/* center micro icon or dot */}
-            <div className="absolute w-3.5 h-3.5 bg-blue-600 rounded-full animate-pulse z-20"></div>
-          </div>
-          
-          <div className="space-y-2">
-            <h3 className="text-xl font-bold tracking-tight text-slate-800 font-sans">gurugedaraedu</h3>
-            <p className="text-xs text-slate-500 font-mono tracking-wider uppercase animate-pulse">
-              Authenticating Session
-            </p>
-          </div>
-          
-          <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
-            <motion.div 
-              className="h-full bg-blue-500 rounded-full"
-              animate={{ x: [-40, 40] }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-              style={{ width: '60%' }}
-            />
-          </div>
-        </div>
-      </div>
-    );
+    return <CentralLoadingScreen />;
   }
 
   if (currentUser?.isPasswordResetRequired) {

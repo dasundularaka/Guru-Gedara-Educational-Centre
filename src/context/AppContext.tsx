@@ -8,7 +8,7 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { firestoreService } from '../lib/firestoreService';
+import { firestoreService, safeStringify } from '../lib/firestoreService';
 import { UserProfile, NotificationSettings, NotificationItem, Review } from '../types';
 
 interface AppContextType {
@@ -322,7 +322,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (match.role === 'student' && match.status === 'pending') {
             throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
           }
-          localStorage.setItem('local_running_session', JSON.stringify(match));
+          try {
+            localStorage.setItem('local_running_session', safeStringify(match));
+          } catch (err) {
+            console.warn("Failed storing running session", err);
+          }
           setCurrentUser(match);
           showToast(`Logged in successfully as ${match.name}!`, "success");
           return match;
@@ -349,7 +353,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           name: 'Scholar Student',
           status: 'approved' as const
         };
-        localStorage.setItem('local_running_session', JSON.stringify(customUser));
+        try {
+          localStorage.setItem('local_running_session', safeStringify(customUser));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
         setCurrentUser(customUser);
         showToast("Logged in successfully as Student Scholar!", "success");
         return customUser;
@@ -360,7 +368,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           email: lowercaseEmail,
           name: 'Faculty Tutor'
         };
-        localStorage.setItem('local_running_session', JSON.stringify(customUser));
+        try {
+          localStorage.setItem('local_running_session', safeStringify(customUser));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
         setCurrentUser(customUser);
         showToast("Logged in successfully as Faculty Tutor!", "success");
         return customUser;
@@ -371,7 +383,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           email: lowercaseEmail,
           name: 'Academy Administrator'
         };
-        localStorage.setItem('local_running_session', JSON.stringify(customUser));
+        try {
+          localStorage.setItem('local_running_session', safeStringify(customUser));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
         setCurrentUser(customUser);
         showToast("Logged in successfully as Academy Administrator!", "success");
         return customUser;
@@ -390,7 +406,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'approved' as const
       };
       
-      localStorage.setItem('local_running_session', JSON.stringify(customUser));
+      try {
+        localStorage.setItem('local_running_session', safeStringify(customUser));
+      } catch (err) {
+        console.warn("Failed storing running session", err);
+      }
       setCurrentUser(customUser);
       showToast(`Logged in successfully with '${lowercaseEmail}'!`, "success");
       return customUser;
@@ -428,7 +448,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         role,
         ...additionalData
       });
-      localStorage.setItem('local_running_session', JSON.stringify(profile));
+      try {
+        localStorage.setItem('local_running_session', safeStringify(profile));
+      } catch (err) {
+        console.warn("Failed storing running session", err);
+      }
       setCurrentUser(profile);
       showToast("Registered successfully (Local Dev Mode active)!", "success");
       return profile;
@@ -458,7 +482,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const profile = await firestoreService.getUserProfile(dummyId);
     if (profile) {
-      localStorage.setItem('local_running_session', JSON.stringify(profile));
+      try {
+        localStorage.setItem('local_running_session', safeStringify(profile));
+      } catch (err) {
+        console.warn("Failed storing running session", err);
+      }
       setCurrentUser(profile);
       const nots = await firestoreService.getNotifications(profile.uid);
       setNotifications(nots);
@@ -496,7 +524,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const latestProfile = await firestoreService.getUserProfile(currentUser.uid);
       if (latestProfile) {
         setCurrentUser(latestProfile);
-        localStorage.setItem('local_running_session', JSON.stringify(latestProfile));
+        try {
+          localStorage.setItem('local_running_session', safeStringify(latestProfile));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
       }
     } catch (e) {
       console.warn("Failed user profile reload.", e);
