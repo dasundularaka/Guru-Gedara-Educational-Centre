@@ -62,5 +62,12 @@ service cloud.firestore {
     match /messages/{messageId} {
       allow read, write: if isAuthenticated();
     }
+
+    // Reviews rules
+    match /reviews/{reviewId} {
+      allow read: if true; // anyone can see approved/pending reviews
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
   }
 }

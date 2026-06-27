@@ -86,6 +86,55 @@ function saveFallback<T>(localKey: string, data: T[]): void {
   }
 }
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error details: ', JSON.stringify(errInfo));
+  // Toggle cloud connected off so the app falls back to responsive Sandbox mode
+  isUsingCloud = false;
+  throw new Error(JSON.stringify(errInfo));
+}
+
 // Dynamically synchronize cloud flag based on whether there's a live Firebase Auth session
 // vs. a simulated sandbox local session. This prevents unauthenticated cloud queries from failing
 // and overwriting locally saved additions, edits, or deletions in sandbox mode.
@@ -117,30 +166,47 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   async seedDatabase() {
     if (!isUsingCloud) return;
-    // Optimize: Check if database verification/seeding has already completed in a previous session
-    if (localStorage.getItem('db_seeding_verified') === 'true') {
-      return;
-    }
     try {
       const classSnap = await getDocs(collection(db, 'classes'));
       if (classSnap.empty) {
         console.log("Seeding classes to Firestore...");
-        await Promise.all(INITIAL_CLASSES.map(c => setDoc(doc(db, 'classes', c.id), c)));
+        try {
+          await Promise.all(INITIAL_CLASSES.map(c => setDoc(doc(db, 'classes', c.id), c)));
+        } catch (err) {
+          console.warn("Failed seeding classes to Firestore:", err);
+        }
       }
 
       const tutorSnap = await getDocs(collection(db, 'users'));
       if (tutorSnap.empty) {
-        console.log("Seeding initial dataset to Firestore in parallel...");
+        console.log("Seeding initial dataset to Firestore...");
         
-        const tutorPromises = INITIAL_TUTORS.map(t => setDoc(doc(db, 'users', t.uid), t));
-        const bookingPromises = INITIAL_BOOKINGS.map(b => setDoc(doc(db, 'bookings', b.id), b));
-        const paymentPromises = INITIAL_PAYMENTS.map(p => setDoc(doc(db, 'payments', p.id), p));
-        const notificationPromises = INITIAL_NOTIFICATIONS.map(n => setDoc(doc(db, 'notifications', n.id), n));
-        const messagePromises = INITIAL_MESSAGES.map(m => setDoc(doc(db, 'messages', m.id), m));
-        const reviewPromises = INITIAL_REVIEWS.map(r => setDoc(doc(db, 'reviews', r.id), r));
+        try {
+          await Promise.all(INITIAL_TUTORS.map(t => setDoc(doc(db, 'users', t.uid), t)));
+        } catch (err) { console.warn("Failed seeding tutors:", err); }
 
-        const extraPromises = [
-          setDoc(doc(db, 'users', 'student_demo'), {
+        try {
+          await Promise.all(INITIAL_BOOKINGS.map(b => setDoc(doc(db, 'bookings', b.id), b)));
+        } catch (err) { console.warn("Failed seeding bookings:", err); }
+
+        try {
+          await Promise.all(INITIAL_PAYMENTS.map(p => setDoc(doc(db, 'payments', p.id), p)));
+        } catch (err) { console.warn("Failed seeding payments:", err); }
+
+        try {
+          await Promise.all(INITIAL_NOTIFICATIONS.map(n => setDoc(doc(db, 'notifications', n.id), n)));
+        } catch (err) { console.warn("Failed seeding notifications:", err); }
+
+        try {
+          await Promise.all(INITIAL_MESSAGES.map(m => setDoc(doc(db, 'messages', m.id), m)));
+        } catch (err) { console.warn("Failed seeding messages:", err); }
+
+        try {
+          await Promise.all(INITIAL_REVIEWS.map(r => setDoc(doc(db, 'reviews', r.id), r)));
+        } catch (err) { console.warn("Failed seeding reviews:", err); }
+
+        try {
+          await setDoc(doc(db, 'users', 'student_demo'), {
             uid: "student_demo",
             email: "alex.mercer@example.com",
             name: "Alex Mercer",
@@ -153,33 +219,24 @@ const firestoreServiceRaw = {
               parentContact: "+1 (555) 777-0011",
               interests: ["Advanced Physics", "Calc"]
             }
-          }),
-          setDoc(doc(db, 'users', 'admin_demo'), {
+          });
+        } catch (err) { console.warn("Failed seeding student_demo:", err); }
+
+        try {
+          await setDoc(doc(db, 'users', 'admin_demo'), {
             uid: "admin_demo",
             email: "admin.academy@example.com",
             name: "Academy Principal",
             role: "admin",
             createdAt: new Date().toISOString()
-          })
-        ];
+          });
+        } catch (err) { console.warn("Failed seeding admin_demo:", err); }
 
-        await Promise.all([
-          ...tutorPromises,
-          ...bookingPromises,
-          ...paymentPromises,
-          ...notificationPromises,
-          ...messagePromises,
-          ...reviewPromises,
-          ...extraPromises
-        ]);
-
-        console.log("Database seeded successfully in parallel!");
+        console.log("Database seeded successfully!");
       }
-      // Seeding or check completed successfully - save verification flag
       localStorage.setItem('db_seeding_verified', 'true');
     } catch (e) {
-      console.warn("Cloud connection not fully resolved or configured: switching to reliable local state simulation.", e);
-      isUsingCloud = false;
+      console.warn("Cloud connection check warning:", e);
     }
   },
 

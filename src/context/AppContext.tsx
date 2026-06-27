@@ -188,6 +188,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(true);
       if (firebaseUser) {
         try {
+          // Attempt authenticated seeding on login/auth changed if database is empty
+          try {
+            await firestoreService.seedDatabase();
+          } catch (seedErr) {
+            console.warn("Seeding on auth state change skipped or failed:", seedErr);
+          }
+
           const email = firebaseUser.email || '';
           let profile = await firestoreService.getUserProfile(firebaseUser.uid);
           
