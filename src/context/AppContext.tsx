@@ -10,6 +10,7 @@ import {
 import { auth, db } from '../lib/firebase';
 import { firestoreService, safeStringify } from '../lib/firestoreService';
 import { UserProfile, NotificationSettings, NotificationItem, Review } from '../types';
+import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS } from '../data/mockData';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -42,12 +43,47 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const cached = localStorage.getItem('local_running_session');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = localStorage.getItem('local_running_session');
+    return !cached;
+  });
   const [cloudSync, setCloudSync] = useState(true);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [classes, setClasses] = useState<any[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    const cached = localStorage.getItem('local_notifications');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return INITIAL_NOTIFICATIONS;
+  });
+  const [classes, setClasses] = useState<any[]>(() => {
+    const cached = localStorage.getItem('local_classes');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return INITIAL_CLASSES;
+  });
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const cached = localStorage.getItem('local_reviews');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return INITIAL_REVIEWS;
+  });
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     reminders: true,
@@ -129,8 +165,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await firestoreService.seedDatabase();
         setCloudSync(firestoreService.isCloudConnected());
-        await refreshClasses();
-        await refreshReviews();
+        // Load latest datasets in parallel for optimum startup speed
+        await Promise.all([
+          refreshClasses(),
+          refreshReviews()
+        ]);
       } catch (e) {
         console.warn("Firebase seeding failure, continuing locally.", e);
         setCloudSync(false);

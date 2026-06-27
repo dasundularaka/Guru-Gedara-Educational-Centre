@@ -101,13 +101,15 @@ export const StudentDashboard: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // Fetch bookings matching studentId
-      const allBookings = await firestoreService.getBookings();
+      // Fetch bookings and payments in parallel to optimize latency
+      const [allBookings, allPayments] = await Promise.all([
+        firestoreService.getBookings(),
+        firestoreService.getPayments()
+      ]);
+
       const matchedBookings = allBookings.filter(b => b.studentId === currentUser.uid);
       setStudentBookings(matchedBookings);
 
-      // Fetch payments matching studentId
-      const allPayments = await firestoreService.getPayments();
       const matchedPayments = allPayments.filter(p => p.studentId === currentUser.uid);
       setPaymentsList(matchedPayments);
     } catch (e) {

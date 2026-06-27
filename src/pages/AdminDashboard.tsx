@@ -339,16 +339,17 @@ export const AdminDashboard: React.FC = () => {
   const fetchAdminDatasets = async () => {
     setLoading(true);
     try {
-      const allUsers = await firestoreService.getAllUsers();
+      // Fetch users, classes, payments, and bookings in parallel to optimize admin dashboard performance
+      const [allUsers, allClass, allPays, allBook] = await Promise.all([
+        firestoreService.getAllUsers(),
+        firestoreService.getClasses(),
+        firestoreService.getPayments(),
+        firestoreService.getBookings()
+      ]);
+
       setUsers(allUsers);
-
-      const allClass = await firestoreService.getClasses();
       setClassesList(allClass);
-
-      const allPays = await firestoreService.getPayments();
       setPaymentsList(allPays);
-
-      const allBook = await firestoreService.getBookings();
       setBookingsList(allBook);
     } catch (e) {
       console.warn("Failed index mapping of site admin data pools", e);

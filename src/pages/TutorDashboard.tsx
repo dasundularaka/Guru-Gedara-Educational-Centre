@@ -84,13 +84,15 @@ export const TutorDashboard: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // 1. Fetch classes taught by this tutor
-      const allClasses = await firestoreService.getClasses();
+      // Fetch classes and bookings in parallel to optimize latency
+      const [allClasses, allBookings] = await Promise.all([
+        firestoreService.getClasses(),
+        firestoreService.getBookings()
+      ]);
+
       const matchedClasses = allClasses.filter(c => c.tutorId === currentUser.uid);
       setTutorClasses(matchedClasses);
 
-      // 2. Fetch bookings matching this tutor
-      const allBookings = await firestoreService.getBookings();
       const matchedBookings = allBookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
       setRosterBookings(matchedBookings);
 

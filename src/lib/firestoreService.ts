@@ -117,6 +117,10 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   async seedDatabase() {
     if (!isUsingCloud) return;
+    // Optimize: Check if database verification/seeding has already completed in a previous session
+    if (localStorage.getItem('db_seeding_verified') === 'true') {
+      return;
+    }
     try {
       const classSnap = await getDocs(collection(db, 'classes'));
       if (classSnap.empty) {
@@ -176,6 +180,8 @@ const firestoreServiceRaw = {
         }
         console.log("Database seeded successfully!");
       }
+      // Seeding or check completed successfully - save verification flag
+      localStorage.setItem('db_seeding_verified', 'true');
     } catch (e) {
       console.warn("Cloud connection not fully resolved or configured: switching to reliable local state simulation.", e);
       isUsingCloud = false;
