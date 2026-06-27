@@ -899,51 +899,58 @@ export const AdminDashboard: React.FC = () => {
           {/* Sub menu controls */}
           <div className="flex flex-wrap gap-1.5 bg-white border border-gray-100 p-1.5 rounded-xl text-xs font-bold text-gray-500 shadow-sm">
             <button
+              id="admin_tab_analytics"
               onClick={() => setActiveTab('analytics')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <BarChart3 className="w-4 h-4" /> Insights & Analytics
             </button>
             <button
+              id="admin_tab_payments"
               onClick={() => setActiveTab('payments')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'payments' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <CreditCard className="w-4 h-4" /> Global Ledger Ledger
             </button>
             <button
+              id="admin_tab_students"
               onClick={() => setActiveTab('students')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'students' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <Users className="w-4 h-4" /> Scholars
             </button>
             <button
+              id="admin_tab_tutors"
               onClick={() => setActiveTab('tutors')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'tutors' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <UserCheck className="w-4 h-4" /> Faculty
             </button>
             <button
+              id="admin_tab_classes"
               onClick={() => setActiveTab('classes')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'classes' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <BookOpen className="w-4 h-4" /> Curriculums
             </button>
             <button
+              id="admin_tab_notices"
               onClick={() => setActiveTab('notices')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'notices' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <Megaphone className="w-4 h-4" /> Deploy Notices
             </button>
             <button
+              id="admin_tab_admins"
               onClick={() => setActiveTab('admins')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'admins' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <ShieldCheck className="w-4 h-4 text-emerald-500" /> Administrative Staff
             </button>
             <button
+              id="admin_tab_reviews"
               onClick={() => setActiveTab('reviews')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'reviews' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              id="admin_tab_reviews"
             >
               <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse" /> Moderate Reviews
             </button>
@@ -1135,6 +1142,7 @@ export const AdminDashboard: React.FC = () => {
                       </p>
                     </div>
                     <button
+                      id="admin_btn_export_csv"
                       onClick={exportToCSV}
                       className="px-5 py-2.5 bg-white hover:bg-blue-50 text-blue-800 rounded-xl font-bold flex items-center gap-2 text-xs shadow-lg transition-all cursor-pointer whitespace-nowrap self-start md:self-auto"
                     >
@@ -1167,6 +1175,7 @@ export const AdminDashboard: React.FC = () => {
                   {/* Filters handles */}
                   <div className="flex flex-wrap gap-2.5 items-center w-full sm:w-auto">
                     <button 
+                      id="admin_btn_add_payment"
                       onClick={() => openAddModal('payment')}
                       className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer text-xs"
                     >
@@ -1244,6 +1253,7 @@ export const AdminDashboard: React.FC = () => {
                                     </button>
                                   )}
                                   <button 
+                                    id={`edit-payment-btn-${p.id}`}
                                     onClick={() => openEditModal('payment', p)}
                                     className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-150 text-blue-600 cursor-pointer"
                                     title="Edit payment details"
@@ -1251,6 +1261,7 @@ export const AdminDashboard: React.FC = () => {
                                     <Edit className="w-3.5 h-3.5" />
                                   </button>
                                   <button 
+                                    id={`delete-payment-btn-${p.id}`}
                                     onClick={() => handleDeletePayment(p.id, p.classTitle || "Transaction Record") }
                                     className="p-1 rounded bg-red-50 hover:bg-red-100 border border-red-105 text-red-600 cursor-pointer"
                                     title="Delete transaction record"
@@ -1286,6 +1297,7 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-[10px] text-gray-400">Enroll new student scholar accounts, edit positions or remove profiles</p>
                   </div>
                   <button 
+                    id="admin_btn_add_student"
                     onClick={() => openAddModal('student')}
                     className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
                   >
@@ -1387,6 +1399,7 @@ export const AdminDashboard: React.FC = () => {
 
                             {isPending && (
                               <button
+                                id={`approve-student-btn-${stud.uid}`}
                                 onClick={() => handleApproveStudent(stud.uid, stud.gender)}
                                 className="mt-2 w-full py-2 px-3 bg-slate-900 border border-slate-950 text-white rounded-xl text-xs font-black hover:bg-slate-950 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                               >
@@ -1411,6 +1424,7 @@ export const AdminDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex gap-2">
                                   <button
+                                    id={`accept-photo-btn-${stud.uid}`}
                                     onClick={async () => {
                                       try {
                                         await firestoreService.updateUserProfile(stud.uid, {
@@ -1428,6 +1442,7 @@ export const AdminDashboard: React.FC = () => {
                                     Accept Photo
                                   </button>
                                   <button
+                                    id={`reject-photo-btn-${stud.uid}`}
                                     onClick={async () => {
                                       try {
                                         await firestoreService.updateUserProfile(stud.uid, {
@@ -1452,6 +1467,7 @@ export const AdminDashboard: React.FC = () => {
                         {/* Card Action Controls */}
                         <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                           <button 
+                            id={`edit-student-btn-${stud.uid}`}
                             onClick={() => openEditModal('student', stud)}
                             className="p-1 px-2.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
                             title="Edit scholar profile"
@@ -1459,6 +1475,7 @@ export const AdminDashboard: React.FC = () => {
                             <Edit className="w-3.5 h-3.5" /> Edit
                           </button>
                           <button 
+                            id={`delete-student-btn-${stud.uid}`}
                             onClick={() => handleDeleteStudent(stud.uid, stud.name)}
                             className="p-1 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
                             title="Withdraw/Delete scholar account"
@@ -1489,6 +1506,7 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-[10px] text-gray-400 font-sans">Register new tutors, edit qualifications and define hourly pay metrics</p>
                   </div>
                   <button 
+                    id="admin_btn_add_tutor"
                     onClick={() => openAddModal('tutor')}
                     className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
                   >
@@ -1555,6 +1573,7 @@ export const AdminDashboard: React.FC = () => {
                               </span>
                             ) : (
                               <button
+                                id={`allocate-id-btn-${tut.uid}`}
                                 onClick={() => handleAssignTutorUsername(tut.uid)}
                                 className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-700 hover:bg-indigo-100 rounded text-[9px] font-black transition-colors cursor-pointer"
                               >
@@ -1568,6 +1587,7 @@ export const AdminDashboard: React.FC = () => {
                       {/* Card Action Controls */}
                       <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                         <button 
+                          id={`edit-tutor-btn-${tut.uid}`}
                           onClick={() => openEditModal('tutor', tut)}
                           className="p-1 px-2.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
                           title="Edit tutor card"
@@ -1575,6 +1595,7 @@ export const AdminDashboard: React.FC = () => {
                           <Edit className="w-3.5 h-3.5" /> Edit
                         </button>
                         <button 
+                          id={`delete-tutor-btn-${tut.uid}`}
                           onClick={() => handleDeleteTutor(tut.uid, tut.name)}
                           className="p-1 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
                           title="Delete tutor record"
@@ -1604,6 +1625,7 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-[10px] text-gray-400">Publish class syllabus pages, set capacity limits and modify time schedules</p>
                   </div>
                   <button 
+                    id="admin_btn_publish_class"
                     onClick={() => openAddModal('class')}
                     className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
                   >
@@ -1640,6 +1662,7 @@ export const AdminDashboard: React.FC = () => {
                         {/* Card Action Controls */}
                         <div className="flex flex-col gap-1.5">
                           <button 
+                            id={`edit-class-btn-${c.id}`}
                             onClick={() => openEditModal('class', c)}
                             className="p-1 rounded bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer"
                             title="Edit course syllabus"
@@ -1647,6 +1670,7 @@ export const AdminDashboard: React.FC = () => {
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button 
+                            id={`delete-class-btn-${c.id}`}
                             onClick={() => handleDeleteClass(c.id, c.title)}
                             className="p-1 rounded bg-red-50 hover:bg-red-100 border border-red-105 text-red-600 cursor-pointer"
                             title="Delete course from faculty"
@@ -1720,6 +1744,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <button
+                      id="admin_btn_broadcast_notice"
                       type="submit"
                       disabled={sendingNotice || !noticeTitle.trim() || !noticeMessage.trim()}
                       className="w-full py-2.5 bg-blue-650 hover:bg-blue-700 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40"
@@ -1856,6 +1881,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <button
+                      id="admin_btn_add_staff"
                       type="submit"
                       disabled={isCreatingAdmin}
                       className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
@@ -2086,6 +2112,7 @@ export const AdminDashboard: React.FC = () => {
                             <div className="flex gap-2.5 mt-4 border-t border-slate-105 pt-3 flex-wrap">
                               {!isApproved && (
                                 <button
+                                  id={`approve-review-btn-${review.id}`}
                                   onClick={async () => {
                                     try {
                                       await updateReviewStatus(review.id, 'approved');
@@ -2101,6 +2128,7 @@ export const AdminDashboard: React.FC = () => {
                               )}
                               {!isFlagged && (
                                 <button
+                                  id={`flag-review-btn-${review.id}`}
                                   onClick={async () => {
                                     try {
                                       await updateReviewStatus(review.id, 'flagged');
@@ -2115,6 +2143,7 @@ export const AdminDashboard: React.FC = () => {
                                 </button>
                               )}
                               <button
+                                id={`delete-review-btn-${review.id}`}
                                 onClick={() => {
                                   setDeleteConfirm({
                                     isOpen: true,

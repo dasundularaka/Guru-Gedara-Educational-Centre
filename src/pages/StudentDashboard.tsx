@@ -184,36 +184,42 @@ export const StudentDashboard: React.FC = () => {
           {/* Sub menu controls */}
           <div className="flex flex-wrap gap-1 bg-white border border-slate-200/80 p-1.5 rounded-2xl text-xs font-bold text-slate-500 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
             <button
+              id="student_tab_schedule"
               onClick={() => setActiveSubTab('schedule')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'schedule' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <Calendar className="w-4 h-4 text-indigo-400" /> Calendar
             </button>
             <button
+              id="student_tab_classes"
               onClick={() => setActiveSubTab('classes')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'classes' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <BookOpen className="w-4 h-4 text-indigo-400" /> Classes & Ledger
             </button>
             <button
+              id="student_tab_performance"
               onClick={() => setActiveSubTab('performance')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'performance' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <TrendingUp className="w-4 h-4 text-indigo-400" /> Progress Tracker
             </button>
             <button
+              id="student_tab_roadmap"
               onClick={() => setActiveSubTab('roadmap')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'roadmap' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <Compass className="w-4 h-4 text-indigo-400" /> Syllabus Roadmap
             </button>
             <button
+              id="student_tab_chat"
               onClick={() => setActiveSubTab('chat')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'chat' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <MessageSquare className="w-4 h-4 text-indigo-400" /> Message Chat
             </button>
             <button
+              id="student_tab_notifications"
               onClick={() => setActiveSubTab('notifications')}
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 relative cursor-pointer ${activeSubTab === 'notifications' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >

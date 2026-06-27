@@ -350,6 +350,7 @@ export const TutorDashboard: React.FC = () => {
           <div className="flex flex-wrap gap-2">
                        {/* Class Creator trigger */}
             <button
+              id="tutor_btn_launch_class"
               onClick={() => {
                 setClassFormMode('create');
                 setEditingClassId(null);
@@ -367,30 +368,35 @@ export const TutorDashboard: React.FC = () => {
             {/* Tab switchers */}
             <div className="flex bg-white border border-gray-100 p-1 rounded-xl text-xs font-bold text-gray-500 shadow-sm flex-wrap gap-1">
               <button
+                id="tutor_tab_schedule"
                 onClick={() => setActiveSubTab('schedule')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'schedule' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
               >
                 <Calendar className="w-4 h-4" /> Teaching Schedules
               </button>
               <button
+                id="tutor_tab_students"
                 onClick={() => setActiveSubTab('students')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'students' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
               >
                 <Users className="w-4 h-4" /> listed Scholars ({rosterBookings.length})
               </button>
               <button
+                id="tutor_tab_chat"
                 onClick={() => setActiveSubTab('chat')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'chat' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
               >
                 <MessageSquare className="w-4 h-4" /> Students Chat
               </button>
               <button
+                id="tutor_tab_profile"
                 onClick={() => setActiveSubTab('profile')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'profile' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
               >
                 <User className="w-4 h-4" /> My Profile
               </button>
               <button
+                id="tutor_tab_settings"
                 onClick={() => setActiveSubTab('settings')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'settings' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
               >
@@ -462,6 +468,7 @@ export const TutorDashboard: React.FC = () => {
 
                           <div className="flex flex-col gap-1.5 shrink-0 justify-center">
                             <button
+                              id={`edit-class-btn-${item.id}`}
                               onClick={() => startEditClass(item)}
                               className="p-1 rounded bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer"
                               title="Edit class details"
@@ -469,6 +476,7 @@ export const TutorDashboard: React.FC = () => {
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              id={`delete-class-btn-${item.id}`}
                               onClick={() => handleDeleteClass(item.id, item.title)}
                               className="p-1 rounded bg-red-50 hover:bg-red-100 border border-red-100 text-red-601 cursor-pointer"
                               title="Delete class curriculum"
