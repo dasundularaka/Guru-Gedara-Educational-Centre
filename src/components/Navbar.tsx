@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
+import { Booking } from '../types';
 
 interface NavbarProps {
   currentTab: string;
@@ -40,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
+  const [upcomingClasses, setUpcomingClasses] = useState<Booking[]>([]);
 
   // Editable profile state hooks with default fallback values
   const [profileName, setProfileName] = useState("");
@@ -56,12 +58,77 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     }
   }, [currentUser, showProfileDetails]);
 
-  // Setup periodic refresh for notifications
+  // Request browser Notification permission on load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  // Check upcoming student classes
+  const checkUpcomingClasses = async () => {
+    if (!currentUser || currentUser.role !== 'student') {
+      setUpcomingClasses([]);
+      return;
+    }
+    try {
+      const allBookings = await firestoreService.getBookings();
+      const studentBookings = allBookings.filter(b => b.studentId === currentUser.uid && b.status === 'active');
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+      const upcoming = studentBookings.filter(b => {
+        if (!b.bookingDate) return false;
+        return b.bookingDate === todayStr || b.bookingDate === tomorrowStr;
+      });
+
+      setUpcomingClasses(upcoming);
+
+      // Trigger standard browser native notification if there are any new upcoming classes
+      if (upcoming.length > 0 && typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          const notifiedKey = `notified_classes_${currentUser.uid}`;
+          const alreadyNotified = JSON.parse(localStorage.getItem(notifiedKey) || '[]');
+          let updated = false;
+          
+          upcoming.forEach(u => {
+            if (!alreadyNotified.includes(u.id)) {
+              const notificationTitle = `Upcoming Class at Guru Gedara`;
+              const notificationBody = `Reminder: "${u.classTitle}" is scheduled for ${u.dayOfWeek} at ${u.timeSlot}.`;
+              
+              new window.Notification(notificationTitle, {
+                body: notificationBody,
+                icon: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=100'
+              });
+              
+              alreadyNotified.push(u.id);
+              updated = true;
+            }
+          });
+          
+          if (updated) {
+            localStorage.setItem(notifiedKey, JSON.stringify(alreadyNotified));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Error checking upcoming classes:", e);
+    }
+  };
+
+  // Setup periodic refresh for notifications & upcoming classes
   useEffect(() => {
     if (currentUser) {
       refreshNotifications();
+      checkUpcomingClasses();
       const interval = setInterval(() => {
         refreshNotifications();
+        checkUpcomingClasses();
       }, 15000); // 15s checks
       return () => clearInterval(interval);
     }
@@ -77,7 +144,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length + upcomingClasses.length;
 
   const PRESET_PHOTOS = [
     { name: "Scholar Male 1", url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop" },
@@ -251,9 +318,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                           </button>
                         </div>
                         <div className="max-h-60 overflow-y-auto">
+                          {upcomingClasses.length > 0 && (
+                            <div className="bg-amber-50/70 p-3 border-b border-amber-100">
+                              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block font-mono mb-1.5">📅 Upcoming Booked Class</span>
+                              <div className="space-y-1.5">
+                                {upcomingClasses.map(u => (
+                                  <div key={u.id} className="text-xs bg-white rounded-lg p-2 border border-amber-200/50 shadow-xs">
+                                    <p className="font-extrabold text-slate-900 leading-tight">{u.classTitle}</p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">{u.dayOfWeek} at {u.timeSlot}</p>
+                                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 text-[9px]">
+                                      <span className="text-indigo-650 font-bold">Tutor: {u.tutorName}</span>
+                                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-[8px] font-mono uppercase tracking-widest leading-none">SOON</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {notifications.length === 0 ? (
                             <div className="p-6 text-center text-gray-400 text-xs">
-                              All caught up! No recent notifications.
+                              {upcomingClasses.length > 0 ? "No other recent notifications." : "All caught up! No recent notifications."}
                             </div>
                           ) : (
                             notifications.map((not) => (
