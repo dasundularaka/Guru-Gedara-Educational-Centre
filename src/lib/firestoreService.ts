@@ -11,7 +11,8 @@ import {
   where, 
   orderBy,
   arrayUnion,
-  increment
+  increment,
+  limit
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review } from '../types';
@@ -166,74 +167,84 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   async seedDatabase() {
     if (!isUsingCloud) return;
+    // Optimize: Fast instant check to completely skip database verification when already verified
+    if (localStorage.getItem('db_seeding_verified') === 'true') {
+      return;
+    }
     try {
-      const classSnap = await getDocs(collection(db, 'classes'));
+      // Query with limit(1) in parallel to optimize read counts and connection speeds
+      const [classSnap, tutorSnap] = await Promise.all([
+        getDocs(query(collection(db, 'classes'), limit(1))),
+        getDocs(query(collection(db, 'users'), limit(1)))
+      ]);
+
+      const promises: Promise<any>[] = [];
+      const wrapSafe = (promise: Promise<any>, name: string) => 
+        promise.catch(err => console.warn(`Failed seeding ${name}:`, err));
+
       if (classSnap.empty) {
         console.log("Seeding classes to Firestore...");
-        try {
-          await Promise.all(INITIAL_CLASSES.map(c => setDoc(doc(db, 'classes', c.id), c)));
-        } catch (err) {
-          console.warn("Failed seeding classes to Firestore:", err);
-        }
+        INITIAL_CLASSES.forEach(c => {
+          promises.push(wrapSafe(setDoc(doc(db, 'classes', c.id), c), `class ${c.id}`));
+        });
       }
 
-      const tutorSnap = await getDocs(collection(db, 'users'));
       if (tutorSnap.empty) {
         console.log("Seeding initial dataset to Firestore...");
         
-        try {
-          await Promise.all(INITIAL_TUTORS.map(t => setDoc(doc(db, 'users', t.uid), t)));
-        } catch (err) { console.warn("Failed seeding tutors:", err); }
+        INITIAL_TUTORS.forEach(t => {
+          promises.push(wrapSafe(setDoc(doc(db, 'users', t.uid), t), `tutor ${t.uid}`));
+        });
 
-        try {
-          await Promise.all(INITIAL_BOOKINGS.map(b => setDoc(doc(db, 'bookings', b.id), b)));
-        } catch (err) { console.warn("Failed seeding bookings:", err); }
+        INITIAL_BOOKINGS.forEach(b => {
+          promises.push(wrapSafe(setDoc(doc(db, 'bookings', b.id), b), `booking ${b.id}`));
+        });
 
-        try {
-          await Promise.all(INITIAL_PAYMENTS.map(p => setDoc(doc(db, 'payments', p.id), p)));
-        } catch (err) { console.warn("Failed seeding payments:", err); }
+        INITIAL_PAYMENTS.forEach(p => {
+          promises.push(wrapSafe(setDoc(doc(db, 'payments', p.id), p), `payment ${p.id}`));
+        });
 
-        try {
-          await Promise.all(INITIAL_NOTIFICATIONS.map(n => setDoc(doc(db, 'notifications', n.id), n)));
-        } catch (err) { console.warn("Failed seeding notifications:", err); }
+        INITIAL_NOTIFICATIONS.forEach(n => {
+          promises.push(wrapSafe(setDoc(doc(db, 'notifications', n.id), n), `notification ${n.id}`));
+        });
 
-        try {
-          await Promise.all(INITIAL_MESSAGES.map(m => setDoc(doc(db, 'messages', m.id), m)));
-        } catch (err) { console.warn("Failed seeding messages:", err); }
+        INITIAL_MESSAGES.forEach(m => {
+          promises.push(wrapSafe(setDoc(doc(db, 'messages', m.id), m), `message ${m.id}`));
+        });
 
-        try {
-          await Promise.all(INITIAL_REVIEWS.map(r => setDoc(doc(db, 'reviews', r.id), r)));
-        } catch (err) { console.warn("Failed seeding reviews:", err); }
+        INITIAL_REVIEWS.forEach(r => {
+          promises.push(wrapSafe(setDoc(doc(db, 'reviews', r.id), r), `review ${r.id}`));
+        });
 
-        try {
-          await setDoc(doc(db, 'users', 'student_demo'), {
-            uid: "student_demo",
-            email: "alex.mercer@example.com",
-            name: "Alex Mercer",
-            role: "student",
-            photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-            phone: "+1 (555) 777-8899",
-            createdAt: new Date().toISOString(),
-            studentDetails: {
-              grade: "Grade 11",
-              parentContact: "+1 (555) 777-0011",
-              interests: ["Advanced Physics", "Calc"]
-            }
-          });
-        } catch (err) { console.warn("Failed seeding student_demo:", err); }
+        promises.push(wrapSafe(setDoc(doc(db, 'users', 'student_demo'), {
+          uid: "student_demo",
+          email: "alex.mercer@example.com",
+          name: "Alex Mercer",
+          role: "student",
+          photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+          phone: "+1 (555) 777-8899",
+          createdAt: new Date().toISOString(),
+          studentDetails: {
+            grade: "Grade 11",
+            parentContact: "+1 (555) 777-0011",
+            interests: ["Advanced Physics", "Calc"]
+          }
+        }), 'student_demo'));
 
-        try {
-          await setDoc(doc(db, 'users', 'admin_demo'), {
-            uid: "admin_demo",
-            email: "admin.academy@example.com",
-            name: "Academy Principal",
-            role: "admin",
-            createdAt: new Date().toISOString()
-          });
-        } catch (err) { console.warn("Failed seeding admin_demo:", err); }
+        promises.push(wrapSafe(setDoc(doc(db, 'users', 'admin_demo'), {
+          uid: "admin_demo",
+          email: "admin.academy@example.com",
+          name: "Academy Principal",
+          role: "admin",
+          createdAt: new Date().toISOString()
+        }), 'admin_demo'));
+      }
 
+      if (promises.length > 0) {
+        await Promise.all(promises);
         console.log("Database seeded successfully!");
       }
+
       localStorage.setItem('db_seeding_verified', 'true');
     } catch (e) {
       console.warn("Cloud connection check warning:", e);

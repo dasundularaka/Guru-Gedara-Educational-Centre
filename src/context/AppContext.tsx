@@ -9,8 +9,8 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { firestoreService, safeStringify } from '../lib/firestoreService';
-import { UserProfile, NotificationSettings, NotificationItem, Review } from '../types';
-import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS } from '../data/mockData';
+import { UserProfile, NotificationSettings, NotificationItem, Review, Booking, Payment } from '../types';
+import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -40,6 +40,14 @@ interface AppContextType {
   deleteReview: (reviewId: string) => Promise<void>;
   authDomainError: string | null;
   clearAuthDomainError: () => void;
+  bookings: Booking[];
+  payments: Payment[];
+  refreshBookings: () => Promise<void>;
+  refreshPayments: () => Promise<void>;
+  prefetchDashboardData: () => Promise<void>;
+  isPrefetched: boolean;
+  darkMode: boolean;
+  toggleDarkMode: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -86,6 +94,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_REVIEWS;
   });
+  const [bookings, setBookings] = useState<Booking[]>(() => {
+    const cached = localStorage.getItem('local_bookings');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return INITIAL_BOOKINGS;
+  });
+  const [payments, setPayments] = useState<Payment[]>(() => {
+    const cached = localStorage.getItem('local_payments');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return INITIAL_PAYMENTS;
+  });
+  const [isPrefetched, setIsPrefetched] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('darkMode') === 'true';
+  });
+
+  const toggleDarkMode = () => {
+    setDarkMode(prev => {
+      const next = !prev;
+      localStorage.setItem('darkMode', String(next));
+      if (next) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [authDomainError, setAuthDomainError] = useState<string | null>(null);
   const clearAuthDomainError = () => setAuthDomainError(null);
@@ -126,6 +178,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setReviews(r);
     } catch (e) {
       console.warn("Error fetching reviews", e);
+    }
+  };
+
+  const refreshBookings = async () => {
+    try {
+      const b = await firestoreService.getBookings();
+      setBookings(b);
+      localStorage.setItem('local_bookings', safeStringify(b));
+    } catch (e) {
+      console.warn("Error fetching bookings", e);
+    }
+  };
+
+  const refreshPayments = async () => {
+    try {
+      const p = await firestoreService.getPayments();
+      setPayments(p);
+      localStorage.setItem('local_payments', safeStringify(p));
+    } catch (e) {
+      console.warn("Error fetching payments", e);
+    }
+  };
+
+  const prefetchDashboardData = async () => {
+    if (!auth.currentUser && !localStorage.getItem('local_running_session')) return;
+    try {
+      console.log("[Prefetch] Starting essential dashboard background data prefetching to hide latency...");
+      const [allBookings, allPayments, allClasses, allReviews] = await Promise.all([
+        firestoreService.getBookings(),
+        firestoreService.getPayments(),
+        firestoreService.getClasses(),
+        firestoreService.getReviews()
+      ]);
+
+      setBookings(allBookings);
+      localStorage.setItem('local_bookings', safeStringify(allBookings));
+
+      setPayments(allPayments);
+      localStorage.setItem('local_payments', safeStringify(allPayments));
+
+      setClasses(allClasses);
+      localStorage.setItem('local_classes', safeStringify(allClasses));
+
+      setReviews(allReviews);
+      localStorage.setItem('local_reviews', safeStringify(allReviews));
+
+      setIsPrefetched(true);
+      console.log("[Prefetch] Dashboard data prefetch success!");
+    } catch (e) {
+      console.warn("[Prefetch] Failed to prefetch background dashboard data:", e);
     }
   };
 
@@ -188,13 +290,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(true);
       if (firebaseUser) {
         try {
-          // Attempt authenticated seeding on login/auth changed if database is empty
-          try {
-            await firestoreService.seedDatabase();
-          } catch (seedErr) {
-            console.warn("Seeding on auth state change skipped or failed:", seedErr);
-          }
-
           const email = firebaseUser.email || '';
           let profile = await firestoreService.getUserProfile(firebaseUser.uid);
           
@@ -264,6 +359,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // Trigger prefetching of essential data immediately after successful authentication to hide latency
+  useEffect(() => {
+    if (currentUser) {
+      prefetchDashboardData().catch((err) => {
+        console.warn("Failed automatic prefetch inside AppContext:", err);
+      });
+    } else {
+      setIsPrefetched(false);
+    }
+  }, [currentUser?.uid]);
 
   // Notifications refresh
   const refreshNotifications = async () => {
@@ -618,7 +724,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateReviewStatus,
       deleteReview,
       authDomainError,
-      clearAuthDomainError
+      clearAuthDomainError,
+      bookings,
+      payments,
+      refreshBookings,
+      refreshPayments,
+      prefetchDashboardData,
+      isPrefetched,
+      darkMode,
+      toggleDarkMode
     }}>
       {children}
     </AppContext.Provider>

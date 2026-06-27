@@ -155,3 +155,66 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* High-contrast 'Dark Mode' optimized for night-time study sessions */
+.dark {
+  --color-slate-50: #020617; /* Slate 950 background */
+  --color-slate-100: #0f172a; /* Slate 900 for inner cards/nav */
+  --color-slate-200: #1e293b; /* Slate 800 borders */
+  --color-slate-300: #334155; /* Slate 700 text accents */
+  --color-slate-500: #94a3b8; /* Slate 400 icons */
+  --color-slate-600: #cbd5e1; /* Slate 300 captions */
+  --color-slate-800: #f1f5f9; /* Slate 100 values */
+  --color-slate-900: #f8fafc; /* Slate 50 primary text */
+  --color-slate-950: #ffffff; /* Absolute white */
+
+  background-color: #020617;
+  color: #f1f5f9;
+}
+
+.dark body {
+  background-color: #020617;
+  color: #f1f5f9;
+}
+
+.dark .sleek-card {
+  background-color: #0f172a;
+  border-color: rgba(51, 65, 85, 0.8);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+}
+
+.dark .sleek-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.15), 0 20px 50px -15px rgba(0, 0, 0, 0.3);
+}
+
+.dark .sleek-input {
+  background-color: #1e293b;
+  border-color: rgba(51, 65, 85, 0.8);
+  color: #f1f5f9;
+}
+
+.dark .sleek-input:focus {
+  background-color: #0f172a;
+  border-color: #6366f1;
+}
+
+.dark .sleek-btn-primary {
+  background-color: #f1f5f9;
+  color: #020617;
+}
+
+.dark .sleek-btn-primary:hover {
+  background-color: #ffffff;
+}
+
+.dark .sleek-btn-secondary {
+  background-color: #0f172a;
+  border-color: rgba(51, 65, 85, 0.8);
+  color: #cbd5e1;
+}
+
+.dark .sleek-btn-secondary:hover {
+  background-color: #1e293b;
+  border-color: #475569;
+}

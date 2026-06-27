@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { UserProfile, ClassItem, Booking, Payment } from '../types';
+import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -49,13 +50,13 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview } = useApp();
+  const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments } = useApp();
   const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [classesList, setClassesList] = useState<ClassItem[]>([]);
-  const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
-  const [bookingsList, setBookingsList] = useState<Booking[]>([]);
+  const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
+  const [paymentsList, setPaymentsList] = useState<Payment[]>(payments || []);
+  const [bookingsList, setBookingsList] = useState<Booking[]>(bookings || []);
   const [loading, setLoading] = useState(true);
 
   // Review status filters
@@ -1306,6 +1307,9 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                 </div>
+
+                {/* System Activity Feed Component */}
+                <SystemActivityFeed />
 
                 {/* CSV exporter card block */}
                 <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white shadow-md shadow-blue-100">

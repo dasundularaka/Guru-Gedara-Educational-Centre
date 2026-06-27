@@ -12,7 +12,9 @@ import {
   Check, 
   CreditCard, 
   Mail, 
-  Shield 
+  Shield,
+  Sun,
+  Moon 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
@@ -33,7 +35,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     notificationSettings,
     updateNotificationSettings,
     showToast,
-    updateProfile
+    updateProfile,
+    darkMode,
+    toggleDarkMode
   } = useApp();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -276,6 +280,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               <span>{cloudSync ? 'Live Sync' : 'Sandbox (Offline)'}</span>
             </div>
 
+            {/* High-contrast Night-Study Theme Switcher */}
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-all cursor-pointer border border-transparent"
+              title={darkMode ? "Switch to Day Study Mode" : "Switch to Night Study Dark Mode"}
+              id="theme_switcher_btn"
+            >
+              {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+            </button>
+
             {currentUser ? (
               <>
                 {/* Notification Bell */}
@@ -421,6 +435,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
           {/* Mobile hamburger menu */}
           <div className="flex md:hidden items-center gap-3">
+            {/* Mobile Theme Switcher */}
+            <button
+              onClick={toggleDarkMode}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600"
+              id="mobile_theme_switcher_btn"
+            >
+              {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+            </button>
             {currentUser && (
               <div className="p-1 text-gray-400 relative">
                 <Bell className="w-5.5 h-5.5" onClick={() => {

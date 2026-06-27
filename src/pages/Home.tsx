@@ -4,6 +4,7 @@ import { firestoreService } from '../lib/firestoreService';
 import { ClassItem, UserProfile } from '../types';
 import { ClassCard } from '../components/ClassCard';
 import { TutorCard } from '../components/TutorCard';
+import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { 
   Sparkles, 
   GraduationCap, 
@@ -236,6 +237,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               ))
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Class Schedule Widget Section */}
+      <div className="py-16 bg-slate-50 dark:bg-slate-950/20 border-t border-b border-slate-100 dark:border-slate-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <ClassScheduleWidget />
         </div>
       </div>
 

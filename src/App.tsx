@@ -9,6 +9,7 @@ import { StudentDashboard } from './pages/StudentDashboard';
 import { TutorDashboard } from './pages/TutorDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { RestrictedPasswordReset } from './pages/RestrictedPasswordReset';
+import { ToastNotification } from './components/ToastNotification';
 import { 
   CheckCircle, 
   XOctagon, 
@@ -19,7 +20,9 @@ import {
   GraduationCap, 
   Phone, 
   Mail,
-  UserCheck
+  UserCheck,
+  RefreshCw,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -159,7 +162,53 @@ function CentralLoadingScreen() {
 
 function MainAppContent() {
   const [currentTab, setCurrentTab] = useState('home');
-  const { toast, hideToast, cloudSync, currentUser, loading } = useApp();
+  const { toast, hideToast, cloudSync, currentUser, loading, showToast } = useApp();
+
+  const [pingTime, setPingTime] = useState<number | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
+
+  useEffect(() => {
+    let active = true;
+    const measurePing = async () => {
+      if (connectionStatus === 'reconnecting') return;
+      try {
+        const start = performance.now();
+        await fetch(`/?cb=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
+        const end = performance.now();
+        if (!active) return;
+        const latency = Math.round(end - start);
+        setPingTime(latency);
+        if (latency > 150) {
+          setConnectionStatus('unstable');
+        } else {
+          setConnectionStatus('stable');
+        }
+      } catch (e) {
+        if (!active) return;
+        console.warn("Ping failed:", e);
+        setConnectionStatus('unstable');
+      }
+    };
+
+    measurePing();
+    const interval = setInterval(measurePing, 8000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [connectionStatus]);
+
+  const handleSimulateInstability = () => {
+    setConnectionStatus('reconnecting');
+    setPingTime(null);
+    showToast("Simulating Network Instability... Reconnecting to database.", "info");
+
+    setTimeout(() => {
+      setConnectionStatus('stable');
+      setPingTime(Math.round(20 + Math.random() * 40));
+      showToast("Database connection established. Channels restored!", "success");
+    }, 4000);
+  };
 
   // Reset tab selection to matching home dashboard once logged in if they click Auth
   useEffect(() => {
@@ -184,31 +233,7 @@ function MainAppContent() {
         {/* Global active feedback Toast Notification message Banner */}
         <AnimatePresence>
           {toast && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              className="fixed bottom-6 right-6 z-55 max-w-sm rounded-2xl p-4 shadow-2xl flex items-start gap-3 bg-white border border-gray-100 font-sans"
-              id="tuition_toast_alert"
-            >
-              <div className="mt-0.5 flex-shrink-0">
-                {toast.type === 'success' && <CheckCircle className="w-5.2 h-5.2 text-emerald-500" />}
-                {toast.type === 'error' && <XOctagon className="w-5.2 h-5.2 text-red-500" />}
-                {toast.type === 'info' && <Info className="w-5.2 h-5.2 text-blue-500" />}
-              </div>
-              
-              <div className="flex-grow pr-4">
-                <p className="text-xs font-bold text-gray-900 leading-tight">Tuition Alert System</p>
-                <p className="text-xs text-gray-500 mt-1 leading-snug">{toast.message}</p>
-              </div>
-
-              <button
-                onClick={hideToast}
-                className="text-gray-400 hover:text-gray-600 p-0.5 rounded-lg transition-colors absolute top-2 right-2"
-              >
-                <XOctagon className="w-4 h-4 text-gray-300" />
-              </button>
-            </motion.div>
+            <ToastNotification toast={toast} onClose={hideToast} />
           )}
         </AnimatePresence>
       </div>
@@ -272,20 +297,56 @@ function MainAppContent() {
 
             <div className="space-y-3">
               <h4 className="text-xs uppercase font-bold text-white tracking-widest font-mono mb-4">Connection Core</h4>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-blue-200">
-                {cloudSync ? (
-                  <>
-                    <Wifi className="w-4 h-4 text-emerald-400 animate-pulse" />
-                    <span>Cloud Database Linked</span>
-                  </>
-                ) : (
-                  <>
-                    <WifiOff className="w-4 h-4 text-orange-400" />
-                    <span>Local State (Sandboxed)</span>
-                  </>
-                )}
+              <div className="flex flex-col gap-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-blue-200">
+                  {connectionStatus === 'reconnecting' ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />
+                      <span className="text-amber-300 font-bold">Reconnecting...</span>
+                    </>
+                  ) : connectionStatus === 'unstable' ? (
+                    <>
+                      <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />
+                      <span className="text-red-300 font-bold">Connection Unstable</span>
+                    </>
+                  ) : cloudSync ? (
+                    <>
+                      <Wifi className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span>Cloud Database Linked</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="w-4 h-4 text-orange-400" />
+                      <span>Local State (Sandboxed)</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Real-time ping latency indicator */}
+                <div className="flex items-center gap-2 text-[10px] font-mono text-blue-300 bg-white/5 rounded-lg px-2.5 py-1 border border-white/5">
+                  <Activity className="w-3 h-3 text-indigo-400" />
+                  <span>Latency:</span>
+                  {pingTime !== null ? (
+                    <span className={`font-bold ${pingTime < 80 ? 'text-emerald-400' : pingTime < 150 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {pingTime} ms ({pingTime < 80 ? 'Optimal' : pingTime < 150 ? 'Unstable' : 'Poor'})
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">checking...</span>
+                  )}
+                </div>
+
+                {/* Simulated instability trigger button */}
+                <button
+                  onClick={handleSimulateInstability}
+                  disabled={connectionStatus === 'reconnecting'}
+                  className="mt-1 text-[10px] font-bold text-left text-indigo-300 hover:text-indigo-150 transition-colors underline cursor-pointer disabled:opacity-50"
+                  id="simulate_instability_btn"
+                >
+                  {connectionStatus === 'reconnecting' ? "Simulating Recalibration..." : "Simulate Network Instability"}
+                </button>
               </div>
-              <p className="text-[10px] text-blue-300">
+
+              <p className="text-[10px] text-blue-300 pt-1">
                 Guru Gedara uses reactive Firestore cloud buckets to maintain dynamic data states securely.
               </p>
             </div>
@@ -300,31 +361,7 @@ function MainAppContent() {
       {/* Global active feedback Toast Notification message Banner */}
       <AnimatePresence>
         {toast && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 30 }}
-            className="fixed bottom-6 right-6 z-55 max-w-sm rounded-2xl p-4 shadow-2xl flex items-start gap-3 bg-white border border-gray-100 font-sans"
-            id="tuition_toast_alert"
-          >
-            <div className="mt-0.5 flex-shrink-0">
-              {toast.type === 'success' && <CheckCircle className="w-5.2 h-5.2 text-emerald-500" />}
-              {toast.type === 'error' && <XOctagon className="w-5.2 h-5.2 text-red-500" />}
-              {toast.type === 'info' && <Info className="w-5.2 h-5.2 text-blue-500" />}
-            </div>
-            
-            <div className="flex-grow pr-4">
-              <p className="text-xs font-bold text-gray-900 leading-tight">Tuition Alert System</p>
-              <p className="text-xs text-gray-500 mt-1 leading-snug">{toast.message}</p>
-            </div>
-
-            <button
-              onClick={hideToast}
-              className="text-gray-400 hover:text-gray-600 p-0.5 rounded-lg transition-colors absolute top-2 right-2"
-            >
-              <XOctagon className="w-4 h-4 text-gray-300" />
-            </button>
-          </motion.div>
+          <ToastNotification toast={toast} onClose={hideToast} />
         )}
       </AnimatePresence>
     </div>

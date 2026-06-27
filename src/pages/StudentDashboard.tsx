@@ -7,6 +7,7 @@ import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
 import { StudentModuleRoadmap } from '../components/StudentModuleRoadmap';
+import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { 
   BookOpen, 
   CreditCard, 
@@ -26,7 +27,22 @@ import {
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
-  const { currentUser, showToast, notifications, refreshNotifications, notificationSettings, updateNotificationSettings, classes, refreshClasses, refreshUserProfile, createReview } = useApp();
+  const { 
+    currentUser, 
+    showToast, 
+    notifications, 
+    refreshNotifications, 
+    notificationSettings, 
+    updateNotificationSettings, 
+    classes, 
+    refreshClasses, 
+    refreshUserProfile, 
+    createReview,
+    bookings,
+    payments,
+    refreshBookings,
+    refreshPayments
+  } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap'>('schedule');
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
@@ -101,23 +117,37 @@ export const StudentDashboard: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // Fetch bookings and payments in parallel to optimize latency
-      const [allBookings, allPayments] = await Promise.all([
-        firestoreService.getBookings(),
-        firestoreService.getPayments()
-      ]);
-
-      const matchedBookings = allBookings.filter(b => b.studentId === currentUser.uid);
+      // 1. Sync immediately with the prefetched datasets from our context
+      const matchedBookings = bookings.filter(b => b.studentId === currentUser.uid);
       setStudentBookings(matchedBookings);
 
-      const matchedPayments = allPayments.filter(p => p.studentId === currentUser.uid);
+      const matchedPayments = payments.filter(p => p.studentId === currentUser.uid);
       setPaymentsList(matchedPayments);
+
+      // 2. If the context is empty, execute a safe background refresh of bookings and payments
+      if (bookings.length === 0 || payments.length === 0) {
+        await Promise.all([
+          refreshBookings(),
+          refreshPayments()
+        ]);
+      }
     } catch (e) {
       console.warn("Failed retrieving student context ledger", e);
     } finally {
       setLoading(false);
     }
   };
+
+  // Keep student dashboard state in sync with prefetched/updated context values
+  useEffect(() => {
+    if (currentUser) {
+      const matchedBookings = bookings.filter(b => b.studentId === currentUser.uid);
+      setStudentBookings(matchedBookings);
+
+      const matchedPayments = payments.filter(p => p.studentId === currentUser.uid);
+      setPaymentsList(matchedPayments);
+    }
+  }, [bookings, payments, currentUser?.uid]);
 
   useEffect(() => {
     if (refreshUserProfile && currentUser) {
@@ -245,7 +275,10 @@ export const StudentDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
+                className="space-y-6"
               >
+                <ClassScheduleWidget />
+
                 <CalendarView 
                   userRole="student" 
                   userBookings={studentBookings} 

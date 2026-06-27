@@ -24,7 +24,18 @@ import {
 } from 'lucide-react';
 
 export const TutorDashboard: React.FC = () => {
-  const { currentUser, updateProfile, showToast, refreshClasses, refreshUserProfile, notificationSettings, updateNotificationSettings } = useApp();
+  const { 
+    currentUser, 
+    updateProfile, 
+    showToast, 
+    refreshClasses, 
+    refreshUserProfile, 
+    notificationSettings, 
+    updateNotificationSettings,
+    classes,
+    bookings,
+    refreshBookings
+  } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'chat' | 'profile' | 'settings'>('schedule');
   
   const [tutorClasses, setTutorClasses] = useState<ClassItem[]>([]);
@@ -84,26 +95,40 @@ export const TutorDashboard: React.FC = () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // Fetch classes and bookings in parallel to optimize latency
-      const [allClasses, allBookings] = await Promise.all([
-        firestoreService.getClasses(),
-        firestoreService.getBookings()
-      ]);
-
-      const matchedClasses = allClasses.filter(c => c.tutorId === currentUser.uid);
+      // 1. Instantly pull from prefetched datasets in context
+      const matchedClasses = classes.filter(c => c.tutorId === currentUser.uid);
       setTutorClasses(matchedClasses);
 
-      const matchedBookings = allBookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
+      const matchedBookings = bookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
       setRosterBookings(matchedBookings);
 
-      // 3. Load availability settings from current profile details
+      // Load availability
       setTutorAvailability(currentUser.tutorDetails?.availability || []);
+
+      // 2. Fallback or sync in the background if lists are empty
+      if (classes.length === 0 || bookings.length === 0) {
+        await Promise.all([
+          refreshClasses(),
+          refreshBookings()
+        ]);
+      }
     } catch (e) {
       console.warn("Failed loading tutor profiles details", e);
     } finally {
       setLoading(false);
     }
   };
+
+  // Sync state whenever the cached prefetch lists change
+  useEffect(() => {
+    if (currentUser) {
+      const matchedClasses = classes.filter(c => c.tutorId === currentUser.uid);
+      setTutorClasses(matchedClasses);
+
+      const matchedBookings = bookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
+      setRosterBookings(matchedBookings);
+    }
+  }, [classes, bookings, currentUser?.uid]);
 
   useEffect(() => {
     if (refreshUserProfile && currentUser) {
