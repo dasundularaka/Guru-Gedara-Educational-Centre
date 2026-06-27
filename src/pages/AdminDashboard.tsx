@@ -2185,6 +2185,7 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex gap-3 justify-center">
               <button
                 type="button"
+                id="admin_cancel_delete_btn"
                 onClick={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
                 className="w-1/2 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-705 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
@@ -2192,6 +2193,7 @@ export const AdminDashboard: React.FC = () => {
               </button>
               <button
                 type="button"
+                id="admin_confirm_delete_btn"
                 onClick={executeDeletion}
                 className="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
               >
@@ -2774,6 +2776,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
                 <button 
                   type="button" 
+                  id="admin_cancel_edit_btn"
                   onClick={() => setModalType(null)}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl cursor-pointer hover:bg-gray-200"
                 >
@@ -2781,6 +2784,7 @@ export const AdminDashboard: React.FC = () => {
                 </button>
                 <button 
                   type="submit" 
+                  id="admin_confirm_edit_btn"
                   className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 cursor-pointer"
                 >
                   Save Entity Record

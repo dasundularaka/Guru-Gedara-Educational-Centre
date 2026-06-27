@@ -38,6 +38,8 @@ interface AppContextType {
   createReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => Promise<Review>;
   updateReviewStatus: (reviewId: string, status: 'approved' | 'rejected' | 'flagged') => Promise<void>;
   deleteReview: (reviewId: string) => Promise<void>;
+  authDomainError: string | null;
+  clearAuthDomainError: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -85,6 +87,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_REVIEWS;
   });
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [authDomainError, setAuthDomainError] = useState<string | null>(null);
+  const clearAuthDomainError = () => setAuthDomainError(null);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     reminders: true,
     payments: true,
@@ -302,7 +306,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (e: any) {
       console.error(e);
-      showToast(e.message || "Google Sign-in failed. Try again.", "error");
+      if (e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
+        setAuthDomainError(window.location.hostname);
+        showToast("Unauthorized Domain: This domain needs to be added to your Firebase Console Authorized Domains.", "error");
+      } else {
+        showToast(e.message || "Google Sign-in failed. Try again.", "error");
+      }
       setLoading(false);
       return null;
     }
@@ -600,7 +609,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshReviews,
       createReview,
       updateReviewStatus,
-      deleteReview
+      deleteReview,
+      authDomainError,
+      clearAuthDomainError
     }}>
       {children}
     </AppContext.Provider>

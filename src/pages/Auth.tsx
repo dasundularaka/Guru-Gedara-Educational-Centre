@@ -32,7 +32,17 @@ const PRESET_PHOTOS = [
 ];
 
 export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
-  const { loginWithGoogle, loginWithEmail, registerWithEmail, classes, refreshClasses, showToast, currentUser } = useApp();
+  const { 
+    loginWithGoogle, 
+    loginWithEmail, 
+    registerWithEmail, 
+    classes, 
+    refreshClasses, 
+    showToast, 
+    currentUser,
+    authDomainError,
+    clearAuthDomainError
+  } = useApp();
   
   // Available tabs: login, register, change_pw
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'change_pw'>('login');
@@ -291,6 +301,62 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           <h2 className="text-xl font-black text-slate-900 tracking-tight mt-3">Welcome to Guru Gedara</h2>
           <p className="text-[11px] text-gray-500 mt-1">Centre of Academic & Educational Excellence</p>
         </div>
+
+        {/* Unauthorized Domain Error Warning Banner */}
+        {authDomainError && (
+          <div className="bg-rose-50 border-2 border-rose-200 text-rose-900 p-5 rounded-2xl mb-6 text-xs leading-relaxed shadow-sm" id="auth_domain_error_alert">
+            <h4 className="font-extrabold text-xs text-rose-950 mb-2 flex items-center gap-2">
+              <span className="p-1 rounded-lg bg-rose-100 text-rose-700">⚠️</span>
+              Firebase Auth: Unauthorized Domain
+            </h4>
+            <p className="mb-3 font-medium text-[11px]">
+              This preview domain (<span className="font-mono bg-rose-100/80 px-1.5 py-0.5 rounded font-bold text-rose-800 break-all">{authDomainError}</span>) is not authorized in your Firebase Project settings.
+            </p>
+            <div className="bg-white/80 border border-rose-100 p-3 rounded-xl mb-3 text-[11px]">
+              <p className="font-bold text-rose-950 mb-1">How to authorize this domain:</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-700">
+                <li>Go to your <a href="https://console.firebase.google.com/project/gurugedara-prod/authentication/providers" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold hover:text-blue-800">Firebase Console &rarr;</a></li>
+                <li>Verify your project is <span className="font-semibold text-slate-900">gurugedara-prod</span></li>
+                <li>Go to <span className="font-semibold text-slate-900">Authentication</span> &rarr; <span className="font-semibold text-slate-900">Settings</span> &rarr; <span className="font-semibold text-slate-900">Authorized Domains</span></li>
+                <li>Click <span className="font-semibold text-slate-900">Add domain</span> and enter:
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={authDomainError} 
+                      className="font-mono text-[10px] bg-slate-50 border border-slate-200 px-2 py-1 rounded w-full font-bold select-all text-slate-800" 
+                      id="unauthorized_domain_input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(authDomainError);
+                        showToast("Domain copied to clipboard!", "success");
+                      }}
+                      className="px-2.5 py-1 bg-slate-900 text-white rounded text-[10px] font-bold hover:bg-slate-800 shrink-0 cursor-pointer"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </li>
+              </ol>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => window.location.reload()} 
+                className="px-3.5 py-1.5 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 transition-colors text-[11px] cursor-pointer"
+              >
+                Refresh Page
+              </button>
+              <button 
+                onClick={clearAuthDomainError} 
+                className="px-3.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg transition-colors text-[11px] cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tab Selection */}
         {currentUser?.isPasswordResetRequired ? (

@@ -125,60 +125,55 @@ const firestoreServiceRaw = {
       const classSnap = await getDocs(collection(db, 'classes'));
       if (classSnap.empty) {
         console.log("Seeding classes to Firestore...");
-        for (const c of INITIAL_CLASSES) {
-          await setDoc(doc(db, 'classes', c.id), c);
-        }
+        await Promise.all(INITIAL_CLASSES.map(c => setDoc(doc(db, 'classes', c.id), c)));
       }
 
       const tutorSnap = await getDocs(collection(db, 'users'));
       if (tutorSnap.empty) {
-        console.log("Seeding tutor users to Firestore...");
-        for (const t of INITIAL_TUTORS) {
-          await setDoc(doc(db, 'users', t.uid), t);
-        }
+        console.log("Seeding initial dataset to Firestore in parallel...");
+        
+        const tutorPromises = INITIAL_TUTORS.map(t => setDoc(doc(db, 'users', t.uid), t));
+        const bookingPromises = INITIAL_BOOKINGS.map(b => setDoc(doc(db, 'bookings', b.id), b));
+        const paymentPromises = INITIAL_PAYMENTS.map(p => setDoc(doc(db, 'payments', p.id), p));
+        const notificationPromises = INITIAL_NOTIFICATIONS.map(n => setDoc(doc(db, 'notifications', n.id), n));
+        const messagePromises = INITIAL_MESSAGES.map(m => setDoc(doc(db, 'messages', m.id), m));
+        const reviewPromises = INITIAL_REVIEWS.map(r => setDoc(doc(db, 'reviews', r.id), r));
 
-        // Add dummy student Alex Mercer profile
-        await setDoc(doc(db, 'users', 'student_demo'), {
-          uid: "student_demo",
-          email: "alex.mercer@example.com",
-          name: "Alex Mercer",
-          role: "student",
-          photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-          phone: "+1 (555) 777-8899",
-          createdAt: new Date().toISOString(),
-          studentDetails: {
-            grade: "Grade 11",
-            parentContact: "+1 (555) 777-0011",
-            interests: ["Advanced Physics", "Calc"]
-          }
-        });
+        const extraPromises = [
+          setDoc(doc(db, 'users', 'student_demo'), {
+            uid: "student_demo",
+            email: "alex.mercer@example.com",
+            name: "Alex Mercer",
+            role: "student",
+            photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
+            phone: "+1 (555) 777-8899",
+            createdAt: new Date().toISOString(),
+            studentDetails: {
+              grade: "Grade 11",
+              parentContact: "+1 (555) 777-0011",
+              interests: ["Advanced Physics", "Calc"]
+            }
+          }),
+          setDoc(doc(db, 'users', 'admin_demo'), {
+            uid: "admin_demo",
+            email: "admin.academy@example.com",
+            name: "Academy Principal",
+            role: "admin",
+            createdAt: new Date().toISOString()
+          })
+        ];
 
-        // Add dummy admin profile
-        await setDoc(doc(db, 'users', 'admin_demo'), {
-          uid: "admin_demo",
-          email: "admin.academy@example.com",
-          name: "Academy Principal",
-          role: "admin",
-          createdAt: new Date().toISOString()
-        });
+        await Promise.all([
+          ...tutorPromises,
+          ...bookingPromises,
+          ...paymentPromises,
+          ...notificationPromises,
+          ...messagePromises,
+          ...reviewPromises,
+          ...extraPromises
+        ]);
 
-        // Seed initial actions
-        for (const b of INITIAL_BOOKINGS) {
-          await setDoc(doc(db, 'bookings', b.id), b);
-        }
-        for (const p of INITIAL_PAYMENTS) {
-          await setDoc(doc(db, 'payments', p.id), p);
-        }
-        for (const n of INITIAL_NOTIFICATIONS) {
-          await setDoc(doc(db, 'notifications', n.id), n);
-        }
-        for (const m of INITIAL_MESSAGES) {
-          await setDoc(doc(db, 'messages', m.id), m);
-        }
-        for (const r of INITIAL_REVIEWS) {
-          await setDoc(doc(db, 'reviews', r.id), r);
-        }
-        console.log("Database seeded successfully!");
+        console.log("Database seeded successfully in parallel!");
       }
       // Seeding or check completed successfully - save verification flag
       localStorage.setItem('db_seeding_verified', 'true');
@@ -330,6 +325,7 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'users', uid), fullProfile);
       } catch (e) {
         console.warn("Failed saving user online. Writing locally.", e);
+        isUsingCloud = false;
       }
     }
 
@@ -345,9 +341,9 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         await updateDoc(doc(db, 'users', tutorId), data);
-        return;
       } catch (e) {
         console.warn("Failed to update profile online. Saving local fallback.", e);
+        isUsingCloud = false;
       }
     }
     
@@ -472,6 +468,7 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'classes', id), newItem);
       } catch (e) {
         console.warn("Writing class locally instead.", e);
+        isUsingCloud = false;
       }
     }
 
@@ -490,9 +487,9 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'classes', classId), {
           bookedSlots: increment(incrementValue)
         });
-        return;
       } catch (e) {
         console.warn("Fallback booking count increment", e);
+        isUsingCloud = false;
       }
     }
 
@@ -551,6 +548,7 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'bookings', id), newBooking);
       } catch (e) {
         console.warn("Fallback booking creation", e);
+        isUsingCloud = false;
       }
     }
 
@@ -567,6 +565,7 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
       } catch (e) {
         console.warn("Fallback cancel booking", e);
+        isUsingCloud = false;
       }
     }
 
@@ -626,6 +625,7 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'payments', id), newPay);
       } catch (e) {
         console.warn("Fallback creating payment locally", e);
+        isUsingCloud = false;
       }
     }
 
@@ -644,6 +644,7 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'payments', id), { status });
       } catch (e) {
         console.warn("Failed online payment state change", e);
+        isUsingCloud = false;
       }
     }
 
@@ -803,6 +804,7 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'users', uid));
       } catch (e) {
         console.warn("Failed to delete user profile from Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
@@ -820,6 +822,7 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'users', uid), data);
       } catch (e) {
         console.warn("Failed to update user profile in Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
@@ -837,6 +840,7 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'classes', classId), data);
       } catch (e) {
         console.warn("Failed to update class in Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
@@ -850,6 +854,7 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'classes', classId));
       } catch (e) {
         console.warn("Failed to delete class from Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
@@ -863,6 +868,7 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'payments', paymentId), data);
       } catch (e) {
         console.warn("Failed to update payment in Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
@@ -876,6 +882,7 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'payments', paymentId));
       } catch (e) {
         console.warn("Failed to delete payment from Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
@@ -928,6 +935,7 @@ const firestoreServiceRaw = {
         );
       } catch (e) {
         console.warn("Fallback creating review", e);
+        isUsingCloud = false;
       }
     }
 
@@ -952,6 +960,7 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'reviews', reviewId), { status });
       } catch (e) {
         console.warn("Fallback updating review status", e);
+        isUsingCloud = false;
       }
     }
 
@@ -966,6 +975,7 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'reviews', reviewId));
       } catch (e) {
         console.warn("Failed to delete review from Firestore.", e);
+        isUsingCloud = false;
       }
     }
     const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
