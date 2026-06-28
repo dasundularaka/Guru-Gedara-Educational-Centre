@@ -14,7 +14,7 @@ import {
   increment,
   limit
 } from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { db, auth, firebaseConfig } from './firebase';
 import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review } from '../types';
 import { 
   INITIAL_CLASSES, 
@@ -61,9 +61,10 @@ export function safeStringify(obj: any): string {
   }
 }
 
-// Helper to check and fallback
+// Helper to check and fallback (scoped by active project ID to prevent overlap)
 function handleFallback<T>(localKey: string, initialData: T[]): T[] {
-  const local = localStorage.getItem(localKey);
+  const scopedKey = `${localKey}_${firebaseConfig.projectId || 'default'}`;
+  const local = localStorage.getItem(scopedKey);
   if (local) {
     try {
       return JSON.parse(local);
@@ -72,18 +73,19 @@ function handleFallback<T>(localKey: string, initialData: T[]): T[] {
     }
   }
   try {
-    localStorage.setItem(localKey, safeStringify(initialData));
+    localStorage.setItem(scopedKey, safeStringify(initialData));
   } catch (err) {
-    console.warn(`[safeStringify] Failed to save initial local storage for key ${localKey}`, err);
+    console.warn(`[safeStringify] Failed to save initial local storage for key ${scopedKey}`, err);
   }
   return initialData;
 }
 
 function saveFallback<T>(localKey: string, data: T[]): void {
+  const scopedKey = `${localKey}_${firebaseConfig.projectId || 'default'}`;
   try {
-    localStorage.setItem(localKey, safeStringify(data));
+    localStorage.setItem(scopedKey, safeStringify(data));
   } catch (err) {
-    console.warn(`[safeStringify] Failed to save fallback local storage for key ${localKey}`, err);
+    console.warn(`[safeStringify] Failed to save fallback local storage for key ${scopedKey}`, err);
   }
 }
 
@@ -168,7 +170,8 @@ const firestoreServiceRaw = {
   async seedDatabase() {
     if (!isUsingCloud) return;
     // Optimize: Fast instant check to completely skip database verification when already verified
-    if (localStorage.getItem('db_seeding_verified') === 'true') {
+    const seedKey = `db_seeding_verified_${firebaseConfig.projectId || 'default'}`;
+    if (localStorage.getItem(seedKey) === 'true') {
       return;
     }
     try {
@@ -245,7 +248,8 @@ const firestoreServiceRaw = {
         console.log("Database seeded successfully!");
       }
 
-      localStorage.setItem('db_seeding_verified', 'true');
+      const seedKey = `db_seeding_verified_${firebaseConfig.projectId || 'default'}`;
+      localStorage.setItem(seedKey, 'true');
     } catch (e) {
       console.warn("Cloud connection check warning:", e);
     }
