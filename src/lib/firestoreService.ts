@@ -342,7 +342,11 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
        try {
          const userRef = doc(db, 'users', uid);
-         const userSnap = await getDoc(userRef);
+         const userSnap = await promiseWithTimeout(
+           getDoc(userRef),
+           2000,
+           { exists: () => false } as any
+         );
          if (userSnap.exists()) {
            const userData = userSnap.data() as UserProfile;
            if (userData.role === 'tutor') {
@@ -407,7 +411,11 @@ const firestoreServiceRaw = {
        try {
          const usersRef = collection(db, 'users');
          const q = query(usersRef, where('email', '==', cleanEmail));
-         const qSnap = await getDocs(q);
+         const qSnap = await promiseWithTimeout(
+           getDocs(q),
+           2000,
+           { empty: true, docs: [] } as any
+         );
          if (!qSnap.empty) {
            const userData = qSnap.docs[0].data() as UserProfile;
            return userData;
@@ -512,7 +520,11 @@ const firestoreServiceRaw = {
   async changeUserPassword(email: string, newPass: string): Promise<boolean> {
     if (isUsingCloud) {
        try {
-         const snap = await getDocs(collection(db, 'users'));
+         const snap = await promiseWithTimeout(
+           getDocs(collection(db, 'users')),
+           2000,
+           { docs: [] } as any
+         );
          const foundDoc = snap.docs.find(d => (d.data().email || '').toLowerCase() === email.toLowerCase());
          if (foundDoc) {
            await updateDoc(doc(db, 'users', foundDoc.id), { 
@@ -548,7 +560,11 @@ const firestoreServiceRaw = {
     let cloudUsers: UserProfile[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'users')),
+          2500,
+          { docs: [] } as any
+        );
         cloudUsers = snap.docs.map(doc => {
           const data = doc.data();
           return {
