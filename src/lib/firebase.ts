@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
 // Support client-side overrides when hosted on any external hosting service
@@ -23,9 +27,17 @@ const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatab
   ? firebaseConfig.firestoreDatabaseId 
   : undefined;
 
+// Configure local persistent cache for offline-first resilience and slow bandwidth optimization
+const cacheSettings = {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  }),
+  experimentalForceLongPolling: true
+};
+
 export const db = dbId
-  ? initializeFirestore(app, { experimentalForceLongPolling: true }, dbId)
-  : initializeFirestore(app, { experimentalForceLongPolling: true });
+  ? initializeFirestore(app, cacheSettings, dbId)
+  : initializeFirestore(app, cacheSettings);
 
 export const auth = getAuth(app);
 export { firebaseConfig };

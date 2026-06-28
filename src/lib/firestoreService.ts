@@ -32,33 +32,109 @@ let isOriginalCloud = true;
 
 // Helper to stringify objects with circular reference protection and custom type exclusions
 export function safeStringify(obj: any): string {
-  try {
-    const cache = new Set();
-    const result = JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (cache.has(value)) {
-          return undefined; // Duplicate reference found, prune it
-        }
-        // Exclude known internal Firebase/Firestore classes with circular/complex internals
-        if (value.constructor && (
-          value.constructor.name === 'Firestore' || 
-          value.constructor.name === 'Auth' || 
-          value.constructor.name === 'Y2' || 
-          value.constructor.name === 'Ka' ||
-          value.constructor.name === 'FirebaseAppImpl'
-        )) {
-          return undefined;
-        }
-        cache.add(value);
+  const seen = new Set<any>();
+
+  function sanitize(val: any): any {
+    if (val === null || val === undefined) {
+      return val;
+    }
+    const type = typeof val;
+    if (type !== 'object') {
+      if (type === 'function' || type === 'symbol') {
+        return undefined;
       }
-      return value;
-    });
-    cache.clear();
-    return result;
+      return val;
+    }
+
+    // Check for circular reference
+    if (seen.has(val)) {
+      return undefined; // Prune circular references completely
+    }
+
+    // Check if it is a Firestore/Firebase internal object or other non-serializable objects
+    const constructorName = val.constructor?.name;
+    if (constructorName && (
+      constructorName.includes('Firestore') ||
+      constructorName.includes('Auth') ||
+      constructorName.includes('Firebase') ||
+      constructorName === 'Y2' ||
+      constructorName === 'Ka' ||
+      constructorName === 'FirebaseAppImpl'
+    )) {
+      return undefined;
+    }
+
+    // Checking common properties of Firebase objects to be extra safe
+    if (
+      val.app && val.app.constructor && val.app.constructor.name?.includes('Firebase') ||
+      val.type === 'firestore' ||
+      val._delegate ||
+      val._database ||
+      val._firestore
+    ) {
+      return undefined;
+    }
+
+    seen.add(val);
+
+    if (Array.isArray(val)) {
+      const arrCopy = val.map(item => sanitize(item));
+      seen.delete(val);
+      return arrCopy;
+    }
+
+    if (val instanceof Date) {
+      seen.delete(val);
+      return val.toISOString();
+    }
+
+    // For other objects, let's build a clean plain object
+    const plainObj: any = {};
+    for (const key of Object.keys(val)) {
+      try {
+        const cleanedVal = sanitize(val[key]);
+        if (cleanedVal !== undefined) {
+          plainObj[key] = cleanedVal;
+        }
+      } catch (e) {
+        // Skip properties that throw on access
+      }
+    }
+
+    seen.delete(val);
+    return plainObj;
+  }
+
+  try {
+    const sanitized = sanitize(obj);
+    return JSON.stringify(sanitized);
   } catch (err) {
-    console.warn("[safeStringify] Error stringifying object, returning fallback empty object structure", err);
+    console.warn("[safeStringify] Critical error stringifying object, returning fallback", err);
     return '{}';
   }
+}
+
+// Helper to wrap promises with a timeout to maintain responsiveness under unstable network/slow bandwidth conditions
+export function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[Timeout] Operation exceeded ${timeoutMs}ms limit. Temporarily falling back to local offline mode.`);
+      isUsingCloud = false;
+      resolve(fallbackValue);
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    promise.then((result) => {
+      clearTimeout(timeoutId);
+      return result;
+    }).catch((err) => {
+      clearTimeout(timeoutId);
+      throw err;
+    }),
+    timeoutPromise
+  ]);
 }
 
 // Helper to check and fallback (scoped by active project ID to prevent overlap)
@@ -132,10 +208,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error details: ', JSON.stringify(errInfo));
+  console.error('Firestore Error details: ', safeStringify(errInfo));
   // Toggle cloud connected off so the app falls back to responsive Sandbox mode
   isUsingCloud = false;
-  throw new Error(JSON.stringify(errInfo));
+  throw new Error(safeStringify(errInfo));
 }
 
 // Dynamically synchronize cloud flag based on whether there's a live Firebase Auth session
@@ -176,10 +252,14 @@ const firestoreServiceRaw = {
     }
     try {
       // Query with limit(1) in parallel to optimize read counts and connection speeds
-      const [classSnap, tutorSnap] = await Promise.all([
-        getDocs(query(collection(db, 'classes'), limit(1))),
-        getDocs(query(collection(db, 'users'), limit(1)))
-      ]);
+      const [classSnap, tutorSnap] = await promiseWithTimeout(
+        Promise.all([
+          getDocs(query(collection(db, 'classes'), limit(1))),
+          getDocs(query(collection(db, 'users'), limit(1)))
+        ]),
+        2500,
+        [ { empty: true, docs: [] } as any, { empty: true, docs: [] } as any ]
+      );
 
       const promises: Promise<any>[] = [];
       const wrapSafe = (promise: Promise<any>, name: string) => 
@@ -513,7 +593,11 @@ const firestoreServiceRaw = {
     let cloudClasses: ClassItem[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await getDocs(collection(db, 'classes'));
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'classes')),
+          2000,
+          { docs: [] } as any
+        );
         cloudClasses = snap.docs.map(doc => doc.data() as ClassItem);
       } catch (e) {
         console.warn("Fallback classes loading.", e);
@@ -581,7 +665,11 @@ const firestoreServiceRaw = {
     let cloudBookings: Booking[] = [];
     if (isUsingCloud) {
        try {
-         const snap = await getDocs(collection(db, 'bookings'));
+         const snap = await promiseWithTimeout(
+           getDocs(collection(db, 'bookings')),
+           2000,
+           { docs: [] } as any
+         );
          cloudBookings = snap.docs.map(doc => doc.data() as Booking);
        } catch (e) {
          console.warn("Fallback reading bookings.", e);
@@ -654,7 +742,11 @@ const firestoreServiceRaw = {
     let cloudPayments: Payment[] = [];
     if (isUsingCloud) {
        try {
-         const snap = await getDocs(collection(db, 'payments'));
+         const snap = await promiseWithTimeout(
+           getDocs(collection(db, 'payments')),
+           2000,
+           { docs: [] } as any
+         );
          cloudPayments = snap.docs.map(doc => {
            const data = doc.data();
            return {
@@ -733,7 +825,11 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         const qRef = query(collection(db, 'notifications'), where('userId', '==', userId));
-        const snap = await getDocs(qRef);
+        const snap = await promiseWithTimeout(
+          getDocs(qRef),
+          2000,
+          { docs: [] } as any
+        );
         cloudNotifications = snap.docs.map(doc => doc.data() as NotificationItem);
       } catch (e) {
         console.warn("Fallback matching client notifications for " + userId, e);
@@ -804,7 +900,11 @@ const firestoreServiceRaw = {
     let cloudMessages: DirectMessage[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await getDocs(collection(db, 'messages'));
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'messages')),
+          2000,
+          { docs: [] } as any
+        );
         cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
       } catch (e) {
         console.warn("Fallback loader messages.", e);
@@ -969,7 +1069,11 @@ const firestoreServiceRaw = {
     let cloudReviews: Review[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await getDocs(collection(db, 'reviews'));
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'reviews')),
+          2000,
+          { docs: [] } as any
+        );
         cloudReviews = snap.docs.map(doc => doc.data() as Review);
       } catch (e) {
         console.warn("Fallback reading reviews.", e);

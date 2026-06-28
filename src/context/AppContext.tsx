@@ -225,6 +225,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('local_reviews', safeStringify(allReviews));
 
       setIsPrefetched(true);
+      setCloudSync(firestoreService.isCloudConnected());
       console.log("[Prefetch] Dashboard data prefetch success!");
     } catch (e) {
       console.warn("[Prefetch] Failed to prefetch background dashboard data:", e);
@@ -344,6 +345,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentUser(null);
         }
       }
+      setCloudSync(firestoreService.isCloudConnected());
       setLoading(false);
     });
 
