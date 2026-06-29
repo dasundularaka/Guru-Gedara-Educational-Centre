@@ -62,7 +62,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
     >
       <div>
         {/* Profile Header */}
-        <div className="flex gap-4 items-start mb-5">
+        <div className="flex gap-4 items-start mb-5 relative">
           {tutor.photoURL ? (
             <img 
               referrerPolicy="no-referrer"
@@ -74,6 +74,12 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
             <div className="h-14 w-14 rounded-2xl bg-slate-100 text-slate-800 font-extrabold flex items-center justify-center text-lg">
               {tutor.name.substr(0,2).toUpperCase()}
             </div>
+          )}
+
+          {tutor.isFeatured && (
+            <span className="absolute -top-1.5 -right-1.5 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black tracking-wider uppercase bg-amber-500 text-white shadow-sm font-mono border border-amber-400">
+              <Star className="w-2 h-2 fill-white text-white" /> Featured
+            </span>
           )}
 
           <div>

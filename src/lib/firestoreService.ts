@@ -12,10 +12,11 @@ import {
   orderBy,
   arrayUnion,
   increment,
-  limit
+  limit,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, auth, firebaseConfig } from './firebase';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -1173,6 +1174,94 @@ const firestoreServiceRaw = {
     const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
     const filtered = reviews.filter(r => r.id !== reviewId);
     saveFallback('local_reviews', filtered);
+  },
+
+  // -------------------------------------------------------------
+  // ATTENDANCE METHODS
+  // -------------------------------------------------------------
+  async getAttendance(): Promise<AttendanceRecord[]> {
+    let cloudAttendance: AttendanceRecord[] = [];
+    if (isUsingCloud) {
+      try {
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'attendance')),
+          2000,
+          { docs: [] } as any
+        );
+        cloudAttendance = snap.docs.map(doc => doc.data() as AttendanceRecord);
+      } catch (e) {
+        console.warn("Fallback reading attendance.", e);
+      }
+    }
+    const localAttendance = handleFallback<AttendanceRecord>('local_attendance', []);
+    const attendanceMap = new Map<string, AttendanceRecord>();
+    localAttendance.forEach(a => attendanceMap.set(a.id, a));
+    cloudAttendance.forEach(a => attendanceMap.set(a.id, a));
+    const mergedList = Array.from(attendanceMap.values());
+
+    if (cloudAttendance.length > 0) {
+      saveFallback('local_attendance', mergedList);
+    }
+    return mergedList;
+  },
+
+  async markAttendance(record: AttendanceRecord): Promise<AttendanceRecord> {
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'attendance', record.id), record);
+      } catch (e) {
+        console.warn("Fallback attendance creation", e);
+        isUsingCloud = false;
+      }
+    }
+
+    const list = handleFallback<AttendanceRecord>('local_attendance', []);
+    const filtered = list.filter(a => a.id !== record.id);
+    filtered.push(record);
+    saveFallback('local_attendance', filtered);
+    return record;
+  },
+
+  // -------------------------------------------------------------
+  // REAL-TIME DIRECT MESSAGES SUBSCRIPTION
+  // -------------------------------------------------------------
+  subscribeDirectMessages(userId1: string, userId2: string, callback: (messages: DirectMessage[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        const q = query(
+          collection(db, 'messages')
+        );
+        return onSnapshot(q, (snap) => {
+          const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
+          const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
+          const messageMap = new Map<string, DirectMessage>();
+          localMsgs.forEach(m => messageMap.set(m.id, m));
+          cloudMessages.forEach(m => messageMap.set(m.id, m));
+          const mergedList = Array.from(messageMap.values());
+          
+          if (cloudMessages.length > 0) {
+            saveFallback('local_messages', mergedList);
+          }
+          
+          const filtered = mergedList
+            .filter(m => 
+              (m.senderId === userId1 && m.receiverId === userId2) || 
+              (m.senderId === userId2 && m.receiverId === userId1)
+            )
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          
+          callback(filtered);
+        }, (error) => {
+          console.error('Error on messages snapshot: ', error);
+        });
+      } catch (e) {
+        console.warn("Error subscribing to direct messages, falling back to one-time fetch", e);
+      }
+    }
+    
+    // Offline fallback: one-time fetch
+    this.getDirectMessages(userId1, userId2).then(callback);
+    return () => {};
   }
 };
 

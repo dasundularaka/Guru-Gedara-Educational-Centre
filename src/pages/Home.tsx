@@ -34,10 +34,17 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
     const loadHomeRecords = async () => {
       try {
         await refreshClasses();
-        // Load some tutors
+        // Load tutors
         const list = await firestoreService.getAllUsers();
-        const tutors = list.filter(u => u.role === 'tutor').slice(0, 3);
-        setTopTutors(tutors);
+        const tutorsList = list.filter(u => u.role === 'tutor');
+        const featuredTutors = tutorsList.filter(u => u.isFeatured === true);
+        
+        // Use featured tutors, or fallback to first 3 if none featured
+        if (featuredTutors.length > 0) {
+          setTopTutors(featuredTutors);
+        } else {
+          setTopTutors(tutorsList.slice(0, 3));
+        }
       } catch (e) {
         console.warn(e);
       }
@@ -47,7 +54,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
   useEffect(() => {
     if (classes && classes.length > 0) {
-      setHighlightedClasses(classes.slice(0, 3));
+      const featuredClasses = classes.filter(c => c.isFeatured === true);
+      // Use featured classes, or fallback to first 3 if none featured
+      if (featuredClasses.length > 0) {
+        setHighlightedClasses(featuredClasses);
+      } else {
+        setHighlightedClasses(classes.slice(0, 3));
+      }
     }
   }, [classes]);
 

@@ -69,5 +69,10 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
     }
+
+    // Attendance rules
+    match /attendance/{attendanceId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

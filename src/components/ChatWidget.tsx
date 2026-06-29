@@ -10,7 +10,7 @@ interface ChatWidgetProps {
 }
 
 export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUserRole }) => {
-  const { showToast } = useApp();
+  const { showToast, bookings } = useApp();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -23,17 +23,25 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
     const fetchUsers = async () => {
       try {
         const list = await firestoreService.getAllUsers();
-        // Filter: Students see tutors, Tutors see students
+        // Filter: Students see enrolled tutors and admins, Tutors see enrolled students and admins
         const filtered = list.filter(u => {
           if (currentUserRole === 'student') {
-            return u.role === 'tutor';
+            const activeBookings = bookings || [];
+            const enrolledTutorIds = activeBookings
+              .filter(b => b.studentId === currentUserId && b.status === 'active')
+              .map(b => b.tutorId);
+            return u.role === 'admin' || (u.role === 'tutor' && enrolledTutorIds.includes(u.uid));
           } else if (currentUserRole === 'tutor') {
-            return u.role === 'student';
+            const activeBookings = bookings || [];
+            const enrolledStudentIds = activeBookings
+              .filter(b => b.tutorId === currentUserId && b.status === 'active')
+              .map(b => b.studentId);
+            return u.role === 'admin' || (u.role === 'student' && enrolledStudentIds.includes(u.uid));
           }
           return u.uid !== currentUserId; // Admin sees everyone
         });
         setUsers(filtered);
-        if (filtered.length > 0) {
+        if (filtered.length > 0 && !selectedUser) {
           setSelectedUser(filtered[0]);
         }
       } catch (err) {
@@ -41,25 +49,17 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
       }
     };
     fetchUsers();
-  }, [currentUserId, currentUserRole]);
+  }, [currentUserId, currentUserRole, bookings]);
 
-  // Load message logs for selected user
-  const loadMessages = async () => {
-    if (!selectedUser) return;
-    try {
-      const logs = await firestoreService.getDirectMessages(currentUserId, selectedUser.uid);
-      setMessages(logs);
-    } catch (e) {
-      console.warn("Error loading chat logs", e);
-    }
-  };
-
+  // Real-time subscribe message logs for selected user
   useEffect(() => {
-    loadMessages();
-    const interval = setInterval(() => {
-      loadMessages();
-    }, 5000); // Poll messages every 5 seconds for real-time vibe
-    return () => clearInterval(interval);
+    if (!selectedUser) return;
+    
+    const unsubscribe = firestoreService.subscribeDirectMessages(currentUserId, selectedUser.uid, (logs) => {
+      setMessages(logs);
+    });
+    
+    return () => unsubscribe();
   }, [selectedUser, currentUserId]);
 
   // Scroll to bottom

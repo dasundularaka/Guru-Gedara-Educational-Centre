@@ -160,6 +160,11 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
           <span className={`absolute top-3 left-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border shadow-sm backdrop-blur-md bg-white/90 ${getSubjectColor(item.subject)}`}>
             {item.subject}
           </span>
+          {item.isFeatured && (
+            <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-amber-500 text-white shadow-sm font-mono border border-amber-400">
+              <Star className="w-2.5 h-2.5 fill-white" /> Featured
+            </span>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3.5">
             <div className="flex items-center gap-2">
               {item.tutorPhoto ? (

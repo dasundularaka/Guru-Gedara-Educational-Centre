@@ -38,6 +38,7 @@ export interface UserProfile {
       slots: string[]; // e.g. ["10:00 AM", "02:00 PM"]
     }[];
   };
+  isFeatured?: boolean;
 }
 
 export interface ClassItem {
@@ -56,6 +57,7 @@ export interface ClassItem {
   bookedSlots: number;
   tags?: string[];
   imageUrl?: string;
+  isFeatured?: boolean;
 }
 
 export interface Booking {
@@ -128,5 +130,17 @@ export interface Review {
   comment: string;
   status: 'pending' | 'approved' | 'rejected' | 'flagged';
   createdAt: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  classId: string;
+  classTitle: string;
+  studentId: string;
+  studentName: string;
+  date: string; // YYYY-MM-DD
+  status: 'Present' | 'Absent';
+  markedAt: string;
+  tutorId: string;
 }
 

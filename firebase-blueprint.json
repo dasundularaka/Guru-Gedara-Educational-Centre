@@ -1,0 +1,187 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Represents a student, tutor, or admin profile.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "tutor", "admin"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "active"] },
+        "photoURL": { "type": "string" },
+        "pendingPhotoURL": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "guardianName": { "type": "string" },
+        "guardianPhone": { "type": "string" },
+        "selectedClasses": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "name", "role", "createdAt"]
+    },
+    "ClassItem": {
+      "title": "ClassItem",
+      "description": "Represents an educational tuition course or class.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "tutorId": { "type": "string" },
+        "tutorName": { "type": "string" },
+        "tutorPhoto": { "type": "string" },
+        "schedule": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "timeSlot": { "type": "string" },
+        "price": { "type": "number" },
+        "description": { "type": "string" },
+        "maxSlots": { "type": "number" },
+        "bookedSlots": { "type": "number" },
+        "tags": { "type": "array" },
+        "imageUrl": { "type": "string" },
+        "isFeatured": { "type": "boolean" }
+      },
+      "required": ["id", "title", "subject", "tutorId", "tutorName", "schedule", "price", "description"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Represents a class slot booking made by a student.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "classTitle": { "type": "string" },
+        "tutorId": { "type": "string" },
+        "tutorName": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "timeSlot": { "type": "string" },
+        "bookingDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "cancelled"] }
+      },
+      "required": ["id", "studentId", "studentName", "classId", "classTitle", "tutorId", "tutorName", "bookingDate", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Represents a tuition payment made by a student.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "classTitle": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "pending", "failed"] },
+        "paymentMethod": { "type": "string" }
+      },
+      "required": ["id", "studentId", "studentName", "classId", "classTitle", "amount", "date", "status"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "A system notification for a specific user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["reminder", "payment", "announcement", "message"] },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message", "type", "isRead", "createdAt"]
+    },
+    "DirectMessage": {
+      "title": "DirectMessage",
+      "description": "A direct message between two platform participants.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "senderId", "senderName", "receiverId", "message", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A course/tutor review submitted by a student.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentPhotoURL": { "type": "string" },
+        "tutorId": { "type": "string" },
+        "tutorName": { "type": "string" },
+        "classId": { "type": "string" },
+        "classTitle": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "flagged"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "studentName", "rating", "comment", "status", "createdAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "A class attendance mark for a student by a tutor.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "classTitle": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["Present", "Absent"] },
+        "markedAt": { "type": "string" },
+        "tutorId": { "type": "string" }
+      },
+      "required": ["id", "classId", "classTitle", "studentId", "studentName", "date", "status", "markedAt", "tutorId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "The user accounts collection"
+    },
+    "/classes/{classId}": {
+      "schema": "ClassItem",
+      "description": "Tuition classes and courses collection"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Schedules and bookings"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Student tuition payment collection"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "NotificationItem",
+      "description": "System alerts and notifications"
+    },
+    "/messages/{messageId}": {
+      "schema": "DirectMessage",
+      "description": "Interactive multi-user chats and history"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Feedback, ratings, and course reviews"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "Student attendance registry records"
+    }
+  }
+}

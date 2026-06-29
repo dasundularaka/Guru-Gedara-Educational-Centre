@@ -20,8 +20,12 @@ import {
   Sliders,
   Edit,
   User,
-  Sparkles
+  Sparkles,
+  ClipboardList,
+  CheckSquare,
+  Search
 } from 'lucide-react';
+import { AttendanceRecord } from '../types';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -36,13 +40,19 @@ export const TutorDashboard: React.FC = () => {
     bookings,
     refreshBookings
   } = useApp();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'chat' | 'profile' | 'settings'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'attendance' | 'chat' | 'profile' | 'settings'>('schedule');
   
   const [tutorClasses, setTutorClasses] = useState<ClassItem[]>([]);
   const [rosterBookings, setRosterBookings] = useState<Booking[]>([]);
   const [tutorAvailability, setTutorAvailability] = useState<{ day: string; slots: string[] }[]>([]);
   
   const [loading, setLoading] = useState(true);
+
+  // Attendance management state variables
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [selectedAttendanceClassId, setSelectedAttendanceClassId] = useState<string>('');
+  const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
 
   // New Class Form Dialog popup
   const [showAddClass, setShowAddClass] = useState(false);
@@ -136,6 +146,28 @@ export const TutorDashboard: React.FC = () => {
     }
     fetchTutorData();
   }, [currentUser?.uid]);
+
+  const loadAttendanceRecords = async () => {
+    if (!currentUser) return;
+    setLoadingAttendance(true);
+    try {
+      const records = await firestoreService.getAttendance();
+      // Only keep records of classes belonging to this tutor
+      const tutorClassIds = classes.filter(c => c.tutorId === currentUser.uid).map(c => c.id);
+      const filtered = records.filter(r => tutorClassIds.includes(r.classId));
+      setAttendanceRecords(filtered);
+    } catch (e) {
+      console.warn("Failed to load attendance records", e);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSubTab === 'attendance' && currentUser) {
+      loadAttendanceRecords();
+    }
+  }, [activeSubTab, currentUser?.uid]);
 
   // Handler to add schedule availability dynamically
   const handleAddAvailability = async (day: string, slot: string) => {
@@ -407,6 +439,13 @@ export const TutorDashboard: React.FC = () => {
                 <Users className="w-4 h-4" /> listed Scholars ({rosterBookings.length})
               </button>
               <button
+                id="tutor_tab_attendance"
+                onClick={() => setActiveSubTab('attendance')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'attendance' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+              >
+                <ClipboardList className="w-4 h-4" /> Attendance Tracker
+              </button>
+              <button
                 id="tutor_tab_chat"
                 onClick={() => setActiveSubTab('chat')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'chat' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
@@ -546,6 +585,216 @@ export const TutorDashboard: React.FC = () => {
                   )}
                 </div>
 
+              </motion.div>
+            )}
+
+            {/* Tab 2.5: Attendance Section */}
+            {activeSubTab === 'attendance' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-6 font-sans"
+              >
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 border-gray-50 mb-6 gap-4">
+                    <div>
+                      <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2">
+                        <ClipboardList className="w-5 h-5 text-indigo-650" /> Student Attendance Registry
+                      </h2>
+                      <p className="text-[11px] text-gray-400 mt-1">Mark daily present or absent checklists for active scholars in your classes</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-500 uppercase font-mono mb-1">Select Class Course:</label>
+                        <select
+                          id="attendance_class_select"
+                          value={selectedAttendanceClassId}
+                          onChange={(e) => setSelectedAttendanceClassId(e.target.value)}
+                          className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-indigo-500 outline-none cursor-pointer"
+                        >
+                          <option value="">-- Choose active class --</option>
+                          {tutorClasses.map(c => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-500 uppercase font-mono mb-1">Select Date:</label>
+                        <input
+                          id="attendance_date_input"
+                          type="date"
+                          value={attendanceDate}
+                          onChange={(e) => setAttendanceDate(e.target.value)}
+                          className="text-xs px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-indigo-500 outline-none cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {!selectedAttendanceClassId ? (
+                    <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                      <CheckSquare className="w-8 h-8 mx-auto text-slate-350 mb-2.5 animate-pulse" />
+                      <p className="text-xs font-bold text-slate-500">No Course Class Selected</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Please select an active subject course in the dropdown menu to mark student attendances.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Active student bookings roster for attendance */}
+                      <div className="border border-slate-100 rounded-xl overflow-hidden bg-white shadow-xs">
+                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-800 font-mono uppercase tracking-wider">Mark Attendance Checklist</span>
+                          <span className="text-[10px] text-slate-400 font-mono">Date: {attendanceDate}</span>
+                        </div>
+
+                        {bookings.filter(b => b.classId === selectedAttendanceClassId && b.status === "active").length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-xs">
+                            No active students are currently enrolled or registered in this class.
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-100">
+                            {bookings.filter(b => b.classId === selectedAttendanceClassId && b.status === "active").map((b) => {
+                              // Find if there is an existing record for this student on this date
+                              const recordId = `${selectedAttendanceClassId}_${b.studentId || b.id}_${attendanceDate}`;
+                              const existingRecord = attendanceRecords.find(r => r.id === recordId);
+                              
+                              const handleStatusUpdate = async (status: 'Present' | 'Absent') => {
+                                try {
+                                  const newRecord: AttendanceRecord = {
+                                    id: recordId,
+                                    classId: selectedAttendanceClassId,
+                                    classTitle: b.classTitle,
+                                    studentId: b.studentId || b.id,
+                                    studentName: b.studentName,
+                                    date: attendanceDate,
+                                    status,
+                                    markedAt: new Date().toISOString(),
+                                    tutorId: currentUser.uid
+                                  };
+                                  await firestoreService.markAttendance(newRecord);
+                                  showToast(`Attendance marked as ${status} for ${b.studentName}.`, "success");
+                                  // Instantly update local state
+                                  setAttendanceRecords(prev => [...prev.filter(r => r.id !== recordId), newRecord]);
+                                } catch (err) {
+                                  showToast("Failed to record attendance status.", "error");
+                                }
+                              };
+
+                              return (
+                                <div key={b.id} className="px-4 py-3.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 hover:bg-slate-50/40 transition-colors">
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-900">{b.studentName}</h4>
+                                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Scholar Student ID: {b.studentId || b.id}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-start">
+                                    <div className="text-right">
+                                      {existingRecord ? (
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                                          existingRecord.status === 'Present' 
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-150' 
+                                            : 'bg-red-50 text-red-700 border border-red-150'
+                                        }`}>
+                                          {existingRecord.status}
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] bg-slate-50 text-slate-450 border border-slate-200 font-bold uppercase font-mono">
+                                          Not Marked
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        id={`btn_attendance_present_${b.id}`}
+                                        onClick={() => handleStatusUpdate('Present')}
+                                        className={`px-3 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                          existingRecord?.status === 'Present'
+                                            ? 'bg-emerald-600 text-white shadow-xs'
+                                            : 'bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600'
+                                        }`}
+                                      >
+                                        Present
+                                      </button>
+                                      <button
+                                        id={`btn_attendance_absent_${b.id}`}
+                                        onClick={() => handleStatusUpdate('Absent')}
+                                        className={`px-3 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                          existingRecord?.status === 'Absent'
+                                            ? 'bg-red-600 text-white shadow-xs'
+                                            : 'bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-600'
+                                        }`}
+                                      >
+                                        Absent
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Display attendance list history in a table view */}
+                      <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-xs">
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-800 font-mono uppercase tracking-wider">Attendance Logs History ({attendanceRecords.length})</span>
+                          <button 
+                            id="btn_refresh_attendance"
+                            onClick={loadAttendanceRecords}
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                          >
+                            Refresh Log
+                          </button>
+                        </div>
+
+                        {loadingAttendance ? (
+                          <div className="p-8 text-center text-slate-400 text-xs animate-pulse">
+                            Loading attendance ledger registry...
+                          </div>
+                        ) : attendanceRecords.length === 0 ? (
+                          <div className="p-8 text-center text-slate-450 text-xs">
+                            No attendance history logs registered yet.
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-50/40 text-[10px] font-mono text-slate-500 border-b border-slate-100 uppercase tracking-wider">
+                                  <th className="p-3">Student Name</th>
+                                  <th className="p-3">Course Title</th>
+                                  <th className="p-3">Class Date</th>
+                                  <th className="p-3">Marked Status</th>
+                                  <th className="p-3">Marked At</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-105">
+                                {[...attendanceRecords].sort((a,b) => new Date(b.markedAt).getTime() - new Date(a.markedAt).getTime()).map((record) => (
+                                  <tr key={record.id} className="hover:bg-slate-50/20 transition-colors">
+                                    <td className="p-3 font-bold text-slate-800">{record.studentName}</td>
+                                    <td className="p-3 text-slate-600">{record.classTitle}</td>
+                                    <td className="p-3 font-mono font-medium text-slate-650">{record.date}</td>
+                                    <td className="p-3">
+                                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase font-mono ${
+                                        record.status === 'Present' 
+                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-150' 
+                                          : 'bg-red-50 text-red-700 border border-red-150'
+                                      }`}>
+                                        {record.status}
+                                      </span>
+                                    </td>
+                                    <td className="p-3 font-mono text-[9px] text-slate-400">
+                                      {new Date(record.markedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
 

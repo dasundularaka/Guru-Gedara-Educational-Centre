@@ -1766,6 +1766,29 @@ export const AdminDashboard: React.FC = () => {
                       {/* Card Action Controls */}
                       <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                         <button 
+                          id={`feature-tutor-btn-${tut.uid}`}
+                          onClick={async () => {
+                            try {
+                              const updatedFeatured = !tut.isFeatured;
+                              await firestoreService.updateUserProfile(tut.uid, { isFeatured: updatedFeatured });
+                              showToast(`${tut.name} has been ${updatedFeatured ? 'marked as Featured' : 'removed from Featured'}.`, "success");
+                              const updatedUsers = users.map(u => u.uid === tut.uid ? { ...u, isFeatured: updatedFeatured } : u);
+                              setUsers(updatedUsers);
+                            } catch (err) {
+                              showToast("Failed to update tutor status.", "error");
+                            }
+                          }}
+                          className={`p-1 px-2.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 text-[11px] font-semibold ${
+                            tut.isFeatured 
+                              ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700' 
+                              : 'bg-white hover:bg-gray-100 border-gray-200 text-gray-650'
+                          }`}
+                          title="Toggle featured status on homepage"
+                        >
+                          <Star className={`w-3.5 h-3.5 ${tut.isFeatured ? 'fill-amber-400 text-amber-500' : 'text-gray-400'}`} /> 
+                          {tut.isFeatured ? 'Featured' : 'Feature'}
+                        </button>
+                        <button 
                           id={`edit-tutor-btn-${tut.uid}`}
                           onClick={() => openEditModal('tutor', tut)}
                           className="p-1 px-2.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
@@ -1776,7 +1799,7 @@ export const AdminDashboard: React.FC = () => {
                         <button 
                           id={`delete-tutor-btn-${tut.uid}`}
                           onClick={() => handleDeleteTutor(tut.uid, tut.name)}
-                          className="p-1 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                          className="p-1 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-105 text-red-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
                           title="Delete tutor record"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -1840,6 +1863,31 @@ export const AdminDashboard: React.FC = () => {
 
                         {/* Card Action Controls */}
                         <div className="flex flex-col gap-1.5">
+                          <button 
+                            id={`feature-class-btn-${c.id}`}
+                            onClick={async () => {
+                              try {
+                                const updatedFeatured = !c.isFeatured;
+                                await firestoreService.updateClass(c.id, { isFeatured: updatedFeatured });
+                                showToast(`Class "${c.title}" has been ${updatedFeatured ? 'marked as Featured' : 'removed from Featured'}.`, "success");
+                                const updatedClasses = classesList.map(item => item.id === c.id ? { ...item, isFeatured: updatedFeatured } : item);
+                                setClassesList(updatedClasses);
+                                if (refreshClasses) {
+                                  refreshClasses();
+                                }
+                              } catch (err) {
+                                showToast("Failed to update class status.", "error");
+                              }
+                            }}
+                            className={`p-1 rounded cursor-pointer border transition-colors ${
+                              c.isFeatured 
+                                ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-500 font-bold' 
+                                : 'bg-white hover:bg-gray-100 border-gray-200 text-gray-400 hover:text-amber-500'
+                            }`}
+                            title="Toggle featured status on homepage"
+                          >
+                            <Star className={`w-3.5 h-3.5 ${c.isFeatured ? 'fill-amber-400 text-amber-500' : ''}`} />
+                          </button>
                           <button 
                             id={`edit-class-btn-${c.id}`}
                             onClick={() => openEditModal('class', c)}
