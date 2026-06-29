@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { firestoreService, safeStringify } from '../lib/firestoreService';
+import { genericFirestoreService } from '../lib/genericFirestore';
 import { UserProfile, NotificationSettings, NotificationItem, Review, Booking, Payment } from '../types';
 import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
@@ -48,6 +49,7 @@ interface AppContextType {
   isPrefetched: boolean;
   darkMode: boolean;
   toggleDarkMode: () => void;
+  genericFirestoreService: typeof genericFirestoreService;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -734,7 +736,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prefetchDashboardData,
       isPrefetched,
       darkMode,
-      toggleDarkMode
+      toggleDarkMode,
+      genericFirestoreService
     }}>
       {children}
     </AppContext.Provider>

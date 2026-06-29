@@ -1,10 +1,10 @@
 {
   "projectId": "gurugedara-prod",
-  "appId": "1:380777950459:web:5cdc4ba44c0b958190945e",
+  "appId": "1:380777950459:web:3791e4c8b4cd70b490945e",
   "apiKey": "AIzaSyAeNptO2frLoS2ZCb82Eb6GgZoip5q2C0I",
   "authDomain": "gurugedara-prod.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
+  "firestoreDatabaseId": "ai-studio-gurugedaraeducat-5c44d2d2-5b10-4b50-b344-701e5e839624",
   "storageBucket": "gurugedara-prod.firebasestorage.app",
   "messagingSenderId": "380777950459",
-  "measurementId": "G-LDDCRWPMCY"
+  "measurementId": ""
 }
