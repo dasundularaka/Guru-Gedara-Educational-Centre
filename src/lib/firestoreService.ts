@@ -215,19 +215,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(safeStringify(errInfo));
 }
 
-// Dynamically synchronize cloud flag based on whether there's a live Firebase Auth session
-// vs. a simulated sandbox local session. This prevents unauthenticated cloud queries from failing
-// and overwriting locally saved additions, edits, or deletions in sandbox mode.
+// Dynamically synchronize cloud flag based on connectivity state rather than auth session.
+// This allows local and simulated test users to connect and save data to the live Firestore
+// database, utilizing the permissive security rules deployed on gurugedara-prod.
 function syncCloudFlag() {
   if (!isOriginalCloud) {
     isUsingCloud = false;
     return;
-  }
-  const hasLocalSession = !!localStorage.getItem('local_running_session');
-  if (hasLocalSession && !auth.currentUser) {
-    isUsingCloud = false;
-  } else {
-    isUsingCloud = true;
   }
 }
 
@@ -238,7 +232,7 @@ const firestoreServiceRaw = {
 
   setCloudConnected(status: boolean) {
     isOriginalCloud = status;
-    syncCloudFlag();
+    isUsingCloud = status;
   },
 
   // -------------------------------------------------------------
