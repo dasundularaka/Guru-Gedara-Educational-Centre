@@ -54,6 +54,10 @@ export const TutorDashboard: React.FC = () => {
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
 
+  // Quick Attendance Widget state
+  const [widgetClassId, setWidgetClassId] = useState<string>('');
+  const [widgetDate, setWidgetDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
   // New Class Form Dialog popup
   const [showAddClass, setShowAddClass] = useState(false);
   const [classFormMode, setClassFormMode] = useState<'create' | 'edit'>('create');
@@ -164,10 +168,17 @@ export const TutorDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (activeSubTab === 'attendance' && currentUser) {
+    if (currentUser) {
       loadAttendanceRecords();
     }
   }, [activeSubTab, currentUser?.uid]);
+
+  // Set default widgetClassId to first tutor class if available
+  useEffect(() => {
+    if (tutorClasses.length > 0 && !widgetClassId) {
+      setWidgetClassId(tutorClasses[0].id);
+    }
+  }, [tutorClasses, widgetClassId]);
 
   // Handler to add schedule availability dynamically
   const handleAddAvailability = async (day: string, slot: string) => {
@@ -485,13 +496,169 @@ export const TutorDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
+                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
               >
-                <CalendarView
-                  userRole="tutor"
-                  tutorClasses={tutorClasses}
-                  tutorAvailability={tutorAvailability}
-                  onAddAvailability={handleAddAvailability}
-                />
+                {/* Left Side: Calendar Schedule View */}
+                <div className="lg:col-span-8">
+                  <CalendarView
+                    userRole="tutor"
+                    tutorClasses={tutorClasses}
+                    tutorAvailability={tutorAvailability}
+                    onAddAvailability={handleAddAvailability}
+                  />
+                </div>
+
+                {/* Right Side: Attendance Tracker Quick Widget */}
+                <div className="lg:col-span-4 space-y-6">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-5 font-sans space-y-5" id="attendance_quick_widget">
+                    
+                    {/* Widget Header */}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-indigo-50 text-indigo-650 rounded-lg dark:bg-slate-200/10">
+                          <ClipboardList className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-slate-900 tracking-tight">Attendance Tracker</h3>
+                          <p className="text-[10px] text-slate-400 font-medium">Quick-mark session attendance</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Widget Parameters Form */}
+                    <div className="space-y-3.5 border-t border-slate-50 pt-4">
+                      <div>
+                        <label htmlFor="widget_class_select" className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono mb-1.5">
+                          Select Class
+                        </label>
+                        <select
+                          id="widget_class_select"
+                          value={widgetClassId}
+                          onChange={(e) => setWidgetClassId(e.target.value)}
+                          className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-700"
+                        >
+                          <option value="">-- Choose active class --</option>
+                          {tutorClasses.map(c => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label htmlFor="widget_date_input" className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono mb-1.5">
+                            Date of Session
+                          </label>
+                          <input
+                            id="widget_date_input"
+                            type="date"
+                            value={widgetDate}
+                            onChange={(e) => setWidgetDate(e.target.value)}
+                            className="w-full text-xs px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Enrolled Students & Checklist Section */}
+                    <div className="border-t border-slate-50 pt-4 space-y-3">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono uppercase tracking-widest">
+                        <span>Enrolled Students</span>
+                        <span className="font-bold text-indigo-650">Roster list</span>
+                      </div>
+
+                      {!widgetClassId ? (
+                        <p className="text-xs text-slate-450 italic py-4 text-center">Please select a class to view enrollment roster.</p>
+                      ) : bookings.filter(b => b.classId === widgetClassId && b.status === "active").length === 0 ? (
+                        <p className="text-xs text-slate-450 italic py-4 text-center">No students enrolled in this course.</p>
+                      ) : (
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                          {bookings.filter(b => b.classId === widgetClassId && b.status === "active").map((b) => {
+                            const recordId = `${widgetClassId}_${b.studentId || b.id}_${widgetDate}`;
+                            const existingRecord = attendanceRecords.find(r => r.id === recordId);
+
+                            const handleWidgetStatusUpdate = async (status: 'Present' | 'Absent') => {
+                              try {
+                                const newRecord: AttendanceRecord = {
+                                  id: recordId,
+                                  classId: widgetClassId,
+                                  classTitle: b.classTitle,
+                                  studentId: b.studentId || b.id,
+                                  studentName: b.studentName,
+                                  date: widgetDate,
+                                  status,
+                                  markedAt: new Date().toISOString(),
+                                  tutorId: currentUser.uid
+                                };
+                                await firestoreService.markAttendance(newRecord);
+                                showToast(`Attendance marked as ${status} for ${b.studentName}.`, "success");
+                                setAttendanceRecords(prev => [...prev.filter(r => r.id !== recordId), newRecord]);
+                              } catch (err) {
+                                showToast("Failed to record attendance status.", "error");
+                              }
+                            };
+
+                            return (
+                              <div key={b.id} className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl flex items-center justify-between gap-3 text-xs">
+                                <div className="space-y-0.5 truncate flex-1">
+                                  <h4 className="font-bold text-slate-800 truncate">{b.studentName}</h4>
+                                  <div className="flex items-center gap-1.5">
+                                    {existingRecord ? (
+                                      <span className={`inline-block text-[8px] font-bold px-1 rounded-sm ${
+                                        existingRecord.status === 'Present' 
+                                          ? 'bg-emerald-50 text-emerald-700' 
+                                          : 'bg-red-50 text-red-700'
+                                      }`}>
+                                        {existingRecord.status}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-block text-[8px] font-bold px-1 rounded-sm bg-slate-100 text-slate-450">
+                                        Unmarked
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleWidgetStatusUpdate('Present')}
+                                    className={`px-2 py-1 rounded text-[9px] font-extrabold cursor-pointer transition-colors ${
+                                      existingRecord?.status === 'Present'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'bg-slate-100 text-slate-650 hover:bg-emerald-50 hover:text-emerald-700'
+                                    }`}
+                                  >
+                                    Present
+                                  </button>
+                                  <button
+                                    onClick={() => handleWidgetStatusUpdate('Absent')}
+                                    className={`px-2 py-1 rounded text-[9px] font-extrabold cursor-pointer transition-colors ${
+                                      existingRecord?.status === 'Absent'
+                                        ? 'bg-red-600 text-white shadow-xs'
+                                        : 'bg-slate-100 text-slate-650 hover:bg-red-50 hover:text-red-700'
+                                    }`}
+                                  >
+                                    Absent
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Stats summary of current session */}
+                    {widgetClassId && bookings.filter(b => b.classId === widgetClassId && b.status === "active").length > 0 && (
+                      <div className="border-t border-slate-50 pt-4 bg-slate-50 p-3 rounded-xl flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                        <span>Present: <b>{bookings.filter(b => b.classId === widgetClassId && b.status === "active").filter(b => attendanceRecords.find(r => r.id === `${widgetClassId}_${b.studentId || b.id}_${widgetDate}`)?.status === 'Present').length}</b></span>
+                        <span>Absent: <b>{bookings.filter(b => b.classId === widgetClassId && b.status === "active").filter(b => attendanceRecords.find(r => r.id === `${widgetClassId}_${b.studentId || b.id}_${widgetDate}`)?.status === 'Absent').length}</b></span>
+                        <span className="text-indigo-650 font-bold">Total Enrolled: {bookings.filter(b => b.classId === widgetClassId && b.status === "active").length}</span>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
               </motion.div>
             )}
 

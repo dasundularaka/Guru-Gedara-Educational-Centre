@@ -8,6 +8,9 @@ import { ChatWidget } from '../components/ChatWidget';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
 import { StudentModuleRoadmap } from '../components/StudentModuleRoadmap';
 import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
+import { UpcomingDeadlines } from '../components/UpcomingDeadlines';
+import { CameraProfileCapture } from '../components/CameraProfileCapture';
+import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { 
   BookOpen, 
   CreditCard, 
@@ -23,7 +26,9 @@ import {
   Sliders,
   TrendingUp,
   Compass,
-  Star
+  Star,
+  Camera,
+  FileText
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
@@ -43,11 +48,12 @@ export const StudentDashboard: React.FC = () => {
     refreshBookings,
     refreshPayments
   } = useApp();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCameraModal, setShowCameraModal] = useState(false);
 
   // Review states
   const [showSubmitReviewModal, setShowSubmitReviewModal] = useState(false);
@@ -203,12 +209,40 @@ export const StudentDashboard: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Workspace Title Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
-          <div>
-            <span className="text-[10px] font-mono font-bold text-indigo-650 uppercase tracking-widest block leading-none">Scholar Portal</span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">Welcome Back, {currentUser.name}!</h1>
-            <p className="text-xs text-slate-400 mt-1.5">Grade Level: <span className="font-extrabold text-indigo-600">{currentUser.studentDetails?.grade || 'Grade 11'}</span> • Access code: <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">SYNCED_SCHOLAR</span></p>
+        {/* Workspace Title Header with Profile Avatar */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 bg-white p-6 rounded-3xl border border-slate-150/80 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+          <div className="flex flex-col sm:flex-row items-center gap-5 w-full lg:w-auto">
+            {/* Avatar container with direct click option */}
+            <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => setShowCameraModal(true)}>
+              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-indigo-600 shadow-md">
+                <img 
+                  id="student_profile_avatar"
+                  src={currentUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentUser.uid}`} 
+                  alt={currentUser.name} 
+                  className="w-full h-full object-cover transition-all group-hover:scale-105"
+                />
+              </div>
+              <button 
+                className="absolute inset-0 bg-slate-950/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[9px] font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Change
+              </button>
+            </div>
+
+            <div className="text-center sm:text-left">
+              <span className="text-[10px] font-mono font-bold text-indigo-650 uppercase tracking-widest block leading-none">Scholar Portal</span>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-2">Welcome Back, {currentUser.name}!</h1>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Grade Level: <span className="font-extrabold text-indigo-600">{currentUser.studentDetails?.grade || 'Grade 11'}</span> 
+                • Access code: <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">SYNCED_SCHOLAR</span>
+              </p>
+              <button 
+                onClick={() => setShowCameraModal(true)}
+                className="mt-3 text-xs text-indigo-650 hover:text-indigo-800 font-bold flex items-center gap-1.5 mx-auto sm:mx-0 bg-indigo-50/50 hover:bg-indigo-50 px-3 py-1.5 border border-indigo-100/40 rounded-xl transition-all cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" /> Take Profile Photo
+              </button>
+            </div>
           </div>
 
           {/* Sub menu controls */}
@@ -226,6 +260,13 @@ export const StudentDashboard: React.FC = () => {
               className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'classes' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <BookOpen className="w-4 h-4 text-indigo-400" /> Classes & Ledger
+            </button>
+            <button
+              id="student_tab_payments"
+              onClick={() => setActiveSubTab('payments')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'payments' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              <FileText className="w-4 h-4 text-indigo-400" /> Payment History
             </button>
             <button
               id="student_tab_performance"
@@ -277,6 +318,8 @@ export const StudentDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-6"
               >
+                <UpcomingDeadlines />
+
                 <ClassScheduleWidget />
 
                 <CalendarView 
@@ -466,6 +509,17 @@ export const StudentDashboard: React.FC = () => {
                   userBookings={studentBookings}
                   classes={classes}
                 />
+              </motion.div>
+            )}
+
+            {/* Payment History Tab */}
+            {activeSubTab === 'payments' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <StudentPaymentHistory />
               </motion.div>
             )}
 
@@ -784,6 +838,12 @@ export const StudentDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Camera Profile Capture Modal */}
+      <CameraProfileCapture 
+        isOpen={showCameraModal} 
+        onClose={() => setShowCameraModal(false)} 
+      />
     </motion.div>
   );
 };

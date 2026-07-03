@@ -210,7 +210,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
   return (
     <>
-      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-250 sticky top-0 z-50 shadow-[0_1px_2px_rgba(0,0,0,0.01)]" id="main_navigation">
+      <nav className="bg-white/80 dark:bg-slate-100/85 backdrop-blur-md border-b border-slate-250 dark:border-slate-200/50 sticky top-0 z-50 shadow-[0_1px_2px_rgba(0,0,0,0.01)]" id="main_navigation">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
@@ -275,7 +275,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
           <div className="hidden md:flex items-center space-x-4">
             {/* Sync connection status indicators */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50 border border-gray-100 text-xs text-gray-500 font-mono">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs text-slate-500 font-mono">
               <Database className={`w-3.5 h-3.5 ${cloudSync ? 'text-emerald-500 animate-pulse' : 'text-orange-500'}`} />
               <span>{cloudSync ? 'Live Sync' : 'Sandbox (Offline)'}</span>
             </div>
@@ -283,7 +283,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             {/* High-contrast Night-Study Theme Switcher */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 hover:bg-gray-100 transition-all cursor-pointer border border-transparent"
+              className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40 transition-all cursor-pointer border border-transparent"
               title={darkMode ? "Switch to Day Study Mode" : "Switch to Night Study Dark Mode"}
               id="theme_switcher_btn"
             >
@@ -299,7 +299,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                       setShowNotifications(!showNotifications);
                       setShowSettings(false);
                     }}
-                    className="p-1.5 rounded-full text-gray-400 hover:text-blue-600 hover:bg-gray-100 transition-colors relative"
+                    className="p-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40 transition-colors relative"
                     id="notifications_bell_btn"
                   >
                     <Bell className="w-5.5 h-5.5" />
@@ -438,14 +438,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             {/* Mobile Theme Switcher */}
             <button
               onClick={toggleDarkMode}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40"
               id="mobile_theme_switcher_btn"
             >
               {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
             </button>
             {currentUser && (
-              <div className="p-1 text-gray-400 relative">
-                <Bell className="w-5.5 h-5.5" onClick={() => {
+              <div className="p-1 text-slate-500 dark:text-slate-400 relative">
+                <Bell className="w-5.5 h-5.5 cursor-pointer hover:text-indigo-600" onClick={() => {
                   setShowNotifications(!showNotifications);
                   setShowSettings(false);
                 }} />
@@ -458,7 +458,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             )}
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-200/40"
               id="mobile_menu_trigger"
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -474,25 +474,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-gray-100 bg-white"
+            className="md:hidden border-t border-slate-200/80 bg-white dark:bg-slate-100 shadow-lg"
             id="mobile_dropdown_menu"
           >
             <div className="pt-2 pb-3 px-4 space-y-1">
               <button
                 onClick={() => { onChangeTab('home'); setIsOpen(false); }}
-                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-200/40 hover:text-indigo-600 dark:hover:text-indigo-400"
               >
                 Home
               </button>
               <button
                 onClick={() => { onChangeTab('classes'); setIsOpen(false); }}
-                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-200/40 hover:text-indigo-600 dark:hover:text-indigo-400"
               >
                 Classes
               </button>
               <button
                 onClick={() => { onChangeTab('tutors'); setIsOpen(false); }}
-                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-200/40 hover:text-indigo-600 dark:hover:text-indigo-400"
               >
                 Tutors
               </button>
@@ -501,7 +501,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             </div>
 
             {/* User status */}
-            <div className="pt-4 pb-3 border-t border-gray-100 px-4">
+            <div className="pt-4 pb-3 border-t border-slate-200/80 px-4">
               {currentUser ? (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -514,7 +514,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                       />
                     ) : (
                       <div 
-                        className="h-10 w-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold cursor-pointer hover:bg-blue-200 transition-all"
+                        className="h-10 w-10 bg-indigo-50 dark:bg-slate-200/20 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold cursor-pointer hover:bg-indigo-100 transition-all"
                         onClick={() => { setShowProfileDetails(true); setIsOpen(false); }}
                       >
                         <User className="w-5.5 h-5.5" />

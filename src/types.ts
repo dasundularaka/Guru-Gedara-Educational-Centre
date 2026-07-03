@@ -84,6 +84,7 @@ export interface Payment {
   date: string;
   status: 'paid' | 'pending' | 'failed';
   paymentMethod?: string;
+  dueDate?: string;
 }
 
 export interface NotificationItem {

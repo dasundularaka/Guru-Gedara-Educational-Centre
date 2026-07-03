@@ -120,8 +120,7 @@ export function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fa
   let timeoutId: any;
   const timeoutPromise = new Promise<T>((resolve) => {
     timeoutId = setTimeout(() => {
-      console.warn(`[Timeout] Operation exceeded ${timeoutMs}ms limit. Temporarily falling back to local offline mode.`);
-      isUsingCloud = false;
+      console.warn(`[Timeout] Operation exceeded ${timeoutMs}ms limit. Returning local fallback value for this operation.`);
       resolve(fallbackValue);
     }, timeoutMs);
   });
@@ -210,8 +209,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error details: ', safeStringify(errInfo));
-  // Toggle cloud connected off so the app falls back to responsive Sandbox mode
-  isUsingCloud = false;
+  // Keep isUsingCloud active so that transient failures or security rule rejections do not disconnect the app
   throw new Error(safeStringify(errInfo));
 }
 
@@ -219,10 +217,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // This allows local and simulated test users to connect and save data to the live Firestore
 // database, utilizing the permissive security rules deployed on gurugedara-prod.
 function syncCloudFlag() {
-  if (!isOriginalCloud) {
-    isUsingCloud = false;
-    return;
-  }
+  isUsingCloud = isOriginalCloud;
 }
 
 const firestoreServiceRaw = {
@@ -252,7 +247,7 @@ const firestoreServiceRaw = {
           getDocs(query(collection(db, 'classes'), limit(1))),
           getDocs(query(collection(db, 'users'), limit(1)))
         ]),
-        2500,
+        8000,
         [ { empty: true, docs: [] } as any, { empty: true, docs: [] } as any ]
       );
 
@@ -783,6 +778,8 @@ const firestoreServiceRaw = {
 
   async createPayment(studentId: string, studentName: string, classId: string, classTitle: string, amount: number, paymentMethod: string, status: 'paid' | 'pending' | 'failed' = 'paid'): Promise<Payment> {
     const id = "pay_" + Math.random().toString(36).substr(2, 9);
+    const now = new Date();
+    const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // Due 7 days from now
     const newPay: Payment = {
       id,
       studentId,
@@ -790,9 +787,10 @@ const firestoreServiceRaw = {
       classId,
       classTitle,
       amount,
-      date: new Date().toISOString(),
+      date: now.toISOString(),
       status,
-      paymentMethod
+      paymentMethod,
+      dueDate
     };
 
     if (isUsingCloud) {

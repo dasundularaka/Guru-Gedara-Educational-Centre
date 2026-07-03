@@ -55,6 +55,7 @@ interface CourseProgress {
   completedAssignments: number;
   totalAssignments: number;
   weeklyGrades: { week: string; score: number }[];
+  monthlyGrades: { month: string; score: number }[];
 }
 
 // Deterministic generator to make mock data realistic & unique per class
@@ -95,6 +96,13 @@ function getCourseMetrics(classId: string, title: string, subject: string, tutor
     };
   });
 
+  // Generate last 3 months scores (April, May, June)
+  const monthlyGrades = [
+    { month: "April 2026", score: Math.round(Math.min(100, Math.max(60, grade - 4 + (hash % 5) - 2))) },
+    { month: "May 2026", score: Math.round(Math.min(100, Math.max(60, grade - 1 + ((hash >> 1) % 5) - 2))) },
+    { month: "June 2026", score: Math.round(Math.min(100, Math.max(60, grade + 2 + ((hash >> 2) % 5) - 2))) }
+  ];
+
   return {
     classId,
     title,
@@ -106,12 +114,14 @@ function getCourseMetrics(classId: string, title: string, subject: string, tutor
     attendance,
     completedAssignments,
     totalAssignments,
-    weeklyGrades
+    weeklyGrades,
+    monthlyGrades
   };
 }
 
 export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ currentUser, userBookings, classes }) => {
   const [selectedClassId, setSelectedClassId] = useState<string>("overall");
+  const [timeframe, setTimeframe] = useState<'weekly' | 'threeMonths'>('threeMonths'); // Default to threeMonths to highlight the requested feature!
   
   // Predictor state
   const [predictSubject, setPredictSubject] = useState<string>("overall");
@@ -184,30 +194,53 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
     };
   }, [progressList]);
 
-  // Weekly aggregate trend or course-specific trend
+  // Weekly/Monthly aggregate trend or course-specific trend
   const trendData = useMemo(() => {
-    if (selectedClassId === "overall") {
-      // Mean score of all courses per week
-      return Array.from({ length: 6 }).map((_, idx) => {
-        const weekStr = `Week ${idx + 1}`;
-        let sum = 0;
-        progressList.forEach(course => {
-          sum += course.weeklyGrades[idx]?.score || 85;
+    if (timeframe === 'weekly') {
+      if (selectedClassId === "overall") {
+        // Mean score of all courses per week
+        return Array.from({ length: 6 }).map((_, idx) => {
+          const weekStr = `Week ${idx + 1}`;
+          let sum = 0;
+          progressList.forEach(course => {
+            sum += course.weeklyGrades[idx]?.score || 85;
+          });
+          return {
+            name: weekStr,
+            "Average Grade": Math.round(sum / progressList.length)
+          };
         });
-        return {
-          name: weekStr,
-          "Average Grade": Math.round(sum / progressList.length)
-        };
-      });
+      } else {
+        const selected = progressList.find(c => c.classId === selectedClassId);
+        if (!selected) return [];
+        return selected.weeklyGrades.map(wg => ({
+          name: wg.week,
+          "Syllabus Grade": wg.score
+        }));
+      }
     } else {
-      const selected = progressList.find(c => c.classId === selectedClassId);
-      if (!selected) return [];
-      return selected.weeklyGrades.map(wg => ({
-        name: wg.week,
-        "Syllabus Grade": wg.score
-      }));
+      // 3 Months trend (April, May, June)
+      if (selectedClassId === "overall") {
+        return ["April 2026", "May 2026", "June 2026"].map((monthStr, idx) => {
+          let sum = 0;
+          progressList.forEach(course => {
+            sum += course.monthlyGrades[idx]?.score || 85;
+          });
+          return {
+            name: monthStr,
+            "Average Grade": Math.round(sum / progressList.length)
+          };
+        });
+      } else {
+        const selected = progressList.find(c => c.classId === selectedClassId);
+        if (!selected) return [];
+        return selected.monthlyGrades.map(mg => ({
+          name: mg.month,
+          "Syllabus Grade": mg.score
+        }));
+      }
     }
-  }, [progressList, selectedClassId]);
+  }, [progressList, selectedClassId, timeframe]);
 
   // Subject-wise grouping for Radar/Bar Strengths
   const strengthData = useMemo(() => {
@@ -381,20 +414,39 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
               <div>
                 <h3 className="text-base font-bold text-slate-900 tracking-tight">Grade Progress Timeline</h3>
-                <p className="text-[11px] text-slate-400">Weekly average test scores from study units coursework.</p>
+                <p className="text-[11px] text-slate-400">
+                  {timeframe === 'threeMonths' ? 'Monthly academic performance tracking over the last three months.' : 'Weekly average test scores from study units coursework.'}
+                </p>
               </div>
               
-              {/* Dropdown to isolate specific course or review overall */}
-              <select
-                value={selectedClassId}
-                onChange={(e) => setSelectedClassId(e.target.value)}
-                className="text-xs font-semibold px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-indigo-500 transition-colors"
-              >
-                <option value="overall">All Courses Average</option>
-                {progressList.map(course => (
-                  <option key={course.classId} value={course.classId}>{course.title}</option>
-                ))}
-              </select>
+              {/* Dropdown & Timeframe isolate controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 border border-slate-200/60 dark:bg-slate-200/10">
+                  <button
+                    onClick={() => setTimeframe('weekly')}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${timeframe === 'weekly' ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    onClick={() => setTimeframe('threeMonths')}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${timeframe === 'threeMonths' ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Last 3 Months
+                  </button>
+                </div>
+
+                <select
+                  value={selectedClassId}
+                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  className="text-xs font-semibold px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-indigo-500 transition-colors"
+                >
+                  <option value="overall">All Courses Average</option>
+                  {progressList.map(course => (
+                    <option key={course.classId} value={course.classId}>{course.title}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Recharts Area Chart */}
