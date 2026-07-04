@@ -52,42 +52,27 @@ export function safeStringify(obj: any): string {
       return undefined; // Prune circular references completely
     }
 
-    // Check if it is a Firestore/Firebase internal object or other non-serializable objects
-    const constructorName = val.constructor?.name;
-    if (constructorName && (
-      constructorName.includes('Firestore') ||
-      constructorName.includes('Auth') ||
-      constructorName.includes('Firebase') ||
-      constructorName === 'Y2' ||
-      constructorName === 'Ka' ||
-      constructorName === 'FirebaseAppImpl'
-    )) {
-      return undefined;
+    // Safe handling of Dates
+    if (val instanceof Date) {
+      return val.toISOString();
     }
 
-    // Checking common properties of Firebase objects to be extra safe
-    if (
-      val.app && val.app.constructor && val.app.constructor.name?.includes('Firebase') ||
-      val.type === 'firestore' ||
-      val._delegate ||
-      val._database ||
-      val._firestore
-    ) {
-      return undefined;
-    }
-
-    seen.add(val);
-
+    // Safe handling of Arrays
     if (Array.isArray(val)) {
+      seen.add(val);
       const arrCopy = val.map(item => sanitize(item));
       seen.delete(val);
       return arrCopy;
     }
 
-    if (val instanceof Date) {
-      seen.delete(val);
-      return val.toISOString();
+    // Safety check: only serialize plain objects to prevent traversing complex/circular SDK instances (like Firestore Y2/Ka/etc)
+    const proto = Object.getPrototypeOf(val);
+    if (proto !== Object.prototype && proto !== null) {
+      // Not a plain object, let's skip it to prevent circular serialization
+      return undefined;
     }
+
+    seen.add(val);
 
     // For other objects, let's build a clean plain object
     const plainObj: any = {};

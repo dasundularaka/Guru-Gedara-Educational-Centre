@@ -85,6 +85,18 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
           <div>
             <h4 className="text-sm font-extrabold text-slate-900 leading-tight">{tutor.name}</h4>
             
+            {/* Real-time Booking Availability Badge */}
+            <div className="mt-1 flex items-center">
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wide uppercase border ${
+                tutor.availabilityStatus === 'away' 
+                  ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${tutor.availabilityStatus === 'away' ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                {tutor.availabilityStatus === 'away' ? 'Away' : 'Active'}
+              </span>
+            </div>
+
             {/* Badges and rating */}
             <div className="flex items-center gap-1.5 mt-1.5">
               <button 

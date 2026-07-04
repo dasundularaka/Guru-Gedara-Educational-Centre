@@ -19,6 +19,7 @@ export interface UserProfile {
   password?: string;
   isPasswordResetRequired?: boolean;
   createdAt: string;
+  availabilityStatus?: 'active' | 'away';
   
   // Specific properties
   studentDetails?: {
@@ -143,5 +144,18 @@ export interface AttendanceRecord {
   status: 'Present' | 'Absent';
   markedAt: string;
   tutorId: string;
+}
+
+export interface StudyMaterial {
+  id: string;
+  title: string;
+  description: string;
+  subject: string;
+  referenceUrl: string;
+  tutorId: string;
+  tutorName: string;
+  classId?: string;
+  classTitle?: string;
+  createdAt: string;
 }
 

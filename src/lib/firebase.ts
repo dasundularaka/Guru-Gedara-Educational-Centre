@@ -3,7 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { 
   initializeFirestore, 
   persistentLocalCache, 
-  persistentMultipleTabManager 
+  persistentMultipleTabManager
 } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
@@ -40,5 +40,6 @@ export const db = dbId
   : initializeFirestore(app, cacheSettings);
 
 export const auth = getAuth(app);
+
 export { firebaseConfig };
 export default app;

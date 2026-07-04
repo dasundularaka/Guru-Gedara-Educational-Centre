@@ -415,8 +415,49 @@ export const TutorDashboard: React.FC = () => {
             <p className="text-xs text-gray-400 mt-1">Credentials: <span className="font-bold text-emerald-600 truncate">{currentUser.tutorDetails?.qualification || 'PhD Scholar'}</span> • Status: VERIFIED_ACADEMICS</p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-                       {/* Class Creator trigger */}
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* Real-time Availability Status Toggle */}
+            <div className="flex items-center gap-2.5 bg-white border border-gray-150 px-3.5 py-1.5 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.01)] text-xs font-semibold">
+              <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider">Bookings Status:</span>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold border transition-colors ${
+                  currentUser.availabilityStatus === 'away' 
+                    ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentUser.availabilityStatus === 'away' ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></span>
+                  {currentUser.availabilityStatus === 'away' ? 'Away' : 'Active'}
+                </span>
+                
+                {/* Switch Button */}
+                <button
+                  id="tutor_availability_toggle"
+                  type="button"
+                  onClick={async () => {
+                    const nextStatus = currentUser.availabilityStatus === 'away' ? 'active' : 'away';
+                    try {
+                      await updateProfile({ availabilityStatus: nextStatus });
+                      showToast(`Availability status updated to '${nextStatus === 'away' ? 'Away' : 'Active'}'!`, "success");
+                    } catch (e) {
+                      showToast("Failed to update availability status.", "error");
+                    }
+                  }}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    currentUser.availabilityStatus === 'away' ? 'bg-amber-400' : 'bg-emerald-500'
+                  }`}
+                  title={currentUser.availabilityStatus === 'away' ? 'Set Active for Bookings' : 'Set Away for Bookings'}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
+                      currentUser.availabilityStatus === 'away' ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Class Creator trigger */}
             <button
               id="tutor_btn_launch_class"
               onClick={() => {
