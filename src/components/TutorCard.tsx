@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { UserProfile } from '../types';
-import { Star, Award, GraduationCap, DollarSign, Mail, Send, X, MessageSquareReply } from 'lucide-react';
+import { Star, Award, GraduationCap, DollarSign, Mail, Send, X, MessageSquareReply, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ReviewsModal } from './ReviewsModal';
+import { TutorProfileModal } from './TutorProfileModal';
 
 interface TutorCardProps {
   tutor: UserProfile;
@@ -14,6 +15,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
   const { currentUser, showToast, reviews } = useApp();
   const [showChatModal, setShowChatModal] = useState(false);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -147,7 +149,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
       </div>
 
       <div className="border-t border-slate-100 pt-5 mt-auto">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           <div>
             <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider block leading-none">Tuition Rate</span>
             <span className="text-sm font-extrabold text-slate-900 block mt-1.5 leading-none font-mono">
@@ -155,20 +157,30 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
             </span>
           </div>
 
-          {currentUser?.uid !== tutor.uid && (
+          <div className="flex gap-2">
             <button
-              onClick={() => {
-                if (!currentUser) {
-                  showToast("Please log in to open communication chat.", "info");
-                  return;
-                }
-                setShowChatModal(true);
-              }}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-900 transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+              onClick={() => setShowProfileModal(true)}
+              className="px-3 py-2 rounded-xl text-xs font-bold text-indigo-750 hover:bg-indigo-50 transition-all border border-indigo-150 flex items-center gap-1 cursor-pointer"
+              title="View detailed tutor profile and student reviews"
             >
-              <Mail className="w-3.5 h-3.5" /> Direct Chat
+              <User className="w-3.5 h-3.5" /> Profile
             </button>
-          )}
+
+            {currentUser?.uid !== tutor.uid && (
+              <button
+                onClick={() => {
+                  if (!currentUser) {
+                    showToast("Please log in to open communication chat.", "info");
+                    return;
+                  }
+                  setShowChatModal(true);
+                }}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-900 transition-all border border-slate-200 flex items-center gap-1 cursor-pointer"
+              >
+                <Mail className="w-3.5 h-3.5" /> Chat
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -244,6 +256,21 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
         title={`Student Reviews for ${tutor.name}`}
         targetName={tutor.name}
         reviews={tutorReviews}
+      />
+
+      {/* Tutor Profile Modal */}
+      <TutorProfileModal
+        tutor={tutor}
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        reviews={reviews}
+        onContactClick={currentUser?.uid !== tutor.uid ? () => {
+          if (!currentUser) {
+            showToast("Please log in to open communication chat.", "info");
+            return;
+          }
+          setShowChatModal(true);
+        } : undefined}
       />
     </motion.div>
   );

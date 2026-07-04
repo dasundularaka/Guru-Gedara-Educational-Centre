@@ -69,6 +69,9 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [sortBy, setSortBy] = useState("default");
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'open' | 'full'>('all');
+  const [selectedLevel, setSelectedLevel] = useState("All Levels");
+  const [selectedDay, setSelectedDay] = useState("All Days");
+  const [selectedTimeOfDay, setSelectedTimeOfDay] = useState("All Times");
   const [filteredClasses, setFilteredClasses] = useState<ClassItem[]>([]);
 
   // Resources states
@@ -130,6 +133,40 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
       result = result.filter(c => c.bookedSlots >= c.maxSlots);
     }
 
+    // Class Level Filter (Beginner, High School, Middle School, AP Prep, Advanced, etc)
+    if (selectedLevel !== "All Levels") {
+      const levelLower = selectedLevel.toLowerCase();
+      result = result.filter(c => {
+        const titleMatch = c.title.toLowerCase().includes(levelLower);
+        const descMatch = c.description.toLowerCase().includes(levelLower);
+        const tagMatch = (c.tags || []).some(tag => tag.toLowerCase().includes(levelLower));
+        return titleMatch || descMatch || tagMatch;
+      });
+    }
+
+    // Day of the Week Filter
+    if (selectedDay !== "All Days") {
+      const dayLower = selectedDay.toLowerCase();
+      result = result.filter(c => (c.dayOfWeek || "").toLowerCase() === dayLower);
+    }
+
+    // Time of the Day Filter
+    if (selectedTimeOfDay !== "All Times") {
+      result = result.filter(c => {
+        const slot = (c.timeSlot || "").toLowerCase();
+        if (selectedTimeOfDay === "Morning") {
+          return slot.includes("am") || slot.includes("morning");
+        } else if (selectedTimeOfDay === "Afternoon") {
+          // 12:00 PM to 04:59 PM
+          return slot.includes("pm") && (slot.startsWith("12") || slot.startsWith("01") || slot.startsWith("02") || slot.startsWith("03") || slot.startsWith("04") || slot.startsWith("1") || slot.startsWith("2") || slot.startsWith("3") || slot.startsWith("4"));
+        } else if (selectedTimeOfDay === "Evening") {
+          // 05:00 PM onwards
+          return slot.includes("pm") && (slot.startsWith("05") || slot.startsWith("06") || slot.startsWith("07") || slot.startsWith("08") || slot.startsWith("09") || slot.startsWith("5") || slot.startsWith("6") || slot.startsWith("7") || slot.startsWith("8") || slot.startsWith("9"));
+        }
+        return true;
+      });
+    }
+
     if (sortBy === "price_asc") {
       result.sort((a, b) => a.price - b.price);
     } else if (sortBy === "price_desc") {
@@ -139,7 +176,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
 
     setFilteredClasses(result);
-  }, [classes, searchTerm, selectedSubject, sortBy, availabilityFilter]);
+  }, [classes, searchTerm, selectedSubject, sortBy, availabilityFilter, selectedLevel, selectedDay, selectedTimeOfDay]);
 
   // Filter Study Materials
   useEffect(() => {
@@ -328,6 +365,60 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
 
               </div>
 
+              {/* Advanced Course Level, Day of Week, and Time of Day Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-100">
+                {/* Level Selector */}
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Class Level</label>
+                  <select
+                    value={selectedLevel}
+                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                  >
+                    <option value="All Levels">All Levels / Grades</option>
+                    <option value="Beginner">Beginner / Elementary</option>
+                    <option value="Middle School">Middle School / Foundations</option>
+                    <option value="High School">High School / Senior</option>
+                    <option value="AP Prep">AP Prep / Exams</option>
+                    <option value="Advanced">Advanced / Honors</option>
+                  </select>
+                </div>
+
+                {/* Day of the Week Selector */}
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Day of Week</label>
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(e.target.value)}
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                  >
+                    <option value="All Days">All Days of Week</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
+                </div>
+
+                {/* Time of Day Selector */}
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Time of Day</label>
+                  <select
+                    value={selectedTimeOfDay}
+                    onChange={(e) => setSelectedTimeOfDay(e.target.value)}
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                  >
+                    <option value="All Times">All Times of Day</option>
+                    <option value="Morning">Morning (AM / early slots)</option>
+                    <option value="Afternoon">Afternoon (12:00 PM - 05:00 PM)</option>
+                    <option value="Evening">Evening (05:00 PM onwards)</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Quick pills */}
               <div className="flex gap-2 flex-wrap items-center mt-5 border-t border-slate-100 pt-5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
@@ -357,7 +448,15 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                   We couldn't spot any registered tuition class matched to: "{searchTerm || selectedSubject}".
                 </p>
                 <button
-                  onClick={() => { setSearchTerm(""); setSelectedSubject("All Subjects"); setSortBy("default"); setAvailabilityFilter("all"); }}
+                  onClick={() => { 
+                    setSearchTerm(""); 
+                    setSelectedSubject("All Subjects"); 
+                    setSortBy("default"); 
+                    setAvailabilityFilter("all"); 
+                    setSelectedLevel("All Levels");
+                    setSelectedDay("All Days");
+                    setSelectedTimeOfDay("All Times");
+                  }}
                   className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   Reset Search Parameters

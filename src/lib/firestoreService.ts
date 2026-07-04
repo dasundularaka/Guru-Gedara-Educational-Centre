@@ -475,7 +475,7 @@ const firestoreServiceRaw = {
   async updateTutorProfile(tutorId: string, data: Partial<UserProfile>): Promise<void> {
     if (isUsingCloud) {
       try {
-        await updateDoc(doc(db, 'users', tutorId), data);
+        await setDoc(doc(db, 'users', tutorId), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update profile online. Saving local fallback.", e);
         isUsingCloud = false;
@@ -565,16 +565,7 @@ const firestoreServiceRaw = {
     if (demoStudent) userMap.set(demoStudent.uid, demoStudent);
     if (demoAdmin) userMap.set(demoAdmin.uid, demoAdmin);
     
-    cloudUsers.forEach(u => userMap.set(u.uid, u));
-    
-    const mergedList = Array.from(userMap.values());
-    
-    if (cloudUsers.length > 0) {
-      const updatedReg = mergedList.filter(u => u.uid !== 'student_demo' && u.uid !== 'admin_demo' && !INITIAL_TUTORS.some(t => t.uid === u.uid));
-      saveFallback('local_registered_users', updatedReg);
-    }
-    
-    return mergedList;
+    return Array.from(userMap.values());
   },
 
   // -------------------------------------------------------------
@@ -590,20 +581,15 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudClasses = snap.docs.map(doc => doc.data() as ClassItem);
+        if (cloudClasses.length > 0) {
+          saveFallback('local_classes', cloudClasses);
+          return cloudClasses;
+        }
       } catch (e) {
         console.warn("Fallback classes loading.", e);
       }
     }
-    const localClasses = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
-    const classMap = new Map<string, ClassItem>();
-    localClasses.forEach(c => classMap.set(c.id, c));
-    cloudClasses.forEach(c => classMap.set(c.id, c));
-    const mergedList = Array.from(classMap.values());
-
-    if (cloudClasses.length > 0) {
-      saveFallback('local_classes', mergedList);
-    }
-    return mergedList;
+    return handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
   },
 
   async createNewClass(classData: Omit<ClassItem, 'id'>): Promise<ClassItem> {
@@ -662,20 +648,15 @@ const firestoreServiceRaw = {
            { docs: [] } as any
          );
          cloudBookings = snap.docs.map(doc => doc.data() as Booking);
+         if (cloudBookings.length > 0) {
+           saveFallback('local_bookings', cloudBookings);
+           return cloudBookings;
+         }
        } catch (e) {
          console.warn("Fallback reading bookings.", e);
        }
     }
-    const localBookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
-    const bookingMap = new Map<string, Booking>();
-    localBookings.forEach(b => bookingMap.set(b.id, b));
-    cloudBookings.forEach(b => bookingMap.set(b.id, b));
-    const mergedList = Array.from(bookingMap.values());
-
-    if (cloudBookings.length > 0) {
-      saveFallback('local_bookings', mergedList);
-    }
-    return mergedList;
+    return handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
   },
 
   async bookClass(studentId: string, studentName: string, classItem: ClassItem): Promise<Booking> {
@@ -745,20 +726,15 @@ const firestoreServiceRaw = {
              id: doc.id
            } as Payment;
          });
+         if (cloudPayments.length > 0) {
+           saveFallback('local_payments', cloudPayments);
+           return cloudPayments;
+         }
        } catch (e) {
          console.warn("Fallback read payments.", e);
        }
     }
-    const localPayments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
-    const payMap = new Map<string, Payment>();
-    localPayments.forEach(p => payMap.set(p.id, p));
-    cloudPayments.forEach(p => payMap.set(p.id, p));
-    const mergedList = Array.from(payMap.values());
-
-    if (cloudPayments.length > 0) {
-      saveFallback('local_payments', mergedList);
-    }
-    return mergedList;
+    return handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
   },
 
   async createPayment(studentId: string, studentName: string, classId: string, classTitle: string, amount: number, paymentMethod: string, status: 'paid' | 'pending' | 'failed' = 'paid'): Promise<Payment> {
@@ -985,7 +961,7 @@ const firestoreServiceRaw = {
   async updateUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
     if (isUsingCloud) {
       try {
-        await updateDoc(doc(db, 'users', uid), data);
+        await setDoc(doc(db, 'users', uid), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update user profile in Firestore.", e);
         isUsingCloud = false;
@@ -1003,7 +979,7 @@ const firestoreServiceRaw = {
   async updateClass(classId: string, data: Partial<ClassItem>): Promise<void> {
     if (isUsingCloud) {
       try {
-        await updateDoc(doc(db, 'classes', classId), data);
+        await setDoc(doc(db, 'classes', classId), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update class in Firestore.", e);
         isUsingCloud = false;
@@ -1031,7 +1007,7 @@ const firestoreServiceRaw = {
   async updatePayment(paymentId: string, data: Partial<Payment>): Promise<void> {
     if (isUsingCloud) {
       try {
-        await updateDoc(doc(db, 'payments', paymentId), data);
+        await setDoc(doc(db, 'payments', paymentId), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update payment in Firestore.", e);
         isUsingCloud = false;
@@ -1069,20 +1045,15 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudReviews = snap.docs.map(doc => doc.data() as Review);
+        if (cloudReviews.length > 0) {
+          saveFallback('local_reviews', cloudReviews);
+          return cloudReviews;
+        }
       } catch (e) {
         console.warn("Fallback reading reviews.", e);
       }
     }
-    const localReviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
-    const reviewMap = new Map<string, Review>();
-    localReviews.forEach(r => reviewMap.set(r.id, r));
-    cloudReviews.forEach(r => reviewMap.set(r.id, r));
-    const mergedList = Array.from(reviewMap.values());
-
-    if (cloudReviews.length > 0) {
-      saveFallback('local_reviews', mergedList);
-    }
-    return mergedList;
+    return handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
   },
 
   async createReview(reviewData: Omit<Review, 'id' | 'createdAt'>): Promise<Review> {
@@ -1127,7 +1098,7 @@ const firestoreServiceRaw = {
   async updateReviewStatus(reviewId: string, status: 'approved' | 'rejected' | 'flagged'): Promise<void> {
     if (isUsingCloud) {
       try {
-        await updateDoc(doc(db, 'reviews', reviewId), { status });
+        await setDoc(doc(db, 'reviews', reviewId), { status }, { merge: true });
       } catch (e) {
         console.warn("Fallback updating review status", e);
         isUsingCloud = false;
@@ -1166,20 +1137,15 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudAttendance = snap.docs.map(doc => doc.data() as AttendanceRecord);
+        if (cloudAttendance.length > 0) {
+          saveFallback('local_attendance', cloudAttendance);
+          return cloudAttendance;
+        }
       } catch (e) {
         console.warn("Fallback reading attendance.", e);
       }
     }
-    const localAttendance = handleFallback<AttendanceRecord>('local_attendance', []);
-    const attendanceMap = new Map<string, AttendanceRecord>();
-    localAttendance.forEach(a => attendanceMap.set(a.id, a));
-    cloudAttendance.forEach(a => attendanceMap.set(a.id, a));
-    const mergedList = Array.from(attendanceMap.values());
-
-    if (cloudAttendance.length > 0) {
-      saveFallback('local_attendance', mergedList);
-    }
-    return mergedList;
+    return handleFallback<AttendanceRecord>('local_attendance', []);
   },
 
   async markAttendance(record: AttendanceRecord): Promise<AttendanceRecord> {
