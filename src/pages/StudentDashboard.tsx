@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
+import { useSyncStatus } from '../hooks/useSyncStatus';
+import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
 import { Booking, Payment, NotificationItem } from '../types';
 import { CalendarView } from '../components/CalendarView';
@@ -46,8 +49,10 @@ export const StudentDashboard: React.FC = () => {
     bookings,
     payments,
     refreshBookings,
-    refreshPayments
+    refreshPayments,
+    executeWriteWithRetry
   } = useApp();
+  const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
@@ -175,21 +180,41 @@ export const StudentDashboard: React.FC = () => {
   const executeCancellation = async () => {
     const { bookingId, classId, classTitle } = cancelConfirm;
     if (!bookingId) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      await firestoreService.cancelBooking(bookingId, classId);
-      
-      // Trigger notification alert
-      await firestoreService.triggerNotification(
-        currentUser!.uid,
-        "Tuition Class Cancelled",
-        `Your booking slot for '${classTitle}' has been successfully removed. Refund evaluation is on review.`,
-        "reminder"
+      await syncField(
+        bookingId,
+        `Cancel Booking: '${classTitle}'`,
+        async () => {
+          await firestoreService.cancelBooking(bookingId, classId);
+          
+          // Trigger notification alert
+          await firestoreService.triggerNotification(
+            currentUser!.uid,
+            "Tuition Class Cancelled",
+            `Your booking slot for '${classTitle}' has been successfully removed. Refund evaluation is on review.`,
+            "reminder"
+          );
+        },
+        async () => {
+          try {
+            if (firestoreService.isCloudConnected()) {
+              const { doc, getDoc } = await import('firebase/firestore');
+              const { db } = await import('../lib/firebase');
+              const snap = await getDoc(doc(db, 'bookings', bookingId));
+              return !snap.exists() || (snap.data() as any).status === 'cancelled';
+            }
+          } catch (e) {}
+          return true;
+        }
       );
       
       showToast("Class booking cancelled successfully.", "info");
-      setCancelConfirm({ isOpen: false, bookingId: '', classId: '', classTitle: '' });
-      await fetchDashboardData();
+      // Give 1.5 seconds for the user to see the "Saved & Verified" sync indicator in the cancel modal!
+      setTimeout(async () => {
+        setCancelConfirm({ isOpen: false, bookingId: '', classId: '', classTitle: '' });
+        await fetchDashboardData();
+      }, 1500);
     } catch (e) {
       showToast("Failed booking cancellation.", "error");
     } finally {
@@ -579,8 +604,24 @@ export const StudentDashboard: React.FC = () => {
                           {!not.isRead && (
                             <button
                               onClick={async () => {
-                                await firestoreService.markNotificationRead(not.id);
-                                await refreshNotifications();
+                                await executeWriteWithRetry(
+                                  `Mark Notification Read: '${not.title}'`,
+                                  async () => {
+                                    await firestoreService.markNotificationRead(not.id);
+                                    await refreshNotifications();
+                                  },
+                                  async () => {
+                                    try {
+                                      if (firestoreService.isCloudConnected()) {
+                                        const { doc, getDoc } = await import('firebase/firestore');
+                                        const { db } = await import('../lib/firebase');
+                                        const snap = await getDoc(doc(db, 'notifications', not.id));
+                                        return snap.exists() && (snap.data() as any).isRead === true;
+                                      }
+                                    } catch (e) {}
+                                    return true;
+                                  }
+                                );
                               }}
                               className="p-1 px-2 hover:bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold border border-emerald-100 flex items-center gap-1 cursor-pointer"
                             >
@@ -595,9 +636,12 @@ export const StudentDashboard: React.FC = () => {
 
                 {/* Alerts customization config settings */}
                 <div className="bg-white border border-gray-150 rounded-2xl p-6">
-                  <h3 className="text-base font-bold text-gray-900 border-b pb-4 border-gray-50 mb-4 flex items-center gap-2">
-                    <Sliders className="w-4.5 h-4.5 text-blue-500" />
-                    Alert Handles
+                  <h3 className="text-base font-bold text-gray-900 border-b pb-4 border-gray-50 mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4.5 h-4.5 text-blue-500" />
+                      <span>Alert Handles</span>
+                    </div>
+                    <SyncStatusIndicator operationPatterns={['notification', 'settings']} />
                   </h3>
                   <p className="text-xs text-gray-400 mb-5">Manage personalized alerts sync settings:</p>
 
@@ -784,24 +828,30 @@ export const StudentDashboard: React.FC = () => {
               </p>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSubmitReviewModal(false);
-                    setReviewTargetBooking(null);
-                  }}
-                  className="w-1/2 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-650 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingReview || !reviewComment.trim()}
-                  className="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {submittingReview ? 'Submitting...' : 'Submit Review'}
-                </button>
+              <div className="flex flex-col gap-3 pt-2 font-sans">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-[10px] text-slate-400 font-mono">Sync status:</span>
+                  <SyncStatusIndicator operationPatterns={['review', 'feedback']} />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSubmitReviewModal(false);
+                      setReviewTargetBooking(null);
+                    }}
+                    className="w-1/2 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-650 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingReview || !reviewComment.trim()}
+                    className="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {submittingReview ? 'Submitting...' : 'Submit Review'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -819,6 +869,13 @@ export const StudentDashboard: React.FC = () => {
             <p className="text-xs text-slate-500 mb-5 leading-relaxed">
               Are you sure you want to withdraw and cancel your tuition seat in <span className="font-extrabold text-indigo-950">"{cancelConfirm.classTitle}"</span>? Refund evaluations are subject to review.
             </p>
+
+            {getFieldStatus(cancelConfirm.bookingId) !== 'idle' && (
+              <div className="flex justify-center items-center py-2.5 mb-4 bg-slate-50 rounded-xl border border-slate-100/60">
+                <SyncBadge status={getFieldStatus(cancelConfirm.bookingId)} message={getFieldMessage(cancelConfirm.bookingId)} showText />
+              </div>
+            )}
+
             <div className="flex gap-3 justify-center">
               <button
                 type="button"

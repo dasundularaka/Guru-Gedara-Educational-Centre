@@ -159,3 +159,13 @@ export interface StudyMaterial {
   createdAt: string;
 }
 
+export interface SyncLogEntry {
+  id: string;
+  timestamp: string;
+  operation: string;
+  status: 'pending' | 'success' | 'failed' | 'verify_success' | 'verify_failed';
+  message: string;
+  attempts: number;
+}
+
+

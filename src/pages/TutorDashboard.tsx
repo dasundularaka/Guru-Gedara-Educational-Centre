@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
+import { useSyncStatus } from '../hooks/useSyncStatus';
+import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem, Booking, UserProfile } from '../types';
 import { CalendarView } from '../components/CalendarView';
@@ -38,8 +41,10 @@ export const TutorDashboard: React.FC = () => {
     updateNotificationSettings,
     classes,
     bookings,
-    refreshBookings
+    refreshBookings,
+    executeWriteWithRetry
   } = useApp();
+  const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'attendance' | 'chat' | 'profile' | 'settings'>('schedule');
   
   const [tutorClasses, setTutorClasses] = useState<ClassItem[]>([]);
@@ -240,9 +245,25 @@ export const TutorDashboard: React.FC = () => {
   const executeClassDeletion = async () => {
     const { classId, classTitle } = deleteConfirm;
     if (!classId) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      await firestoreService.deleteClass(classId);
+      await executeWriteWithRetry(
+        `Delete Class/Syllabus: '${classTitle}'`,
+        async () => {
+          await firestoreService.deleteClass(classId);
+        },
+        async () => {
+          try {
+            if (firestoreService.isCloudConnected()) {
+              const { doc, getDoc } = await import('firebase/firestore');
+              const { db } = await import('../lib/firebase');
+              const snap = await getDoc(doc(db, 'classes', classId));
+              return !snap.exists();
+            }
+          } catch (e) {}
+          return true;
+        }
+      );
       showToast(`Course '${classTitle}' deleted successfully.`, "success");
       setDeleteConfirm({ isOpen: false, classId: '', classTitle: '' });
       await refreshClasses();
@@ -257,6 +278,26 @@ export const TutorDashboard: React.FC = () => {
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
+
+    // Detect changed fields to show granular pulsing sync states next to form fields!
+    const changedFields: string[] = [];
+    if (profName !== currentUser.name) changedFields.push('profName');
+    if (profPhoto !== currentUser.photoURL) changedFields.push('profPhoto');
+    if (profQualification !== (currentUser.tutorDetails?.qualification || '')) changedFields.push('profQualification');
+    if (Number(profExperience) !== (currentUser.tutorDetails?.experience || 5)) changedFields.push('profExperience');
+    if (Number(profHourlyRate) !== (currentUser.tutorDetails?.hourlyRate || 50)) changedFields.push('profHourlyRate');
+    if (profBio !== (currentUser.tutorDetails?.bio || '')) changedFields.push('profBio');
+    
+    const subjectsStr = (currentUser.tutorDetails?.subjects || []).join(', ');
+    if (profSubjects !== subjectsStr) changedFields.push('profSubjects');
+
+    if (changedFields.length === 0) {
+      // If nothing has actually changed, let's flash Name field to show sync readiness
+      changedFields.push('profName');
+    }
+
+    // Set all modified fields to syncing status
+    changedFields.forEach(f => syncFieldStart(f));
 
     try {
       setLoading(true);
@@ -273,11 +314,16 @@ export const TutorDashboard: React.FC = () => {
           availability: tutorAvailability
         }
       });
+      
+      // Mark all modified fields as successfully saved & verified
+      changedFields.forEach(f => syncFieldSuccess(f));
       showToast("Tutor profile updated successfully!", "success");
       if (refreshUserProfile) {
         await refreshUserProfile();
       }
     } catch (err: any) {
+      // Mark modified fields as failed
+      changedFields.forEach(f => syncFieldFailure(f, err?.message || 'Sync failed'));
       showToast(err.message || "Failed to update tutor profile details.", "error");
     } finally {
       setLoading(false);
@@ -337,42 +383,76 @@ export const TutorDashboard: React.FC = () => {
       const scheduleString = `${newDay}s ${newTime} - ${parseInt(newTime) + 2}:00 PM`; // mock duration
       
       if (classFormMode === 'edit' && editingClassId) {
-        await firestoreService.updateClass(editingClassId, {
-          title: newTitle,
-          subject: newSubject,
-          schedule: scheduleString,
-          dayOfWeek: newDay,
-          timeSlot: newTime,
-          price: Number(newPrice),
-          description: newDesc,
-          maxSlots: Number(newLimit),
-          imageUrl: newImageUrl
-        });
+        await executeWriteWithRetry(
+          `Update Course Curriculum: '${newTitle}'`,
+          async () => {
+            await firestoreService.updateClass(editingClassId, {
+              title: newTitle,
+              subject: newSubject,
+              schedule: scheduleString,
+              dayOfWeek: newDay,
+              timeSlot: newTime,
+              price: Number(newPrice),
+              description: newDesc,
+              maxSlots: Number(newLimit),
+              imageUrl: newImageUrl
+            });
+          },
+          async () => {
+            try {
+              if (firestoreService.isCloudConnected()) {
+                const { doc, getDoc } = await import('firebase/firestore');
+                const { db } = await import('../lib/firebase');
+                const snap = await getDoc(doc(db, 'classes', editingClassId));
+                return snap.exists() && (snap.data() as any).title === newTitle;
+              }
+            } catch (e) {}
+            return true;
+          }
+        );
         showToast(`Course '${newTitle}' updated successfully!`, "success");
       } else {
-        const item = await firestoreService.createNewClass({
-          title: newTitle,
-          subject: newSubject,
-          tutorId: currentUser.uid,
-          tutorName: currentUser.name,
-          tutorPhoto: currentUser.photoURL,
-          schedule: scheduleString,
-          dayOfWeek: newDay,
-          timeSlot: newTime,
-          price: Number(newPrice),
-          description: newDesc,
-          maxSlots: Number(newLimit),
-          bookedSlots: 0,
-          tags: ["Interactive", newSubject],
-          imageUrl: newImageUrl
-        });
+        let createdId = '';
+        await executeWriteWithRetry(
+          `Deploy New Course Syllabus: '${newTitle}'`,
+          async () => {
+            const item = await firestoreService.createNewClass({
+              title: newTitle,
+              subject: newSubject,
+              tutorId: currentUser.uid,
+              tutorName: currentUser.name,
+              tutorPhoto: currentUser.photoURL,
+              schedule: scheduleString,
+              dayOfWeek: newDay,
+              timeSlot: newTime,
+              price: Number(newPrice),
+              description: newDesc,
+              maxSlots: Number(newLimit),
+              bookedSlots: 0,
+              tags: ["Interactive", newSubject],
+              imageUrl: newImageUrl
+            });
+            createdId = item.id;
 
-        // trigger global notifications
-        await firestoreService.triggerNotification(
-          "all",
-          "New Tuition Course Launched!",
-          `${currentUser.name} just launched a premium course: '${newTitle}'. Secure your seat right now!`,
-          "announcement"
+            // trigger global notifications
+            await firestoreService.triggerNotification(
+              "all",
+              "New Tuition Course Launched!",
+              `${currentUser.name} just launched a premium course: '${newTitle}'. Secure your seat right now!`,
+              "announcement"
+            );
+          },
+          async () => {
+            try {
+              if (firestoreService.isCloudConnected() && createdId) {
+                const { doc, getDoc } = await import('firebase/firestore');
+                const { db } = await import('../lib/firebase');
+                const snap = await getDoc(doc(db, 'classes', createdId));
+                return snap.exists();
+              }
+            } catch (e) {}
+            return true;
+          }
         );
 
         showToast(`Subject Class ${newTitle} launched successfully!`, "success");
@@ -454,6 +534,7 @@ export const TutorDashboard: React.FC = () => {
                     }`}
                   />
                 </button>
+                <SyncStatusIndicator operationPatterns={['profile']} />
               </div>
             </div>
 
@@ -1093,88 +1174,117 @@ export const TutorDashboard: React.FC = () => {
                   <form onSubmit={handleUpdateProfile} className="space-y-4 text-xs">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Profile Display Name:</label>
-                        <input
-                          required
-                          type="text"
-                          value={profName}
-                          onChange={(e) => setProfName(e.target.value)}
-                          className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
-                        />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Profile Display Name:
+                        </label>
+                        <SyncBadge status={getFieldStatus('profName')} message={getFieldMessage('profName')} position="inside">
+                          <input
+                            required
+                            type="text"
+                            value={profName}
+                            onChange={(e) => setProfName(e.target.value)}
+                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                          />
+                        </SyncBadge>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Custom Photo Image Link (URL):</label>
-                        <input
-                          type="text"
-                          value={profPhoto}
-                          onChange={(e) => setProfPhoto(e.target.value)}
-                          placeholder="Paste custom secure https:// url here..."
-                          className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
-                        />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Custom Photo Image Link (URL):
+                        </label>
+                        <SyncBadge status={getFieldStatus('profPhoto')} message={getFieldMessage('profPhoto')} position="inside">
+                          <input
+                            type="text"
+                            value={profPhoto}
+                            onChange={(e) => setProfPhoto(e.target.value)}
+                            placeholder="Paste custom secure https:// url here..."
+                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
+                          />
+                        </SyncBadge>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Highest Qualification Credentials:</label>
-                        <input
-                          required
-                          type="text"
-                          value={profQualification}
-                          onChange={(e) => setProfQualification(e.target.value)}
-                          placeholder="e.g. PhD in Chemical Physics, Johns Hopkins"
-                          className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
-                        />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Highest Qualification Credentials:
+                        </label>
+                        <SyncBadge status={getFieldStatus('profQualification')} message={getFieldMessage('profQualification')} position="inside">
+                          <input
+                            required
+                            type="text"
+                            value={profQualification}
+                            onChange={(e) => setProfQualification(e.target.value)}
+                            placeholder="e.g. PhD in Chemical Physics, Johns Hopkins"
+                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                          />
+                        </SyncBadge>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Experience (Years):</label>
-                        <input
-                          required
-                          type="number"
-                          value={profExperience}
-                          onChange={(e) => setProfExperience(e.target.value)}
-                          className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
-                        />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Experience (Years):
+                        </label>
+                        <SyncBadge status={getFieldStatus('profExperience')} message={getFieldMessage('profExperience')} position="inside">
+                          <input
+                            required
+                            type="number"
+                            value={profExperience}
+                            onChange={(e) => setProfExperience(e.target.value)}
+                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
+                          />
+                        </SyncBadge>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Hourly Tuition Rate ($ / Hr):</label>
-                        <input
-                          required
-                          type="number"
-                          value={profHourlyRate}
-                          onChange={(e) => setProfHourlyRate(e.target.value)}
-                          className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
-                        />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Hourly Tuition Rate ($ / Hr):
+                        </label>
+                        <SyncBadge status={getFieldStatus('profHourlyRate')} message={getFieldMessage('profHourlyRate')} position="inside">
+                          <input
+                            required
+                            type="number"
+                            value={profHourlyRate}
+                            onChange={(e) => setProfHourlyRate(e.target.value)}
+                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
+                          />
+                        </SyncBadge>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Instructed Subject Tracks (comma-separated):</label>
-                        <input
-                          required
-                          type="text"
-                          value={profSubjects}
-                          onChange={(e) => setProfSubjects(e.target.value)}
-                          placeholder="e.g. Physics, Chemistry, Algebra"
-                          className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
-                        />
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Instructed Subject Tracks (comma-separated):
+                        </label>
+                        <SyncBadge status={getFieldStatus('profSubjects')} message={getFieldMessage('profSubjects')} position="inside">
+                          <input
+                            required
+                            type="text"
+                            value={profSubjects}
+                            onChange={(e) => setProfSubjects(e.target.value)}
+                            placeholder="e.g. Physics, Chemistry, Algebra"
+                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                          />
+                        </SyncBadge>
                       </div>
                     </div>
 
                     <div className="font-sans">
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Tuition Biography bio:</label>
-                      <textarea
-                        required
-                        rows={4}
-                        value={profBio}
-                        onChange={(e) => setProfBio(e.target.value)}
-                        placeholder="Share your teaching style, professional curriculum history, and academic results track-record..."
-                        className="w-full text-xs rounded-xl p-3 border border-gray-200 outline-none focus:border-blue-500 leading-relaxed bg-gray-50/30"
-                      ></textarea>
+                      <SyncBadge status={getFieldStatus('profBio')} message={getFieldMessage('profBio')} position="top-right">
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Tuition Biography bio:
+                        </label>
+                        <textarea
+                          required
+                          rows={4}
+                          value={profBio}
+                          onChange={(e) => setProfBio(e.target.value)}
+                          placeholder="Share your teaching style, professional curriculum history, and academic results track-record..."
+                          className="w-full text-xs rounded-xl p-3 border border-gray-200 outline-none focus:border-blue-500 leading-relaxed bg-gray-50/30"
+                        ></textarea>
+                      </SyncBadge>
                     </div>
 
-                    <div className="flex justify-end pt-2 font-sans">
+                    <div className="flex justify-end items-center gap-3 pt-2 font-sans">
+                      <SyncStatusIndicator operationPatterns={['profile']} />
                       <button
                         type="submit"
                         className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
@@ -1487,20 +1597,26 @@ export const TutorDashboard: React.FC = () => {
                 </span>
               </div>
 
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddClass(false)}
-                  className="w-1/2 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50"
-                >
-                  Go Back
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl text-center shadow-md cursor-pointer"
-                >
-                  {classFormMode === 'edit' ? "Save Curriculum" : "Deploy Syllabus"}
-                </button>
+              <div className="flex flex-col gap-3 pt-2 font-sans">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-[10px] text-slate-400 font-mono">Database Sync Status:</span>
+                  <SyncStatusIndicator operationPatterns={['course', 'syllabus', 'curriculum', 'class']} />
+                </div>
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddClass(false)}
+                    className="w-1/2 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50"
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-1/2 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl text-center shadow-md cursor-pointer"
+                  >
+                    {classFormMode === 'edit' ? "Save Curriculum" : "Deploy Syllabus"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

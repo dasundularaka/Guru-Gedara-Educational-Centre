@@ -1,5 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useSyncStatus } from '../hooks/useSyncStatus';
+import { SyncBadge } from './SyncBadge';
 import { motion } from 'motion/react';
 import { Camera, X, Check, RotateCcw, AlertCircle, Video, Loader2 } from 'lucide-react';
 
@@ -10,6 +12,7 @@ interface CameraProfileCaptureProps {
 
 export const CameraProfileCapture: React.FC<CameraProfileCaptureProps> = ({ isOpen, onClose }) => {
   const { updateProfile, showToast } = useApp();
+  const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   
@@ -98,9 +101,14 @@ export const CameraProfileCapture: React.FC<CameraProfileCaptureProps> = ({ isOp
     if (!capturedImage) return;
     setIsSaving(true);
     try {
-      await updateProfile({ photoURL: capturedImage });
+      await syncField('avatar', 'Save Captured Profile Photo', async () => {
+        await updateProfile({ photoURL: capturedImage });
+      });
       showToast("Profile avatar updated successfully!", "success");
-      onClose();
+      // Delay so they can see the "Saved & Verified" status next to the button
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (err: any) {
       showToast("Failed to save profile photo: " + err.message, "error");
     } finally {
@@ -170,6 +178,13 @@ export const CameraProfileCapture: React.FC<CameraProfileCaptureProps> = ({ isOp
             </div>
           )}
         </div>
+
+        {/* Sync status tracking indicator */}
+        {getFieldStatus('avatar') !== 'idle' && (
+          <div className="flex justify-center items-center py-2.5 mb-3 bg-slate-50/50 rounded-xl border border-slate-100/55">
+            <SyncBadge status={getFieldStatus('avatar')} message={getFieldMessage('avatar')} showText />
+          </div>
+        )}
 
         {/* Action Button Controls */}
         <div className="flex gap-3">
