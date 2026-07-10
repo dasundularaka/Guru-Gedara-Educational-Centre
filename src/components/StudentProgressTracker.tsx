@@ -207,7 +207,8 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
           });
           return {
             name: weekStr,
-            "Average Grade": Math.round(sum / progressList.length)
+            "Average Grade": Math.round(sum / progressList.length),
+            "Syllabus Grade": undefined as number | undefined
           };
         });
       } else {
@@ -215,6 +216,7 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
         if (!selected) return [];
         return selected.weeklyGrades.map(wg => ({
           name: wg.week,
+          "Average Grade": undefined as number | undefined,
           "Syllabus Grade": wg.score
         }));
       }
@@ -228,7 +230,8 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
           });
           return {
             name: monthStr,
-            "Average Grade": Math.round(sum / progressList.length)
+            "Average Grade": Math.round(sum / progressList.length),
+            "Syllabus Grade": undefined as number | undefined
           };
         });
       } else {
@@ -236,6 +239,7 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
         if (!selected) return [];
         return selected.monthlyGrades.map(mg => ({
           name: mg.month,
+          "Average Grade": undefined as number | undefined,
           "Syllabus Grade": mg.score
         }));
       }

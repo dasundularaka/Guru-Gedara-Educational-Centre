@@ -1,0 +1,344 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  STUDENT
+  TUTOR
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  ACTIVE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AvailabilityStatus {
+  ACTIVE
+  AWAY
+}
+
+enum BookingStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  FAILED
+}
+
+enum NotificationType {
+  REMINDER
+  PAYMENT
+  ANNOUNCEMENT
+  MESSAGE
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+enum SyncLogStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  VERIFY_SUCCESS
+  VERIFY_FAILED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  uid                     String              @id
+  email                   String              @unique
+  name                    String
+  displayName             String?
+  role                    UserRole
+  username                String?             @unique
+  status                  UserStatus?         @default(PENDING)
+  gender                  Gender?
+  address                 String?
+  guardianName            String?
+  guardianPhone           String?
+  photoURL                String?
+  pendingPhotoURL         String?
+  phone                   String?
+  password                String?             // For password auth
+  isPasswordResetRequired Boolean             @default(false)
+  createdAt               DateTime            @default(now())
+  availabilityStatus      AvailabilityStatus? @default(ACTIVE)
+  isFeatured              Boolean             @default(false)
+
+  // 1-to-1 details for roles
+  studentDetails          StudentDetail?
+  tutorDetails            TutorDetail?
+
+  // Profile notification settings
+  notificationSettings    NotificationSettings?
+
+  // Relations
+  tutorClasses            Class[]             @relation("TutorClasses")
+  studentBookings         Booking[]           @relation("StudentBookings")
+  tutorBookings           Booking[]           @relation("TutorBookings")
+  payments                Payment[]
+  notifications           NotificationItem[]
+  sentMessages            DirectMessage[]     @relation("SentMessages")
+  receivedMessages        DirectMessage[]     @relation("ReceivedMessages")
+  studentReviews          Review[]            @relation("StudentReviews")
+  tutorReviews            Review[]            @relation("TutorReviews")
+  studentAttendance       AttendanceRecord[]  @relation("StudentAttendance")
+  tutorAttendance         AttendanceRecord[]  @relation("TutorAttendance")
+  studyMaterials          StudyMaterial[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model StudentDetail {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  grade         String
+  parentContact String?
+  interests     String[] // PostgreSQL support for string array
+
+  @@index([userId])
+}
+
+model TutorDetail {
+  id            String              @id @default(uuid())
+  userId        String              @unique
+  user          User                @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  bio           String              @db.Text
+  subjects      String[]            // PostgreSQL support for string array
+  experience    Int                 // In years
+  qualification String
+  hourlyRate    Float
+  rating        Float               @default(5.0)
+  availability  TutorAvailability[]
+
+  @@index([userId])
+}
+
+model TutorAvailability {
+  id            String      @id @default(uuid())
+  tutorDetailId String
+  tutorDetail   TutorDetail @relation(fields: [tutorDetailId], references: [id], onDelete: Cascade)
+  day           String      // e.g., "Monday", "Tuesday"
+  slots         String[]    // List of active slots, e.g. ["10:00 AM", "02:00 PM"]
+
+  @@index([tutorDetailId])
+}
+
+model Class {
+  id             String             @id @default(uuid())
+  title          String
+  subject        String
+  tutorId        String
+  tutor          User               @relation("TutorClasses", fields: [tutorId], references: [uid], onDelete: Cascade)
+  tutorName      String
+  tutorPhoto     String?
+  schedule       String             // e.g., "Saturdays 10:00 AM - 12:00 PM"
+  dayOfWeek      String             // e.g., "Saturday"
+  timeSlot       String             // e.g., "10:00 AM"
+  price          Float
+  description    String             @db.Text
+  maxSlots       Int
+  bookedSlots    Int                @default(0)
+  tags           String[]
+  imageUrl       String?
+  isFeatured     Boolean            @default(false)
+
+  // Relations
+  bookings       Booking[]
+  payments       Payment[]
+  reviews        Review[]
+  attendance     AttendanceRecord[]
+  studyMaterials StudyMaterial[]
+
+  @@index([tutorId])
+  @@index([subject])
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  studentId   String
+  student     User          @relation("StudentBookings", fields: [studentId], references: [uid], onDelete: Cascade)
+  studentName String
+  classId     String
+  class       Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classTitle  String
+  tutorId     String
+  tutor       User          @relation("TutorBookings", fields: [tutorId], references: [uid], onDelete: Cascade)
+  tutorName   String
+  dayOfWeek   String
+  timeSlot    String
+  bookingDate DateTime      @default(now())
+  status      BookingStatus @default(ACTIVE)
+
+  @@index([studentId])
+  @@index([classId])
+  @@index([tutorId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  studentId     String
+  student       User          @relation(fields: [studentId], references: [uid], onDelete: Cascade)
+  studentName   String
+  classId       String
+  class         Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classTitle    String
+  amount        Float
+  date          DateTime      @default(now())
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String?
+  dueDate       DateTime?
+
+  @@index([studentId])
+  @@index([classId])
+  @@index([status])
+}
+
+model NotificationItem {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  title     String
+  message   String           @db.Text
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model DirectMessage {
+  id           String   @id @default(uuid())
+  senderId     String
+  sender       User     @relation("SentMessages", fields: [senderId], references: [uid], onDelete: Cascade)
+  senderName   String
+  receiverId   String
+  receiver     User     @relation("ReceivedMessages", fields: [receiverId], references: [uid], onDelete: Cascade)
+  message      String   @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+model NotificationSettings {
+  id                   String  @id @default(uuid())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  reminders            Boolean @default(true)
+  payments             Boolean @default(true)
+  announcements        Boolean @default(true)
+  messages             Boolean @default(true)
+  emailSync            Boolean @default(false)
+  emailClassRevisions  Boolean @default(false)
+  emailBookingStatus   Boolean @default(false)
+  emailStudyMaterials  Boolean @default(false)
+  emailPerformanceLogs Boolean @default(false)
+
+  @@index([userId])
+}
+
+model Review {
+  id              String       @id @default(uuid())
+  studentId       String
+  student         User         @relation("StudentReviews", fields: [studentId], references: [uid], onDelete: Cascade)
+  studentName     String
+  studentPhotoURL String?
+  tutorId         String?
+  tutor           User?        @relation("TutorReviews", fields: [tutorId], references: [uid], onDelete: Cascade)
+  tutorName       String?
+  classId         String?
+  class           Class?       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classTitle      String?
+  rating          Int          // 1 to 5
+  comment         String       @db.Text
+  status          ReviewStatus @default(PENDING)
+  createdAt       DateTime     @default(now())
+
+  @@index([studentId])
+  @@index([tutorId])
+  @@index([classId])
+  @@index([status])
+}
+
+model AttendanceRecord {
+  id         String           @id @default(uuid())
+  classId    String
+  class      Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classTitle String
+  studentId  String
+  student    User             @relation("StudentAttendance", fields: [studentId], references: [uid], onDelete: Cascade)
+  studentName String
+  date       String           // YYYY-MM-DD
+  status     AttendanceStatus
+  markedAt   DateTime         @default(now())
+  tutorId    String
+  tutor      User             @relation("TutorAttendance", fields: [tutorId], references: [uid], onDelete: Cascade)
+
+  @@index([classId])
+  @@index([studentId])
+  @@index([tutorId])
+}
+
+model StudyMaterial {
+  id           String   @id @default(uuid())
+  title        String
+  description  String   @db.Text
+  subject      String
+  referenceUrl String
+  tutorId      String
+  tutor        User     @relation(fields: [tutorId], references: [uid], onDelete: Cascade)
+  tutorName    String
+  classId      String?
+  class        Class?   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classTitle   String?
+  createdAt    DateTime @default(now())
+
+  @@index([tutorId])
+  @@index([classId])
+}
+
+model SyncLogEntry {
+  id        String        @id @default(uuid())
+  timestamp DateTime      @default(now())
+  operation String
+  status    SyncLogStatus
+  message   String        @db.Text
+  attempts  Int           @default(1)
+
+  @@index([status])
+}
