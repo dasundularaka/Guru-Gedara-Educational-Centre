@@ -23,7 +23,8 @@ import {
   Mail,
   UserCheck,
   RefreshCw,
-  Activity
+  Activity,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -163,7 +164,20 @@ function CentralLoadingScreen() {
 
 function MainAppContent() {
   const [currentTab, setCurrentTab] = useState('home');
-  const { toast, hideToast, cloudSync, currentUser, loading, showToast } = useApp();
+  const { 
+    toast, 
+    hideToast, 
+    cloudSync, 
+    currentUser, 
+    loading, 
+    showToast,
+    isReconciling,
+    reconcileProgress,
+    reconcileStep,
+    lastReconciledAt,
+    reconcileCloudData,
+    syncState
+  } = useApp();
 
   const [pingTime, setPingTime] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
@@ -297,58 +311,130 @@ function MainAppContent() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-xs uppercase font-bold text-white tracking-widest font-mono mb-4">Connection Core</h4>
-              <div className="flex flex-col gap-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-mono text-blue-200">
-                  {connectionStatus === 'reconnecting' ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />
-                      <span className="text-amber-300 font-bold">Reconnecting...</span>
-                    </>
-                  ) : connectionStatus === 'unstable' ? (
-                    <>
-                      <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />
-                      <span className="text-red-300 font-bold">Connection Unstable</span>
-                    </>
-                  ) : cloudSync ? (
-                    <>
-                      <Wifi className="w-4 h-4 text-emerald-400 animate-pulse" />
-                      <span>Cloud Database Linked</span>
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-4 h-4 text-orange-400" />
-                      <span>Local State (Sandboxed)</span>
-                    </>
-                  )}
-                </div>
-
-                {/* Real-time ping latency indicator */}
-                <div className="flex items-center gap-2 text-[10px] font-mono text-blue-300 bg-white/5 rounded-lg px-2.5 py-1 border border-white/5">
-                  <Activity className="w-3 h-3 text-indigo-400" />
-                  <span>Latency:</span>
-                  {pingTime !== null ? (
-                    <span className={`font-bold ${pingTime < 80 ? 'text-emerald-400' : pingTime < 150 ? 'text-amber-400' : 'text-red-400'}`}>
-                      {pingTime} ms ({pingTime < 80 ? 'Optimal' : pingTime < 150 ? 'Unstable' : 'Poor'})
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">checking...</span>
-                  )}
-                </div>
-
-                {/* Simulated instability trigger button */}
-                <button
-                  onClick={handleSimulateInstability}
-                  disabled={connectionStatus === 'reconnecting'}
-                  className="mt-1 text-[10px] font-bold text-left text-indigo-300 hover:text-indigo-150 transition-colors underline cursor-pointer disabled:opacity-50"
-                  id="simulate_instability_btn"
-                >
-                  {connectionStatus === 'reconnecting' ? "Simulating Recalibration..." : "Simulate Network Instability"}
-                </button>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs uppercase font-bold text-white tracking-widest font-mono">Connection Core</h4>
+                {(isReconciling || syncState.status === 'syncing') && (
+                  <span className="text-[10px] font-mono font-bold text-cyan-300 animate-pulse bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 rounded-full">
+                    {reconcileProgress}%
+                  </span>
+                )}
               </div>
 
-              <p className="text-[10px] text-blue-300 pt-1">
-                Guru Gedara uses reactive Firestore cloud buckets to maintain dynamic data states securely.
+              <div className="flex flex-col gap-2.5">
+                {/* Connection Status Badge */}
+                <div className={`inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs font-mono transition-all duration-300 ${
+                  isReconciling || syncState.status === 'syncing' || connectionStatus === 'reconnecting'
+                    ? 'bg-blue-900/50 border-cyan-500/60 text-cyan-200 shadow-lg shadow-cyan-500/10'
+                    : connectionStatus === 'unstable'
+                    ? 'bg-red-950/40 border-red-800/50 text-red-200'
+                    : cloudSync
+                    ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-200'
+                    : 'bg-white/5 border-white/10 text-blue-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {isReconciling || syncState.status === 'syncing' || connectionStatus === 'reconnecting' ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
+                        <span className="text-cyan-200 font-bold tracking-wide">
+                          Syncing... {reconcileProgress < 100 ? `${reconcileProgress}%` : ''}
+                        </span>
+                      </>
+                    ) : connectionStatus === 'unstable' ? (
+                      <>
+                        <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />
+                        <span className="text-red-300 font-bold">Connection Unstable</span>
+                      </>
+                    ) : cloudSync ? (
+                      <>
+                        <Wifi className="w-4 h-4 text-emerald-400 animate-pulse" />
+                        <span className="font-semibold">Cloud Database Linked</span>
+                      </>
+                    ) : (
+                      <>
+                        <WifiOff className="w-4 h-4 text-orange-400" />
+                        <span>Local State (Sandboxed)</span>
+                      </>
+                    )}
+                  </div>
+
+                  {cloudSync && !isReconciling && connectionStatus === 'stable' && (
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider">
+                      100% Synced
+                    </span>
+                  )}
+                </div>
+
+                {/* Animated Reconcile Progress Bar */}
+                {(isReconciling || syncState.status === 'syncing' || reconcileProgress < 100) && (
+                  <div className="space-y-1.5 bg-blue-950/80 border border-blue-800/60 p-2.5 rounded-xl shadow-inner">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-cyan-300">
+                      <span className="flex items-center gap-1.5 font-bold truncate max-w-[180px]">
+                        <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin shrink-0" />
+                        <span className="truncate">{reconcileStep || "Reconciling Firestore cache..."}</span>
+                      </span>
+                      <span className="font-bold text-white shrink-0">{reconcileProgress}%</span>
+                    </div>
+                    
+                    <div className="w-full bg-blue-900/80 rounded-full h-2 overflow-hidden p-0.5 border border-blue-700/50 relative">
+                      <motion.div 
+                        className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 h-full rounded-full shadow-lg shadow-cyan-400/50"
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${reconcileProgress}%` }}
+                        transition={{ ease: "easeInOut", duration: 0.3 }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Telemetry metadata & Latency indicator */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-blue-300 bg-white/5 rounded-lg px-2.5 py-1.5 border border-white/5">
+                    <Activity className="w-3 h-3 text-indigo-400 shrink-0" />
+                    <span>Latency:</span>
+                    {pingTime !== null ? (
+                      <span className={`font-bold ${pingTime < 80 ? 'text-emerald-400' : pingTime < 150 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {pingTime}ms
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">...</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-blue-300 bg-white/5 rounded-lg px-2.5 py-1.5 border border-white/5 truncate">
+                    <Database className="w-3 h-3 text-cyan-400 shrink-0" />
+                    <span className="truncate">
+                      {lastReconciledAt 
+                        ? `Synced: ${lastReconciledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` 
+                        : 'Cache Active'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Interactive Reconcile & Instability buttons */}
+                <div className="flex items-center justify-between pt-1 text-[10px] font-mono">
+                  <button
+                    onClick={() => reconcileCloudData()}
+                    disabled={isReconciling}
+                    className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-100 transition-colors font-bold cursor-pointer disabled:opacity-50"
+                    id="reconcile_cloud_btn"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isReconciling ? 'animate-spin text-cyan-400' : ''}`} />
+                    <span>{isReconciling ? "Syncing..." : "Reconcile Cloud Data"}</span>
+                  </button>
+
+                  <button
+                    onClick={handleSimulateInstability}
+                    disabled={connectionStatus === 'reconnecting'}
+                    className="text-indigo-300 hover:text-indigo-150 transition-colors underline cursor-pointer disabled:opacity-50"
+                    id="simulate_instability_btn"
+                  >
+                    {connectionStatus === 'reconnecting' ? "Calibrating..." : "Test Instability"}
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-blue-300/80 pt-0.5 leading-relaxed">
+                Guru Gedara uses reactive Firestore cloud buckets to maintain dynamic data states securely across browsers.
               </p>
             </div>
           </div>

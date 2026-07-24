@@ -63,6 +63,11 @@ interface AppContextType {
     verifyFn?: (result: T) => Promise<boolean>,
     maxRetries?: number
   ) => Promise<T>;
+  isReconciling: boolean;
+  reconcileProgress: number;
+  reconcileStep: string;
+  lastReconciledAt: Date | null;
+  reconcileCloudData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -162,6 +167,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     message: string;
     lastOperation?: string;
   }>({ status: 'idle', message: 'No active sync operation.' });
+
+  const [isReconciling, setIsReconciling] = useState(false);
+  const [reconcileProgress, setReconcileProgress] = useState(100);
+  const [reconcileStep, setReconcileStep] = useState("Database Synchronized");
+  const [lastReconciledAt, setLastReconciledAt] = useState<Date | null>(new Date());
 
   const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>(() => {
     const cached = localStorage.getItem('local_sync_logs');
@@ -417,22 +427,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast("Review deleted successfully.", "success");
   };
 
+  const reconcileCloudData = async () => {
+    setIsReconciling(true);
+    setReconcileProgress(15);
+    setReconcileStep("Connecting to Firestore cloud engine...");
+
+    try {
+      await new Promise(r => setTimeout(r, 200));
+      setReconcileProgress(35);
+      setReconcileStep("Reconciling classes & course catalogues...");
+      await refreshClasses();
+
+      setReconcileProgress(60);
+      setReconcileStep("Synchronizing active bookings & tutors...");
+      await refreshBookings();
+
+      setReconcileProgress(80);
+      setReconcileStep("Verifying payment ledgers & audit trails...");
+      await refreshPayments();
+
+      setReconcileProgress(95);
+      setReconcileStep("Finalizing review records & user profiles...");
+      await refreshReviews();
+
+      setReconcileProgress(100);
+      setReconcileStep("Reconciliation complete. Local cache synchronized.");
+      setLastReconciledAt(new Date());
+      setCloudSync(firestoreService.isCloudConnected());
+      showToast("Firestore cloud data reconciled successfully with local cache!", "success");
+    } catch (e) {
+      console.warn("Reconciliation error", e);
+      setReconcileStep("Reconciliation warning - local cache used.");
+    } finally {
+      setTimeout(() => {
+        setIsReconciling(false);
+      }, 1000);
+    }
+  };
+
   // Sync / Seed database on load
   useEffect(() => {
     const initializeApp = async () => {
+      setIsReconciling(true);
+      setReconcileProgress(20);
+      setReconcileStep("Initializing Firestore sync engine...");
       try {
         await firestoreService.seedDatabase();
         setCloudSync(firestoreService.isCloudConnected());
-        // Load latest datasets in parallel for optimum startup speed
+
+        setReconcileProgress(50);
+        setReconcileStep("Reconciling classes & reviews...");
         await Promise.all([
           refreshClasses(),
-          refreshReviews(),
+          refreshReviews()
+        ]);
+
+        setReconcileProgress(85);
+        setReconcileStep("Syncing bookings & payment ledgers...");
+        await Promise.all([
           refreshBookings(),
           refreshPayments()
         ]);
+
+        setReconcileProgress(100);
+        setReconcileStep("Cloud data synchronized with local cache");
+        setLastReconciledAt(new Date());
       } catch (e) {
         console.warn("Firebase seeding failure, continuing locally.", e);
         setCloudSync(false);
+        setReconcileStep("Operating in local mode");
+      } finally {
+        setTimeout(() => {
+          setIsReconciling(false);
+        }, 1200);
       }
     };
     initializeApp();
@@ -962,7 +1029,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncState,
       syncLogs,
       clearSyncLogs,
-      executeWriteWithRetry
+      executeWriteWithRetry,
+      isReconciling,
+      reconcileProgress,
+      reconcileStep,
+      lastReconciledAt,
+      reconcileCloudData
     }}>
       {children}
     </AppContext.Provider>
