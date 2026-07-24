@@ -426,7 +426,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Load latest datasets in parallel for optimum startup speed
         await Promise.all([
           refreshClasses(),
-          refreshReviews()
+          refreshReviews(),
+          refreshBookings(),
+          refreshPayments()
         ]);
       } catch (e) {
         console.warn("Firebase seeding failure, continuing locally.", e);
@@ -434,6 +436,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
     initializeApp();
+  }, []);
+
+  // Set up real-time database subscriptions so all browser instances stay in live sync
+  useEffect(() => {
+    const unsubClasses = firestoreService.subscribeClasses((updated) => {
+      if (updated && updated.length > 0) {
+        setClasses(updated);
+      }
+    });
+
+    const unsubBookings = firestoreService.subscribeBookings((updated) => {
+      if (updated && updated.length > 0) {
+        setBookings(updated);
+        localStorage.setItem('local_bookings', safeStringify(updated));
+      }
+    });
+
+    const unsubPayments = firestoreService.subscribePayments((updated) => {
+      if (updated && updated.length > 0) {
+        setPayments(updated);
+        localStorage.setItem('local_payments', safeStringify(updated));
+      }
+    });
+
+    const unsubReviews = firestoreService.subscribeReviews((updated) => {
+      if (updated && updated.length > 0) {
+        setReviews(updated);
+        localStorage.setItem('local_reviews', safeStringify(updated));
+      }
+    });
+
+    return () => {
+      if (unsubClasses) unsubClasses();
+      if (unsubBookings) unsubBookings();
+      if (unsubPayments) unsubPayments();
+      if (unsubReviews) unsubReviews();
+    };
   }, []);
 
   // Sync Firebase authentication with custom Firestore profiles
@@ -622,11 +661,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e: any) {
       setLoading(false);
       // Fallback: If Firebase auth fails or is offline
-      // we can verify if they typed specified admin, tutor or student test credentials,
-      // or if they registered a custom account, or fallback gracefully with any custom domain!
+      // we check Cloud Firestore first, then local storage, or fallback gracefully!
       const lowercaseEmail = email.toLowerCase();
+
+      // 1. Check Cloud Firestore for registered user profile across all browsers
+      try {
+        const cloudMatch = await firestoreService.getUserProfileByEmail(lowercaseEmail);
+        if (cloudMatch) {
+          if (cloudMatch.role === 'student' && cloudMatch.status === 'pending') {
+            throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+          }
+          try {
+            localStorage.setItem('local_running_session', safeStringify(cloudMatch));
+          } catch (err) {
+            console.warn("Failed storing running session", err);
+          }
+          setCurrentUser(cloudMatch);
+          showToast(`Logged in successfully as ${cloudMatch.name}!`, "success");
+          return cloudMatch;
+        }
+      } catch (cloudErr: any) {
+        if (cloudErr.message && cloudErr.message.includes('pending administrator approval')) {
+          throw cloudErr;
+        }
+        console.warn("Cloud lookup failed during email login:", cloudErr);
+      }
       
-      // 1. Check for custom registered users in local storage first
+      // 2. Check for custom registered users in local storage
       const rJSON = localStorage.getItem('local_registered_users');
       const rUsers: UserProfile[] = rJSON ? JSON.parse(rJSON) : [];
       const match = rUsers.find(u => u.email.toLowerCase() === lowercaseEmail);

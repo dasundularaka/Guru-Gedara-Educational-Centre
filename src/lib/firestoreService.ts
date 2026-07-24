@@ -460,7 +460,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'users', uid), fullProfile);
       } catch (e) {
         console.warn("Failed saving user online. Writing locally.", e);
-        isUsingCloud = false;
       }
     }
 
@@ -478,7 +477,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'users', tutorId), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update profile online. Saving local fallback.", e);
-        isUsingCloud = false;
       }
     }
     
@@ -497,7 +495,7 @@ const firestoreServiceRaw = {
        try {
          const snap = await promiseWithTimeout(
            getDocs(collection(db, 'users')),
-           2000,
+           8000,
            { docs: [] } as any
          );
          const foundDoc = snap.docs.find(d => (d.data().email || '').toLowerCase() === email.toLowerCase());
@@ -537,7 +535,7 @@ const firestoreServiceRaw = {
       try {
         const snap = await promiseWithTimeout(
           getDocs(collection(db, 'users')),
-          2500,
+          8000,
           { docs: [] } as any
         );
         cloudUsers = snap.docs.map(doc => {
@@ -577,7 +575,7 @@ const firestoreServiceRaw = {
       try {
         const snap = await promiseWithTimeout(
           getDocs(collection(db, 'classes')),
-          2000,
+          8000,
           { docs: [] } as any
         );
         cloudClasses = snap.docs.map(doc => doc.data() as ClassItem);
@@ -600,8 +598,7 @@ const firestoreServiceRaw = {
       try {
         await setDoc(doc(db, 'classes', id), newItem);
       } catch (e) {
-        console.warn("Writing class locally instead.", e);
-        isUsingCloud = false;
+        console.warn("Writing class locally as fallback.", e);
       }
     }
 
@@ -622,7 +619,6 @@ const firestoreServiceRaw = {
         });
       } catch (e) {
         console.warn("Fallback booking count increment", e);
-        isUsingCloud = false;
       }
     }
 
@@ -644,7 +640,7 @@ const firestoreServiceRaw = {
        try {
          const snap = await promiseWithTimeout(
            getDocs(collection(db, 'bookings')),
-           2000,
+           8000,
            { docs: [] } as any
          );
          cloudBookings = snap.docs.map(doc => doc.data() as Booking);
@@ -680,7 +676,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'bookings', id), newBooking);
       } catch (e) {
         console.warn("Fallback booking creation", e);
-        isUsingCloud = false;
       }
     }
 
@@ -697,7 +692,6 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
       } catch (e) {
         console.warn("Fallback cancel booking", e);
-        isUsingCloud = false;
       }
     }
 
@@ -716,7 +710,7 @@ const firestoreServiceRaw = {
        try {
          const snap = await promiseWithTimeout(
            getDocs(collection(db, 'payments')),
-           2000,
+           8000,
            { docs: [] } as any
          );
          cloudPayments = snap.docs.map(doc => {
@@ -759,7 +753,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'payments', id), newPay);
       } catch (e) {
         console.warn("Fallback creating payment locally", e);
-        isUsingCloud = false;
       }
     }
 
@@ -778,7 +771,6 @@ const firestoreServiceRaw = {
         await updateDoc(doc(db, 'payments', id), { status });
       } catch (e) {
         console.warn("Failed online payment state change", e);
-        isUsingCloud = false;
       }
     }
 
@@ -797,7 +789,7 @@ const firestoreServiceRaw = {
         const qRef = query(collection(db, 'notifications'), where('userId', '==', userId));
         const snap = await promiseWithTimeout(
           getDocs(qRef),
-          2000,
+          8000,
           { docs: [] } as any
         );
         cloudNotifications = snap.docs.map(doc => doc.data() as NotificationItem);
@@ -872,7 +864,7 @@ const firestoreServiceRaw = {
       try {
         const snap = await promiseWithTimeout(
           getDocs(collection(db, 'messages')),
-          2000,
+          8000,
           { docs: [] } as any
         );
         cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
@@ -946,7 +938,6 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'users', uid));
       } catch (e) {
         console.warn("Failed to delete user profile from Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
@@ -964,7 +955,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'users', uid), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update user profile in Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
@@ -982,7 +972,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'classes', classId), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update class in Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
@@ -996,7 +985,6 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'classes', classId));
       } catch (e) {
         console.warn("Failed to delete class from Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
@@ -1010,7 +998,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'payments', paymentId), data, { merge: true });
       } catch (e) {
         console.warn("Failed to update payment in Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
@@ -1024,7 +1011,6 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'payments', paymentId));
       } catch (e) {
         console.warn("Failed to delete payment from Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
@@ -1041,7 +1027,7 @@ const firestoreServiceRaw = {
       try {
         const snap = await promiseWithTimeout(
           getDocs(collection(db, 'reviews')),
-          2000,
+          8000,
           { docs: [] } as any
         );
         cloudReviews = snap.docs.map(doc => doc.data() as Review);
@@ -1076,7 +1062,6 @@ const firestoreServiceRaw = {
         );
       } catch (e) {
         console.warn("Fallback creating review", e);
-        isUsingCloud = false;
       }
     }
 
@@ -1101,7 +1086,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'reviews', reviewId), { status }, { merge: true });
       } catch (e) {
         console.warn("Fallback updating review status", e);
-        isUsingCloud = false;
       }
     }
 
@@ -1116,7 +1100,6 @@ const firestoreServiceRaw = {
         await deleteDoc(doc(db, 'reviews', reviewId));
       } catch (e) {
         console.warn("Failed to delete review from Firestore.", e);
-        isUsingCloud = false;
       }
     }
     const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
@@ -1133,7 +1116,7 @@ const firestoreServiceRaw = {
       try {
         const snap = await promiseWithTimeout(
           getDocs(collection(db, 'attendance')),
-          2000,
+          8000,
           { docs: [] } as any
         );
         cloudAttendance = snap.docs.map(doc => doc.data() as AttendanceRecord);
@@ -1154,7 +1137,6 @@ const firestoreServiceRaw = {
         await setDoc(doc(db, 'attendance', record.id), record);
       } catch (e) {
         console.warn("Fallback attendance creation", e);
-        isUsingCloud = false;
       }
     }
 
@@ -1163,6 +1145,77 @@ const firestoreServiceRaw = {
     filtered.push(record);
     saveFallback('local_attendance', filtered);
     return record;
+  },
+
+  // -------------------------------------------------------------
+  // REAL-TIME SUBSCRIPTIONS (CROSS-BROWSER SYNC)
+  // -------------------------------------------------------------
+  subscribeClasses(callback: (classes: ClassItem[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'classes'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as ClassItem);
+          if (docs.length > 0) {
+            saveFallback('local_classes', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Classes snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to classes", e);
+      }
+    }
+    return () => {};
+  },
+
+  subscribeBookings(callback: (bookings: Booking[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'bookings'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as Booking);
+          if (docs.length > 0) {
+            saveFallback('local_bookings', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Bookings snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to bookings", e);
+      }
+    }
+    return () => {};
+  },
+
+  subscribePayments(callback: (payments: Payment[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'payments'), (snap) => {
+          const docs = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Payment);
+          if (docs.length > 0) {
+            saveFallback('local_payments', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Payments snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to payments", e);
+      }
+    }
+    return () => {};
+  },
+
+  subscribeReviews(callback: (reviews: Review[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'reviews'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as Review);
+          if (docs.length > 0) {
+            saveFallback('local_reviews', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Reviews snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to reviews", e);
+      }
+    }
+    return () => {};
   },
 
   // -------------------------------------------------------------
