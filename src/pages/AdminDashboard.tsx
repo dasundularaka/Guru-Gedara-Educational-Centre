@@ -50,7 +50,7 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments } = useApp();
+  const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments, resetDatabase } = useApp();
   const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -976,10 +976,25 @@ export const AdminDashboard: React.FC = () => {
         
         {/* Workspace Title Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-          <div>
-            <span className="text-xs font-bold text-red-600 font-mono uppercase tracking-widest block leading-none">Management Office</span>
-            <h1 className="text-3xl font-extrabold text-blue-955 tracking-tight mt-3">Academy Administration</h1>
-            <p className="text-xs text-gray-400 mt-1">Schedules control logs • Global Ledger ledger • Sync nodes: ONLINE</p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div>
+              <span className="text-xs font-bold text-red-600 font-mono uppercase tracking-widest block leading-none">Management Office</span>
+              <h1 className="text-3xl font-extrabold text-blue-955 tracking-tight mt-3">Academy Administration</h1>
+              <p className="text-xs text-gray-400 mt-1">Schedules control logs • Global Ledger ledger • Sync nodes: ONLINE</p>
+            </div>
+
+            <button
+              id="admin_btn_reset_database"
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to reset the database to default? This will clear temporary records.")) {
+                  await resetDatabase();
+                }
+              }}
+              className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Reset database to default state"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Reset DB to Default
+            </button>
           </div>
 
           {/* Sub menu controls */}

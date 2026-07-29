@@ -293,6 +293,55 @@ const firestoreServiceRaw = {
     }
   },
 
+  async resetDatabaseToDefault() {
+    const scopedProj = firebaseConfig.projectId || 'default';
+    const cacheKeys = [
+      'local_classes',
+      'local_users_tutors',
+      'local_bookings',
+      'local_payments',
+      'local_notifications',
+      'local_messages',
+      'local_reviews',
+      'local_attendance',
+      'local_registered_users',
+      'local_study_materials',
+      `local_classes_${scopedProj}`,
+      `local_users_tutors_${scopedProj}`,
+      `local_bookings_${scopedProj}`,
+      `local_payments_${scopedProj}`,
+      `local_notifications_${scopedProj}`,
+      `local_messages_${scopedProj}`,
+      `local_reviews_${scopedProj}`,
+      `local_attendance_${scopedProj}`,
+      `local_registered_users_${scopedProj}`,
+      `local_study_materials_${scopedProj}`,
+      `db_demo_cleaned_${scopedProj}`
+    ];
+    cacheKeys.forEach(k => {
+      try {
+        localStorage.removeItem(k);
+      } catch (e) {}
+    });
+
+    if (isUsingCloud) {
+      try {
+        const collectionsToReset = ['classes', 'bookings', 'payments', 'notifications', 'messages', 'reviews', 'attendance', 'study_materials'];
+        for (const colName of collectionsToReset) {
+          const colRef = collection(db, colName);
+          const snap = await getDocs(colRef).catch(() => ({ docs: [] } as any));
+          if (snap.docs && snap.docs.length > 0) {
+            await Promise.all(snap.docs.map((d: any) => deleteDoc(doc(db, colName, d.id)).catch(() => {})));
+          }
+        }
+      } catch (e) {
+        console.warn("Error clearing cloud Firestore collections during reset", e);
+      }
+    }
+
+    console.log("Database successfully reset to default state.");
+  },
+
   // -------------------------------------------------------------
   // USER PROFILES
   // -------------------------------------------------------------

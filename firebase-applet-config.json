@@ -1,11 +1,10 @@
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyAeNptO2frLoS2ZCb82Eb6GgZoip5q2C0I",
-  authDomain: "gurugedara-prod.firebaseapp.com",
-  databaseURL: "https://gurugedara-prod-default-rtdb.firebaseio.com",
-  projectId: "gurugedara-prod",
-  storageBucket: "gurugedara-prod.firebasestorage.app",
-  messagingSenderId: "380777950459",
-  appId: "1:380777950459:web:5cdc4ba44c0b958190945e",
-  measurementId: "G-LDDCRWPMCY"
-};
+{
+  "projectId": "gurugedara-prod",
+  "appId": "1:380777950459:web:3791e4c8b4cd70b490945e",
+  "apiKey": "AIzaSyAeNptO2frLoS2ZCb82Eb6GgZoip5q2C0I",
+  "authDomain": "gurugedara-prod.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "gurugedara-prod.firebasestorage.app",
+  "messagingSenderId": "380777950459",
+  "measurementId": ""
+}

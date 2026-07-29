@@ -68,6 +68,7 @@ interface AppContextType {
   reconcileStep: string;
   lastReconciledAt: Date | null;
   reconcileCloudData: () => Promise<void>;
+  resetDatabase: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -988,6 +989,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const resetDatabase = async () => {
+    try {
+      await firestoreService.resetDatabaseToDefault();
+      setClasses([]);
+      setBookings([]);
+      setPayments([]);
+      setNotifications([]);
+      setReviews([]);
+      showToast("Database successfully reset to default state.", "success");
+    } catch (e) {
+      console.error("Failed database reset:", e);
+      showToast("Error resetting database to default.", "error");
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -1034,7 +1050,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reconcileProgress,
       reconcileStep,
       lastReconciledAt,
-      reconcileCloudData
+      reconcileCloudData,
+      resetDatabase
     }}>
       {children}
     </AppContext.Provider>
