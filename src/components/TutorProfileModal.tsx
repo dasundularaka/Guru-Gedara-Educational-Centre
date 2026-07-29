@@ -89,10 +89,6 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
                   {tutor.availabilityStatus === 'away' ? 'Away / No Bookings' : 'Active / Accepting Students'}
                 </span>
 
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50/70 text-indigo-700 rounded-xl text-[10px] font-black border border-indigo-100">
-                  <Clock className="w-3 h-3" /> ${details.hourlyRate}/Hr rate
-                </span>
-                
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-pink-50 text-pink-700 rounded-xl text-[10px] font-black border border-pink-100">
                   <Heart className="w-3 h-3 fill-pink-500 text-pink-500" /> {details.experience}+ Yrs Exp
                 </span>

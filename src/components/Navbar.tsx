@@ -234,13 +234,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             </div>
 
             {/* Desktop Nav Links */}
-            <div className="hidden md:flex md:ml-10 md:space-x-2.5">
+            <div className="hidden md:flex md:ml-10 md:space-x-2">
               <button
                 onClick={() => onChangeTab('home')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   currentTab === 'home' 
-                    ? 'bg-slate-100 text-slate-900 font-extrabold border border-slate-200/60' 
-                    : 'text-slate-500 hover:text-slate-950 hover:bg-slate-50 border border-transparent'
+                    ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
                 id="tab_home_btn"
               >
@@ -248,10 +248,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               </button>
               <button
                 onClick={() => onChangeTab('classes')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   currentTab === 'classes' 
-                    ? 'bg-slate-100 text-slate-900 font-extrabold border border-slate-200/60' 
-                    : 'text-slate-500 hover:text-slate-950 hover:bg-slate-50 border border-transparent'
+                    ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
                 id="tab_classes_btn"
               >
@@ -259,17 +259,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               </button>
               <button
                 onClick={() => onChangeTab('tutors')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   currentTab === 'tutors' 
-                    ? 'bg-slate-100 text-slate-900 font-extrabold border border-slate-200/60' 
-                    : 'text-slate-500 hover:text-slate-950 hover:bg-slate-50 border border-transparent'
+                    ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
                 id="tab_tutors_btn"
               >
                 Tutors
               </button>
-              
-
             </div>
           </div>
 
@@ -425,10 +423,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             ) : (
               <button
                 onClick={() => onChangeTab('auth')}
-                className="inline-flex items-center justify-center px-4 py-2 border border-blue-600 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm"
+                className="inline-flex items-center justify-center px-4.5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md hover:shadow-lg transition-all cursor-pointer gap-1.5"
                 id="nav_login_btn"
               >
-                Log In / Register
+                <User className="w-3.5 h-3.5" /> Sign In / Enroll
               </button>
             )}
           </div>

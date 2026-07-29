@@ -117,7 +117,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
       await firestoreService.triggerNotification(
         currentUser.uid,
         "Class Enrolled Successfully!",
-        `Congratulations! You have booked a seat in '${item.title}' scheduled for ${item.schedule}. Payment of $${item.price} confirmed.`,
+        `Congratulations! You have booked a seat in '${item.title}' scheduled for ${item.schedule}. Payment of LKR ${item.price} confirmed.`,
         'payment'
       );
 
@@ -237,7 +237,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
             <div>
               <span className="text-[10px] font-mono text-slate-400 block uppercase tracking-wider leading-none">Tuition Cost</span>
               <span className="text-lg font-extrabold text-indigo-600 font-sans leading-none block mt-1.5">
-                ${item.price}<span className="text-xs text-slate-400 font-normal"> / month</span>
+                LKR {item.price}<span className="text-xs text-slate-400 font-normal"> / month</span>
               </span>
             </div>
 
@@ -307,7 +307,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
               <p className="text-sm font-extrabold text-slate-900 mt-1">{item.title}</p>
               <div className="flex justify-between items-center mt-3 text-xs text-slate-650 pt-2.5 border-t border-dashed border-slate-200">
                 <span>Monthly Recurring fees Amount:</span>
-                <span className="font-extrabold text-slate-900 font-mono">${item.price}.00</span>
+                <span className="font-extrabold text-slate-900 font-mono">LKR {item.price}.00</span>
               </div>
             </div>
 
@@ -466,7 +466,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
                 disabled={loading}
                 className="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                {loading ? 'Processing...' : `Pay $${item.price}.00 Now`}
+                {loading ? 'Processing...' : `Pay LKR ${item.price}.00 Now`}
               </button>
             </div>
           </div>

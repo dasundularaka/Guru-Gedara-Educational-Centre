@@ -151,9 +151,9 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
       <div className="border-t border-slate-100 pt-5 mt-auto">
         <div className="flex justify-between items-center gap-2">
           <div>
-            <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider block leading-none">Tuition Rate</span>
+            <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider block leading-none">Experience</span>
             <span className="text-sm font-extrabold text-slate-900 block mt-1.5 leading-none font-mono">
-              ${details.hourlyRate}/Hr
+              {details.experience} Years
             </span>
           </div>
 

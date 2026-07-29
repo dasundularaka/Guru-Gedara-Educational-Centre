@@ -62,11 +62,32 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [address, setAddress] = useState("");
+  const [dob, setDob] = useState("");
+  const [notes, setNotes] = useState("");
   const [photoURL, setPhotoURL] = useState(PRESET_PHOTOS[0].url);
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [grade, setGrade] = useState("11");
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        showToast("Please upload a PNG or JPG image file.", "error");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const result = uploadEvent.target?.result as string;
+        if (result) {
+          setPhotoURL(result);
+          showToast("Profile image uploaded successfully!", "success");
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Tutor Specific fields
   const [bio, setBio] = useState("");
@@ -221,6 +242,8 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           details = {
             gender,
             address,
+            dob,
+            notes,
             photoURL,
             password, // Save to fallback DB
             guardianName,
@@ -632,18 +655,30 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-700 mb-1.5 flex items-center gap-1">
-                        <Home className="w-3.5 h-3.5 text-indigo-550" /> Residential Address:
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="12/A, Flower Road, Colombo 03"
-                        className="w-full text-xs px-3.5 py-2 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-sans"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1.5 flex items-center gap-1">
+                          <Home className="w-3.5 h-3.5 text-indigo-550" /> Residential Address:
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          placeholder="12/A, Flower Road, Colombo 03"
+                          className="w-full text-xs px-3.5 py-2 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-sans"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1.5">Date of Birth:</label>
+                        <input
+                          required
+                          type="date"
+                          value={dob}
+                          onChange={(e) => setDob(e.target.value)}
+                          className="w-full text-xs px-3.5 py-2 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-sans bg-white"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -671,11 +706,35 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                       </div>
                     </div>
 
-                    {/* SELECT PROFILE PHOTO */}
+                    <div>
+                      <label className="block text-[11.5px] font-bold text-gray-700 mb-1.5">Notes (Optional):</label>
+                      <textarea
+                        rows={2}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Additional student background info, medical notes or interests..."
+                        className="w-full text-xs p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-sans resize-none"
+                      />
+                    </div>
+
+                    {/* SELECT OR UPLOAD PROFILE PHOTO */}
                     <div>
                       <label className="block text-[11px] font-bold text-gray-700 mb-1.5 flex items-center gap-1">
-                        <Image className="w-3.5 h-3.5 text-indigo-550" /> Select Profile Photo:
+                        <Image className="w-3.5 h-3.5 text-indigo-550" /> Profile Image (Upload PNG/JPG or Add Link):
                       </label>
+                      <div className="flex flex-col sm:flex-row gap-2 mb-2 items-center">
+                        <label className="w-full sm:w-auto px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer text-center flex items-center justify-center gap-1.5 shrink-0">
+                          <Image className="w-3.5 h-3.5 text-indigo-600" /> Upload File (PNG/JPG)
+                          <input 
+                            type="file" 
+                            accept="image/png, image/jpeg, image/jpg" 
+                            onChange={handleFileUpload} 
+                            className="hidden" 
+                          />
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono font-bold uppercase">or preset/URL</span>
+                      </div>
+
                       <div className="grid grid-cols-4 gap-2 mb-2">
                         {PRESET_PHOTOS.map((ph, idx) => (
                           <div 
@@ -694,7 +753,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                         type="text"
                         value={photoURL}
                         onChange={(e) => setPhotoURL(e.target.value)}
-                        placeholder="Or enter customized Photo URL"
+                        placeholder="Or enter customized Photo URL (https://...)"
                         className="w-full text-[10px] px-3.5 py-1.5 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
                       />
                     </div>

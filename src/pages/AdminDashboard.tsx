@@ -322,6 +322,11 @@ export const AdminDashboard: React.FC = () => {
   const [studentParentContact, setStudentParentContact] = useState("");
   const [studentGender, setStudentGender] = useState<'male' | 'female'>('male');
   const [studentSelectedClasses, setStudentSelectedClasses] = useState<string[]>([]);
+  const [studentAddress, setStudentAddress] = useState("");
+  const [studentDob, setStudentDob] = useState("");
+  const [studentGuardianName, setStudentGuardianName] = useState("");
+  const [studentNotes, setStudentNotes] = useState("");
+  const [studentPhotoURL, setStudentPhotoURL] = useState("");
   const [tutorBio, setTutorBio] = useState("");
   const [tutorSubjects, setTutorSubjects] = useState("General Science, Algebra");
   const [tutorHourlyRate, setTutorHourlyRate] = useState("45");
@@ -349,6 +354,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Payment fields
   const [paymentStudentId, setPaymentStudentId] = useState("");
+  const [paymentStudentSearch, setPaymentStudentSearch] = useState("");
   const [paymentClassId, setPaymentClassId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("120");
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'pending' | 'failed'>('paid');
@@ -505,6 +511,11 @@ export const AdminDashboard: React.FC = () => {
     setStudentParentContact("");
     setStudentGender('male');
     setStudentSelectedClasses([]);
+    setStudentAddress("");
+    setStudentDob("");
+    setStudentGuardianName("");
+    setStudentNotes("");
+    setStudentPhotoURL("");
     setTutorBio("");
     setTutorSubjects("General Science, Algebra");
     setTutorHourlyRate("45");
@@ -527,10 +538,27 @@ export const AdminDashboard: React.FC = () => {
     setClassImageUrl("");
 
     setPaymentStudentId("");
+    setPaymentStudentSearch("");
     setPaymentClassId("");
     setPaymentAmount("120");
     setPaymentStatus("paid");
     setPaymentMethod("Credit Card");
+  };
+
+  const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        showToast("Image file size should be less than 3MB.", "error");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStudentPhotoURL(reader.result as string);
+        showToast("Profile image uploaded successfully!", "success");
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Actions Opening modals helper
@@ -562,9 +590,14 @@ export const AdminDashboard: React.FC = () => {
       setUserEmail(item.email || "");
       setUserPhone(item.phone || "");
       setStudentGrade(item.studentDetails?.grade || "11");
-      setStudentParentContact(item.studentDetails?.parentContact || "");
+      setStudentParentContact(item.guardianPhone || item.studentDetails?.parentContact || "");
       setStudentGender(item.gender || 'male');
       setStudentSelectedClasses(item.selectedClasses || []);
+      setStudentAddress(item.address || "");
+      setStudentDob(item.dob || "");
+      setStudentGuardianName(item.guardianName || "");
+      setStudentNotes(item.notes || "");
+      setStudentPhotoURL(item.photoURL || "");
     } else if (type === 'tutor') {
       setUserName(item.name || "");
       setUserEmail(item.email || "");
@@ -745,16 +778,20 @@ export const AdminDashboard: React.FC = () => {
     try {
       if (type === 'student') {
         await firestoreService.deleteUserProfile(id);
+        setUsers(prev => prev.filter(u => u.uid !== id));
         showToast("Student profile successfully deleted.", "success");
       } else if (type === 'tutor') {
         await firestoreService.deleteUserProfile(id);
+        setUsers(prev => prev.filter(u => u.uid !== id));
         showToast("Tutor faculty profile successfully deleted.", "success");
       } else if (type === 'class') {
         await firestoreService.deleteClass(id);
+        setClassesList(prev => prev.filter(c => c.id !== id));
         showToast("Course curriculum successfully deleted.", "success");
         await refreshClasses();
       } else if (type === 'payment') {
         await firestoreService.deletePayment(id);
+        setPaymentsList(prev => prev.filter(p => p.id !== id));
         showToast("Ledger transaction record deleted successfully.", "success");
       } else if (type === 'review') {
         await deleteReview(id);
@@ -784,6 +821,14 @@ export const AdminDashboard: React.FC = () => {
           phone: userPhone,
           role: 'student',
           gender: studentGender,
+          address: studentAddress,
+          dob: studentDob,
+          guardianName: studentGuardianName,
+          guardianPhone: studentParentContact,
+          notes: studentNotes,
+          photoURL: studentPhotoURL || (studentGender === 'male' 
+            ? 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150'
+            : 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'),
           selectedClasses: studentSelectedClasses,
           studentDetails
         };
@@ -959,9 +1004,25 @@ export const AdminDashboard: React.FC = () => {
 
   // Payments filter matching
   const matchingPayments = paymentsList.filter(p => {
-    const matchesSearch = p.studentName.toLowerCase().includes(paySearchQuery.toLowerCase()) || p.classTitle.toLowerCase().includes(paySearchQuery.toLowerCase());
     const matchesStatus = payStatusFilter === 'all' || p.status === payStatusFilter;
-    return matchesSearch && matchesStatus;
+    if (!matchesStatus) return false;
+    if (!paySearchQuery.trim()) return true;
+
+    const query = paySearchQuery.toLowerCase().trim();
+    const studentObj = users.find(u => u.uid === p.studentId);
+    const studentUniqueId = (studentObj?.username || '').toLowerCase();
+    const studentNameFromUser = (studentObj?.name || '').toLowerCase();
+    const studentNameFromPayment = (p.studentName || '').toLowerCase();
+    const classTitle = (p.classTitle || '').toLowerCase();
+    const studentUid = (p.studentId || '').toLowerCase();
+
+    return (
+      studentNameFromPayment.includes(query) ||
+      studentNameFromUser.includes(query) ||
+      studentUniqueId.includes(query) ||
+      studentUid.includes(query) ||
+      classTitle.includes(query)
+    );
   });
 
   return (
@@ -982,19 +1043,6 @@ export const AdminDashboard: React.FC = () => {
               <h1 className="text-3xl font-extrabold text-blue-955 tracking-tight mt-3">Academy Administration</h1>
               <p className="text-xs text-gray-400 mt-1">Schedules control logs • Global Ledger ledger • Sync nodes: ONLINE</p>
             </div>
-
-            <button
-              id="admin_btn_reset_database"
-              onClick={async () => {
-                if (window.confirm("Are you sure you want to reset the database to default? This will clear temporary records.")) {
-                  await resetDatabase();
-                }
-              }}
-              className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Reset database to default state"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Reset DB to Default
-            </button>
           </div>
 
           {/* Sub menu controls */}
@@ -2525,7 +2573,7 @@ export const AdminDashboard: React.FC = () => {
                         type="text" 
                         value={studentParentContact} 
                         onChange={(e) => setStudentParentContact(e.target.value)}
-                        placeholder="+1 (555) 777-0011"
+                        placeholder="+94 71 999 8811"
                         className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
                       />
                     </div>
@@ -2540,6 +2588,79 @@ export const AdminDashboard: React.FC = () => {
                         <option value="female">Female</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Guardian Name</label>
+                      <input 
+                        type="text" 
+                        value={studentGuardianName} 
+                        onChange={(e) => setStudentGuardianName(e.target.value)}
+                        placeholder="e.g. Mr. S. de Silva"
+                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Date of Birth</label>
+                      <input 
+                        type="date" 
+                        value={studentDob} 
+                        onChange={(e) => setStudentDob(e.target.value)}
+                        className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500 font-sans"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Residential Address</label>
+                    <input 
+                      type="text" 
+                      value={studentAddress} 
+                      onChange={(e) => setStudentAddress(e.target.value)}
+                      placeholder="12/A, Flower Road, Colombo 03"
+                      className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Notes (Optional)</label>
+                    <textarea 
+                      rows={2}
+                      value={studentNotes} 
+                      onChange={(e) => setStudentNotes(e.target.value)}
+                      placeholder="Additional student background, medical notes or interests..."
+                      className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Profile Image (PNG/JPG File or Image Link)</label>
+                    <div className="flex flex-col sm:flex-row gap-2 items-center">
+                      <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 shrink-0">
+                        <Upload className="w-3.5 h-3.5 text-indigo-600" /> Upload Photo (PNG/JPG)
+                        <input 
+                          type="file" 
+                          accept="image/png, image/jpeg, image/jpg" 
+                          onChange={handleStudentFileUpload} 
+                          className="hidden" 
+                        />
+                      </label>
+                      <input 
+                        type="text" 
+                        value={studentPhotoURL} 
+                        onChange={(e) => setStudentPhotoURL(e.target.value)}
+                        placeholder="Or paste image URL link..."
+                        className="w-full p-2 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                    {studentPhotoURL && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img src={studentPhotoURL} alt="Preview" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                        <span className="text-[10px] text-emerald-600 font-bold">Image selected</span>
+                        <button type="button" onClick={() => setStudentPhotoURL('')} className="text-[10px] text-red-500 underline ml-auto">Remove</button>
+                      </div>
+                    )}
                   </div>
 
                   {modalMode === 'add' && (
@@ -2945,19 +3066,47 @@ export const AdminDashboard: React.FC = () => {
               {/* PAYMENT FORM */}
               {modalType === 'payment' && (
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Search Student by Name or Unique ID</label>
+                    <div className="relative mb-2">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                      <input 
+                        type="text" 
+                        value={paymentStudentSearch}
+                        onChange={(e) => setPaymentStudentSearch(e.target.value)}
+                        placeholder="Search student by name or ID (e.g. GB12345678)..."
+                        className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 font-sans"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Student Scholar</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Select Student Scholar</label>
                       <select 
                         required 
                         value={paymentStudentId} 
                         onChange={(e) => setPaymentStudentId(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500"
+                        className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500 text-xs font-sans"
                       >
                         <option value="">-- Choose Scholar --</option>
-                        {users.filter(u => u.role === 'student').map(stud => (
-                          <option key={stud.uid} value={stud.uid}>{stud.name} ({stud.email})</option>
-                        ))}
+                        {users
+                          .filter(u => u.role === 'student')
+                          .filter(stud => {
+                            if (!paymentStudentSearch.trim()) return true;
+                            const query = paymentStudentSearch.toLowerCase().trim();
+                            const nameMatch = stud.name.toLowerCase().includes(query);
+                            const usernameMatch = (stud.username || '').toLowerCase().includes(query);
+                            const uidMatch = stud.uid.toLowerCase().includes(query);
+                            const emailMatch = stud.email.toLowerCase().includes(query);
+                            return nameMatch || usernameMatch || uidMatch || emailMatch;
+                          })
+                          .map(stud => (
+                            <option key={stud.uid} value={stud.uid}>
+                              {stud.name} [{stud.username || stud.uid.slice(0, 8)}] ({stud.email})
+                            </option>
+                          ))
+                        }
                       </select>
                     </div>
                     <div>

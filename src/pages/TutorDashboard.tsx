@@ -816,7 +816,7 @@ export const TutorDashboard: React.FC = () => {
                             <h4 className="font-bold text-gray-900 leading-tight block pt-0.5">{item.title}</h4>
                             <div className="flex justify-between items-center text-[10px] text-gray-500 mt-2 font-mono">
                               <span>Seats: {item.bookedSlots}/{item.maxSlots}</span>
-                              <span>Cost: ${item.price}/Mo</span>
+                              <span>Cost: LKR {item.price}/Mo</span>
                             </div>
                           </div>
 

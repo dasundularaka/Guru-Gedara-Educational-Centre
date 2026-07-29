@@ -12,6 +12,8 @@ export interface UserProfile {
   address?: string;
   guardianName?: string;
   guardianPhone?: string;
+  dob?: string;
+  notes?: string;
   selectedClasses?: string[];
   photoURL?: string;
   pendingPhotoURL?: string;

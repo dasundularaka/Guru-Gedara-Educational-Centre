@@ -33,70 +33,69 @@ let isOriginalCloud = true;
 
 // Helper to stringify objects with circular reference protection and custom type exclusions
 export function safeStringify(obj: any): string {
-  const seen = new Set<any>();
+  if (obj === undefined) return 'undefined';
+  if (obj === null) return 'null';
 
-  function sanitize(val: any): any {
-    if (val === null || val === undefined) {
-      return val;
-    }
-    const type = typeof val;
-    if (type !== 'object') {
-      if (type === 'function' || type === 'symbol') {
+  const seen = new WeakSet();
+
+  const replacer = (_key: string, value: any) => {
+    if (typeof value === 'object' && value !== null) {
+      // Handle Firestore Timestamp
+      if (typeof value.toDate === 'function') {
+        try {
+          return value.toDate().toISOString();
+        } catch (e) {
+          return undefined;
+        }
+      }
+      // Handle Date
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      // Handle DOM nodes, Window, Events, or non-serializable objects
+      if (
+        value.nodeType !== undefined ||
+        value === window ||
+        (value.constructor && value.constructor.name && (
+          value.constructor.name.startsWith('Y2') ||
+          value.constructor.name.startsWith('Ka') ||
+          value.constructor.name.includes('Firestore') ||
+          value.constructor.name.includes('Snapshot') ||
+          value.constructor.name.includes('Element') ||
+          value.constructor.name.includes('Event')
+        ))
+      ) {
         return undefined;
       }
-      return val;
+
+      // Circular reference check
+      if (seen.has(value)) {
+        return undefined; // Prune circular references completely
+      }
+      seen.add(value);
     }
 
-    // Check for circular reference
-    if (seen.has(val)) {
-      return undefined; // Prune circular references completely
-    }
-
-    // Safe handling of Dates
-    if (val instanceof Date) {
-      return val.toISOString();
-    }
-
-    // Safe handling of Arrays
-    if (Array.isArray(val)) {
-      seen.add(val);
-      const arrCopy = val.map(item => sanitize(item));
-      seen.delete(val);
-      return arrCopy;
-    }
-
-    // Safety check: only serialize plain objects to prevent traversing complex/circular SDK instances (like Firestore Y2/Ka/etc)
-    const proto = Object.getPrototypeOf(val);
-    if (proto !== Object.prototype && proto !== null) {
-      // Not a plain object, let's skip it to prevent circular serialization
+    if (typeof value === 'function' || typeof value === 'symbol') {
       return undefined;
     }
 
-    seen.add(val);
-
-    // For other objects, let's build a clean plain object
-    const plainObj: any = {};
-    for (const key of Object.keys(val)) {
-      try {
-        const cleanedVal = sanitize(val[key]);
-        if (cleanedVal !== undefined) {
-          plainObj[key] = cleanedVal;
-        }
-      } catch (e) {
-        // Skip properties that throw on access
-      }
-    }
-
-    seen.delete(val);
-    return plainObj;
-  }
+    return value;
+  };
 
   try {
-    const sanitized = sanitize(obj);
-    return JSON.stringify(sanitized);
+    return JSON.stringify(obj, replacer);
   } catch (err) {
-    console.warn("[safeStringify] Critical error stringifying object, returning fallback", err);
-    return '{}';
+    console.warn("[safeStringify] Fallback stringify triggered:", err);
+    try {
+      // Secondary fallback if native replacer encountered an unhandled getter error
+      return JSON.stringify(obj, (_k, v) => {
+        if (typeof v === 'object' && v !== null) return '[Object]';
+        if (typeof v === 'function') return undefined;
+        return v;
+      });
+    } catch (e2) {
+      return '{}';
+    }
   }
 }
 
@@ -557,19 +556,27 @@ const firestoreServiceRaw = {
 
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const registered = handleFallback<UserProfile>('local_registered_users', []);
+    const deletedUids = handleFallback<string[]>('local_deleted_uids', []);
     
     const userMap = new Map<string, UserProfile>();
+    // If cloud returned users, add them first
     cloudUsers.forEach(u => userMap.set(u.uid, u));
-    tutors.forEach(u => userMap.set(u.uid, u));
-    registered.forEach(u => userMap.set(u.uid, u));
+    // If cloud didn't have certain fallback tutors or registered users, add if not deleted
+    tutors.forEach(u => {
+      if (!userMap.has(u.uid)) userMap.set(u.uid, u);
+    });
+    registered.forEach(u => {
+      if (!userMap.has(u.uid)) userMap.set(u.uid, u);
+    });
     
-    return Array.from(userMap.values());
+    return Array.from(userMap.values()).filter(u => !deletedUids.includes(u.uid));
   },
 
   // -------------------------------------------------------------
   // CLASSES
   // -------------------------------------------------------------
   async getClasses(): Promise<ClassItem[]> {
+    const deletedIds = handleFallback<string[]>('local_deleted_class_ids', []);
     let cloudClasses: ClassItem[] = [];
     if (isUsingCloud) {
       try {
@@ -581,13 +588,14 @@ const firestoreServiceRaw = {
         cloudClasses = snap.docs.map(doc => doc.data() as ClassItem);
         if (cloudClasses.length > 0) {
           saveFallback('local_classes', cloudClasses);
-          return cloudClasses;
+          return cloudClasses.filter(c => !deletedIds.includes(c.id));
         }
       } catch (e) {
         console.warn("Fallback classes loading.", e);
       }
     }
-    return handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
+    const fallbackClasses = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
+    return fallbackClasses.filter(c => !deletedIds.includes(c.id));
   },
 
   async createNewClass(classData: Omit<ClassItem, 'id'>): Promise<ClassItem> {
@@ -705,6 +713,7 @@ const firestoreServiceRaw = {
   // PAYMENTS
   // -------------------------------------------------------------
   async getPayments(): Promise<Payment[]> {
+    const deletedIds = handleFallback<string[]>('local_deleted_payment_ids', []);
     let cloudPayments: Payment[] = [];
     if (isUsingCloud) {
        try {
@@ -722,13 +731,14 @@ const firestoreServiceRaw = {
          });
          if (cloudPayments.length > 0) {
            saveFallback('local_payments', cloudPayments);
-           return cloudPayments;
+           return cloudPayments.filter(p => !deletedIds.includes(p.id));
          }
        } catch (e) {
          console.warn("Fallback read payments.", e);
        }
     }
-    return handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
+    const fallbackPayments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
+    return fallbackPayments.filter(p => !deletedIds.includes(p.id));
   },
 
   async createPayment(studentId: string, studentName: string, classId: string, classTitle: string, amount: number, paymentMethod: string, status: 'paid' | 'pending' | 'failed' = 'paid'): Promise<Payment> {
@@ -947,6 +957,12 @@ const firestoreServiceRaw = {
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     const filteredReg = registered.filter(u => u.uid !== uid);
     saveFallback('local_registered_users', filteredReg);
+
+    const deletedUids = handleFallback<string[]>('local_deleted_uids', []);
+    if (!deletedUids.includes(uid)) {
+      deletedUids.push(uid);
+      saveFallback('local_deleted_uids', deletedUids);
+    }
   },
 
   async updateUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
@@ -990,6 +1006,12 @@ const firestoreServiceRaw = {
     const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
     const filtered = items.filter(c => c.id !== classId);
     saveFallback('local_classes', filtered);
+
+    const deletedIds = handleFallback<string[]>('local_deleted_class_ids', []);
+    if (!deletedIds.includes(classId)) {
+      deletedIds.push(classId);
+      saveFallback('local_deleted_class_ids', deletedIds);
+    }
   },
 
   async updatePayment(paymentId: string, data: Partial<Payment>): Promise<void> {
@@ -1016,6 +1038,12 @@ const firestoreServiceRaw = {
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
     const filtered = payments.filter(p => p.id !== paymentId);
     saveFallback('local_payments', filtered);
+
+    const deletedIds = handleFallback<string[]>('local_deleted_payment_ids', []);
+    if (!deletedIds.includes(paymentId)) {
+      deletedIds.push(paymentId);
+      saveFallback('local_deleted_payment_ids', deletedIds);
+    }
   },
 
   // -------------------------------------------------------------
