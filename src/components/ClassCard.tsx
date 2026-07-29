@@ -17,18 +17,18 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
   const [loading, setLoading] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("Stripe Gateway (Visa ending in 4242)");
+  const [paymentMethod, setPaymentMethod] = useState("Credit / Debit Card");
 
   // Secure payment gateway state variables
   const [gatewayType, setGatewayType] = useState<'stripe' | 'paypal'>('stripe');
-  const [cardName, setCardName] = useState("Alex Mercer");
-  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
-  const [cardExpiry, setCardExpiry] = useState("12/28");
-  const [cardCvc, setCardCvc] = useState("242");
+  const [cardName, setCardName] = useState(currentUser?.name || "");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
 
-  const [payPalEmail, setPayPalEmail] = useState("alex.mercer@sandbox.com");
-  const [payPalPassword, setPayPalPassword] = useState("sandbox123");
-  const [isPayPalLoggedIn, setIsPayPalLoggedIn] = useState(true);
+  const [payPalEmail, setPayPalEmail] = useState(currentUser?.email || "");
+  const [payPalPassword, setPayPalPassword] = useState("");
+  const [isPayPalLoggedIn, setIsPayPalLoggedIn] = useState(false);
   const [showPayPalLoginForm, setShowPayPalLoginForm] = useState(false);
 
   const spotsLeft = item.maxSlots - item.bookedSlots;

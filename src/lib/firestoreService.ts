@@ -216,97 +216,80 @@ const firestoreServiceRaw = {
   },
 
   // -------------------------------------------------------------
-  // SEEDING DATABASE (RUNS AUTO-ONCE IF EMPTY)
+  // SEEDING / CLEANUP DATABASE
   // -------------------------------------------------------------
   async seedDatabase() {
     if (!isUsingCloud) return;
-    // Optimize: Fast instant check to completely skip database verification when already verified
-    const seedKey = `db_seeding_verified_${firebaseConfig.projectId || 'default'}`;
-    if (localStorage.getItem(seedKey) === 'true') {
+    const cleanupKey = `db_demo_cleaned_${firebaseConfig.projectId || 'default'}`;
+    if (localStorage.getItem(cleanupKey) === 'true') {
       return;
     }
     try {
-      // Query with limit(1) in parallel to optimize read counts and connection speeds
-      const [classSnap, tutorSnap] = await promiseWithTimeout(
-        Promise.all([
-          getDocs(query(collection(db, 'classes'), limit(1))),
-          getDocs(query(collection(db, 'users'), limit(1)))
-        ]),
-        8000,
-        [ { empty: true, docs: [] } as any, { empty: true, docs: [] } as any ]
+      // Purge demo data documents if they exist in Firestore
+      const demoDocsToDelete: { collection: string; id: string }[] = [
+        { collection: 'classes', id: 'class_calc_abc' },
+        { collection: 'classes', id: 'class_physics_mechanics' },
+        { collection: 'classes', id: 'class_creative_writing' },
+        { collection: 'classes', id: 'class_coding_web' },
+        { collection: 'classes', id: 'class_algebra_basics' },
+        { collection: 'users', id: 'tutor_sarah' },
+        { collection: 'users', id: 'tutor_marcus' },
+        { collection: 'users', id: 'tutor_elena' },
+        { collection: 'users', id: 'tutor_david' },
+        { collection: 'users', id: 'student_demo' },
+        { collection: 'users', id: 'admin_demo' },
+        { collection: 'bookings', id: 'booking_abc_1' },
+        { collection: 'bookings', id: 'booking_abc_2' },
+        { collection: 'payments', id: 'pay_1' },
+        { collection: 'payments', id: 'pay_2' },
+        { collection: 'payments', id: 'pay_3' },
+        { collection: 'notifications', id: 'not_1' },
+        { collection: 'notifications', id: 'not_2' },
+        { collection: 'notifications', id: 'not_3' },
+        { collection: 'notifications', id: 'not_tutor' },
+        { collection: 'messages', id: 'msg_1' },
+        { collection: 'messages', id: 'msg_2' },
+        { collection: 'reviews', id: 'review_1' },
+        { collection: 'reviews', id: 'review_2' },
+        { collection: 'reviews', id: 'review_3' },
+        { collection: 'reviews', id: 'review_4' },
+        { collection: 'reviews', id: 'review_5' },
+        { collection: 'study_materials', id: 'mat_1' },
+        { collection: 'study_materials', id: 'mat_2' },
+        { collection: 'study_materials', id: 'mat_3' }
+      ];
+
+      await Promise.all(
+        demoDocsToDelete.map(item => 
+          deleteDoc(doc(db, item.collection, item.id)).catch(() => {})
+        )
       );
 
-      const promises: Promise<any>[] = [];
-      const wrapSafe = (promise: Promise<any>, name: string) => 
-        promise.catch(err => console.warn(`Failed seeding ${name}:`, err));
-
-      if (classSnap.empty) {
-        console.log("Seeding classes to Firestore...");
-        INITIAL_CLASSES.forEach(c => {
-          promises.push(wrapSafe(setDoc(doc(db, 'classes', c.id), c), `class ${c.id}`));
-        });
-      }
-
-      if (tutorSnap.empty) {
-        console.log("Seeding initial dataset to Firestore...");
-        
-        INITIAL_TUTORS.forEach(t => {
-          promises.push(wrapSafe(setDoc(doc(db, 'users', t.uid), t), `tutor ${t.uid}`));
-        });
-
-        INITIAL_BOOKINGS.forEach(b => {
-          promises.push(wrapSafe(setDoc(doc(db, 'bookings', b.id), b), `booking ${b.id}`));
-        });
-
-        INITIAL_PAYMENTS.forEach(p => {
-          promises.push(wrapSafe(setDoc(doc(db, 'payments', p.id), p), `payment ${p.id}`));
-        });
-
-        INITIAL_NOTIFICATIONS.forEach(n => {
-          promises.push(wrapSafe(setDoc(doc(db, 'notifications', n.id), n), `notification ${n.id}`));
-        });
-
-        INITIAL_MESSAGES.forEach(m => {
-          promises.push(wrapSafe(setDoc(doc(db, 'messages', m.id), m), `message ${m.id}`));
-        });
-
-        INITIAL_REVIEWS.forEach(r => {
-          promises.push(wrapSafe(setDoc(doc(db, 'reviews', r.id), r), `review ${r.id}`));
-        });
-
-        promises.push(wrapSafe(setDoc(doc(db, 'users', 'student_demo'), {
-          uid: "student_demo",
-          email: "alex.mercer@example.com",
-          name: "Alex Mercer",
-          role: "student",
-          photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-          phone: "+1 (555) 777-8899",
-          createdAt: new Date().toISOString(),
-          studentDetails: {
-            grade: "Grade 11",
-            parentContact: "+1 (555) 777-0011",
-            interests: ["Advanced Physics", "Calc"]
+      // Wipe local storage keys if they contain demo data
+      const scopedProj = firebaseConfig.projectId || 'default';
+      const cacheKeys = [
+        `local_classes_${scopedProj}`,
+        `local_users_tutors_${scopedProj}`,
+        `local_bookings_${scopedProj}`,
+        `local_payments_${scopedProj}`,
+        `local_notifications_${scopedProj}`,
+        `local_messages_${scopedProj}`,
+        `local_reviews_${scopedProj}`,
+        `local_study_materials_${scopedProj}`
+      ];
+      cacheKeys.forEach(k => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw && (raw.includes('student_demo') || raw.includes('tutor_sarah') || raw.includes('class_calc_abc') || raw.includes('mat_1'))) {
+            localStorage.removeItem(k);
           }
-        }), 'student_demo'));
+        } catch (e) {}
+      });
 
-        promises.push(wrapSafe(setDoc(doc(db, 'users', 'admin_demo'), {
-          uid: "admin_demo",
-          email: "admin.academy@example.com",
-          name: "Academy Principal",
-          role: "admin",
-          createdAt: new Date().toISOString()
-        }), 'admin_demo'));
-      }
-
-      if (promises.length > 0) {
-        await Promise.all(promises);
-        console.log("Database seeded successfully!");
-      }
-
-      const seedKey = `db_seeding_verified_${firebaseConfig.projectId || 'default'}`;
-      localStorage.setItem(seedKey, 'true');
+      localStorage.setItem(cleanupKey, 'true');
+      console.log("Demo data cleaned up successfully!");
     } catch (e) {
-      console.warn("Cloud connection check warning:", e);
+      console.warn("Demo cleanup warning:", e);
     }
   },
 
@@ -346,33 +329,6 @@ const firestoreServiceRaw = {
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const tutorMatch = tutors.find(t => t.uid === uid);
     if (tutorMatch) return tutorMatch;
-
-    if (uid === 'student_demo') {
-      return {
-        uid: "student_demo",
-        email: "alex.mercer@example.com",
-        name: "Alex Mercer",
-        role: "student",
-        photoURL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-        phone: "+1 (555) 777-8899",
-        createdAt: new Date().toISOString(),
-        studentDetails: {
-          grade: "Grade 11",
-          parentContact: "+1 (555) 777-0011",
-          interests: ["Advanced Physics", "Calc"]
-        }
-      };
-    }
-    
-    if (uid === 'admin_demo') {
-      return {
-        uid: "admin_demo",
-        email: "admin.academy@example.com",
-        name: "Academy Principal",
-        role: "admin",
-        createdAt: new Date().toISOString()
-      };
-    }
 
     // Checking dynamically added local signup profiles
     const registered = handleFallback<UserProfile>('local_registered_users', []);
@@ -553,15 +509,10 @@ const firestoreServiceRaw = {
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     
-    // Add mock student and admin
-    const demoStudent = await this.getUserProfile('student_demo');
-    const demoAdmin = await this.getUserProfile('admin_demo');
-    
     const userMap = new Map<string, UserProfile>();
+    cloudUsers.forEach(u => userMap.set(u.uid, u));
     tutors.forEach(u => userMap.set(u.uid, u));
     registered.forEach(u => userMap.set(u.uid, u));
-    if (demoStudent) userMap.set(demoStudent.uid, demoStudent);
-    if (demoAdmin) userMap.set(demoAdmin.uid, demoAdmin);
     
     return Array.from(userMap.values());
   },

@@ -471,12 +471,7 @@ export const StudentModuleRoadmap: React.FC<StudentModuleRoadmapProps> = ({ curr
 
   const coursesList = useMemo(() => {
     if (activeBookings.length === 0) {
-      return [
-        { id: "demo_math", title: "AP Calculus AB: Mastering the Core", subject: "Mathematics" },
-        { id: "demo_coding", title: "Web Development Essentials: HTML, CSS, JS", subject: "Coding" },
-        { id: "demo_physics", title: "Newtonian Physics & Classical Mechanics", subject: "Physics" },
-        { id: "demo_english", title: "Critical Essay Writing & IELTS Prep", subject: "English" }
-      ];
+      return [];
     }
     return activeBookings.map(b => {
       const match = classes.find(c => c.id === b.classId);

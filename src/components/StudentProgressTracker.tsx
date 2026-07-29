@@ -142,13 +142,7 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
 
   const progressList = useMemo(() => {
     if (activeBookings.length === 0) {
-      // Return beautiful synthetic demo courses so the student sees how it works if not enrolled yet
-      const fallbackCourses = [
-        { id: "demo_math", title: "AP Calculus AB: Mastering the Core", subject: "Mathematics", tutor: "Dr. Sarah Jenkins" },
-        { id: "demo_coding", title: "Web Development Essentials: HTML, CSS, JS", subject: "Coding", tutor: "David Kross" },
-        { id: "demo_physics", title: "Newtonian Physics & Classical Mechanics", subject: "Physics", tutor: "Prof. Marcus Chen" }
-      ];
-      return fallbackCourses.map(c => getCourseMetrics(c.id, c.title, c.subject, c.tutor));
+      return [];
     }
 
     return activeBookings.map(b => {
@@ -298,14 +292,14 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
       
       {/* Dynamic Info Header Badge */}
       {activeBookings.length === 0 && (
-        <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl flex items-start gap-3.5 mb-2">
-          <div className="p-2 bg-orange-100 text-orange-850 rounded-xl">
-            <Sparkles className="w-5 h-5 text-orange-700 animate-pulse" />
+        <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3.5 mb-2">
+          <div className="p-2 bg-blue-100 text-blue-850 rounded-xl">
+            <GraduationCap className="w-5 h-5 text-blue-700" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-orange-950">Viewing Course Simulator Analytics</h4>
-            <p className="text-[11px] text-orange-700 leading-relaxed mt-0.5">
-              You are currently registered in 0 active courses. We are displaying a fully-simulated standard syllabus report for demo purposes. Register in courses in the Academic Classes panel to automatically connect secure academic charts!
+            <h4 className="text-xs font-bold text-blue-950">No Enrolled Courses</h4>
+            <p className="text-[11px] text-blue-700 leading-relaxed mt-0.5">
+              You are currently not enrolled in any active classes. Browse the Subject Directory to enroll in classes and track real progress and grades!
             </p>
           </div>
         </div>

@@ -2170,7 +2170,7 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                          {admin.uid !== currentUser.uid && admin.uid !== 'admin_demo' && (
+                          {admin.uid !== currentUser.uid && (
                             <button
                               onClick={() => {
                                 setDeleteConfirm({

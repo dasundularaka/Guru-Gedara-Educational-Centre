@@ -22,41 +22,7 @@ interface ClassesProps {
 
 const SUBJECT_CATEGORIES = ["All Subjects", "Mathematics", "Physics", "English", "Coding"];
 
-const INITIAL_MATERIALS: StudyMaterial[] = [
-  {
-    id: "mat_1",
-    title: "Introduction to Calculus Limits Guide",
-    description: "A comprehensive formula guide and 50 practice problems on limits and continuity.",
-    subject: "Mathematics",
-    referenceUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-    tutorId: "tutor_sarah",
-    tutorName: "Dr. Sarah Jenkins",
-    classTitle: "AP Calculus AB Exam prep",
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-  },
-  {
-    id: "mat_2",
-    title: "Python Cheat Sheet for Beginners",
-    description: "Everything from syntax and variable declaration to writing custom data structures in Python.",
-    subject: "Coding",
-    referenceUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-    tutorId: "tutor_marcus",
-    tutorName: "Prof. Marcus Chen",
-    classTitle: "Fullstack Web Development",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-  },
-  {
-    id: "mat_3",
-    title: "Electromagnetism Formulas & Practice",
-    description: "Detailed walkthrough of Maxwell's equations and classical electromagnetism problem sets.",
-    subject: "Physics",
-    referenceUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-    tutorId: "tutor_elena",
-    tutorName: "Elena Rostova",
-    classTitle: "College Physics Foundations",
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
-  }
-];
+const INITIAL_MATERIALS: StudyMaterial[] = [];
 
 export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   const { classes, refreshClasses, currentUser, showToast } = useApp();
@@ -96,17 +62,11 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   // Fetch Study Materials from genericFirestoreService
   const fetchStudyMaterials = async () => {
     try {
-      let list = await genericFirestoreService.getCollection<StudyMaterial>('study_materials');
-      if (!list || list.length === 0) {
-        // Seed initial materials to make the app gorgeous immediately
-        for (const mat of INITIAL_MATERIALS) {
-          await genericFirestoreService.addDocument('study_materials', mat, mat.id);
-        }
-        list = INITIAL_MATERIALS;
-      }
-      setStudyMaterials(list);
+      const list = await genericFirestoreService.getCollection<StudyMaterial>('study_materials');
+      setStudyMaterials(list || []);
     } catch (e) {
       console.warn("Failed retrieving study materials", e);
+      setStudyMaterials([]);
     }
   };
 

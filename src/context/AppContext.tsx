@@ -94,7 +94,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return JSON.parse(cached);
       } catch (e) {}
     }
-    return INITIAL_NOTIFICATIONS;
+    return [];
   });
   const [classes, setClasses] = useState<any[]>(() => {
     const cached = localStorage.getItem('local_classes');
@@ -103,7 +103,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return JSON.parse(cached);
       } catch (e) {}
     }
-    return INITIAL_CLASSES;
+    return [];
   });
   const [reviews, setReviews] = useState<Review[]>(() => {
     const cached = localStorage.getItem('local_reviews');
@@ -112,7 +112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return JSON.parse(cached);
       } catch (e) {}
     }
-    return INITIAL_REVIEWS;
+    return [];
   });
   const [bookings, setBookings] = useState<Booking[]>(() => {
     const cached = localStorage.getItem('local_bookings');
@@ -121,7 +121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return JSON.parse(cached);
       } catch (e) {}
     }
-    return INITIAL_BOOKINGS;
+    return [];
   });
   const [payments, setPayments] = useState<Payment[]>(() => {
     const cached = localStorage.getItem('local_payments');
@@ -130,7 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return JSON.parse(cached);
       } catch (e) {}
     }
-    return INITIAL_PAYMENTS;
+    return [];
   });
   const [isPrefetched, setIsPrefetched] = useState(false);
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -580,8 +580,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Local fallback session
           setCurrentUser({
             uid: firebaseUser.uid,
-            email: firebaseUser.email || 'alex@example.com',
-            name: firebaseUser.displayName || 'Alex Mercer',
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
             role: 'student',
             createdAt: new Date().toISOString()
           });

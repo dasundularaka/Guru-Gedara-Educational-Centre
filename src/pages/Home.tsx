@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem, UserProfile } from '../types';
@@ -26,9 +26,13 @@ interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
-  const { classes, refreshClasses } = useApp();
+  const { classes, refreshClasses, reviews } = useApp();
   const [highlightedClasses, setHighlightedClasses] = useState<ClassItem[]>([]);
   const [topTutors, setTopTutors] = useState<UserProfile[]>([]);
+
+  const approvedReviews = useMemo(() => {
+    return (reviews || []).filter(r => r.status === 'approved');
+  }, [reviews]);
 
   useEffect(() => {
     const loadHomeRecords = async () => {
@@ -235,8 +239,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {highlightedClasses.length === 0 ? (
-              <div className="col-span-3 text-center py-10 text-gray-400 text-sm">
-                Synchronizing available schedules with Cloud Database...
+              <div className="col-span-3 text-center py-12 px-6 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 text-xs">
+                <BookOpen className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
+                <p className="font-bold text-slate-700 dark:text-slate-300">No classes published yet</p>
+                <p className="mt-1">Admins and tutors can add and schedule classes to make them available for student enrollment.</p>
               </div>
             ) : (
               highlightedClasses.map((item) => (
@@ -279,8 +285,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {topTutors.length === 0 ? (
-              <div className="col-span-3 text-center py-10 text-gray-450 text-xs">
-                Mapping expert tutors list...
+              <div className="col-span-3 text-center py-12 px-6 bg-white/80 rounded-2xl border border-dashed border-blue-200 text-slate-500 text-xs">
+                <Users className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-60" />
+                <p className="font-bold text-slate-700">No faculty members listed yet</p>
+                <p className="mt-1">Sign up as an instructor or register faculty members in the Admin Portal.</p>
               </div>
             ) : (
               topTutors.map((tutor) => (
