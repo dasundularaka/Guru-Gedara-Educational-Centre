@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   AreaChart, 
@@ -33,14 +33,25 @@ import {
   ChevronRight,
   TrendingUpIcon,
   Calculator,
-  Compass
+  Compass,
+  GraduationCap,
+  QrCode,
+  AlertTriangle,
+  Bell
 } from 'lucide-react';
-import { Booking, ClassItem, UserProfile } from '../types';
+import { Booking, ClassItem, UserProfile, AttendanceRecord } from '../types';
+import { AttendanceCalendarHeatmap } from './AttendanceCalendarHeatmap';
+import { ClassQRCodeAttendanceModal } from './ClassQRCodeAttendanceModal';
+import { AttendanceScanHistory } from './AttendanceScanHistory';
+import { checkAndTriggerAttendanceAlerts } from '../lib/attendanceNotificationTrigger';
 
 interface StudentProgressTrackerProps {
   currentUser: UserProfile;
   userBookings: Booking[];
   classes: ClassItem[];
+  attendanceRecords?: AttendanceRecord[];
+  onAttendanceMarked?: () => void;
+  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
 interface CourseProgress {
@@ -119,15 +130,36 @@ function getCourseMetrics(classId: string, title: string, subject: string, tutor
   };
 }
 
-export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ currentUser, userBookings, classes }) => {
+export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
+  currentUser, 
+  userBookings, 
+  classes,
+  attendanceRecords = [],
+  onAttendanceMarked,
+  showToast
+}) => {
   const [selectedClassId, setSelectedClassId] = useState<string>("overall");
-  const [timeframe, setTimeframe] = useState<'weekly' | 'threeMonths'>('threeMonths'); // Default to threeMonths to highlight the requested feature!
+  const [timeframe, setTimeframe] = useState<'weekly' | 'threeMonths'>('threeMonths');
+  const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
   
   // Predictor state
   const [predictSubject, setPredictSubject] = useState<string>("overall");
   const [desiredGrade, setDesiredGrade] = useState<number>(90);
   const [currentScore, setCurrentScore] = useState<number>(85);
   const [remainingWeight, setRemainingWeight] = useState<number>(30); // e.g. final is 30%
+
+  // Check and trigger attendance threshold notification alert
+  useEffect(() => {
+    if (currentUser?.uid && userBookings.length > 0) {
+      checkAndTriggerAttendanceAlerts(
+        currentUser.uid,
+        currentUser.name || 'Student',
+        userBookings,
+        attendanceRecords,
+        80
+      );
+    }
+  }, [currentUser, userBookings, attendanceRecords]);
 
   // Build course metrics for active classes
   const activeBookings = useMemo(() => {
@@ -189,56 +221,87 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
   }, [progressList]);
 
   // Weekly/Monthly aggregate trend or course-specific trend
+  const [chartMode, setChartMode] = useState<'overall' | 'multisubject'>('multisubject');
+  const [chartMetric, setChartMetric] = useState<'grade' | 'attendance'>('grade');
+
   const trendData = useMemo(() => {
+    // Baseline sample courses if not enrolled in any class yet
+    const displayList = progressList.length > 0 ? progressList : [
+      getCourseMetrics("demo_math", "AP Calculus AB: Core Concepts", "Mathematics", "Dr. Sarah Jenkins"),
+      getCourseMetrics("demo_physics", "College Physics Foundations", "Physics", "Elena Rostova"),
+      getCourseMetrics("demo_coding", "Fullstack Web Development", "Coding", "Prof. Marcus Chen"),
+      getCourseMetrics("demo_english", "Critical Writing & Literature", "English", "Claire Sterling")
+    ];
+
     if (timeframe === 'weekly') {
-      if (selectedClassId === "overall") {
-        // Mean score of all courses per week
-        return Array.from({ length: 6 }).map((_, idx) => {
-          const weekStr = `Week ${idx + 1}`;
-          let sum = 0;
-          progressList.forEach(course => {
-            sum += course.weeklyGrades[idx]?.score || 85;
-          });
-          return {
-            name: weekStr,
-            "Average Grade": Math.round(sum / progressList.length),
-            "Syllabus Grade": undefined as number | undefined
-          };
+      return Array.from({ length: 6 }).map((_, idx) => {
+        const weekStr = `Week ${idx + 1}`;
+        const row: Record<string, any> = { name: weekStr };
+
+        let sumGrade = 0;
+        let sumAtt = 0;
+
+        displayList.forEach(course => {
+          const score = course.weeklyGrades[idx]?.score || 85;
+          const attScore = Math.min(100, Math.max(70, course.attendance - (5 - idx) * 1.2 + (idx % 2 === 0 ? 2 : -1)));
+          
+          row[course.subject] = chartMetric === 'grade' ? score : Math.round(attScore);
+          sumGrade += score;
+          sumAtt += attScore;
         });
-      } else {
-        const selected = progressList.find(c => c.classId === selectedClassId);
-        if (!selected) return [];
-        return selected.weeklyGrades.map(wg => ({
-          name: wg.week,
-          "Average Grade": undefined as number | undefined,
-          "Syllabus Grade": wg.score
-        }));
-      }
+
+        const count = displayList.length || 1;
+        row["Average Grade"] = Math.round(sumGrade / count);
+        row["Average Attendance"] = Math.round(sumAtt / count);
+        row["Performance Index"] = chartMetric === 'grade' ? row["Average Grade"] : row["Average Attendance"];
+
+        if (selectedClassId !== "overall") {
+          const selected = displayList.find(c => c.classId === selectedClassId);
+          if (selected) {
+            row["Syllabus Grade"] = chartMetric === 'grade' 
+              ? (selected.weeklyGrades[idx]?.score || 85)
+              : Math.round(selected.attendance);
+          }
+        }
+
+        return row;
+      });
     } else {
       // 3 Months trend (April, May, June)
-      if (selectedClassId === "overall") {
-        return ["April 2026", "May 2026", "June 2026"].map((monthStr, idx) => {
-          let sum = 0;
-          progressList.forEach(course => {
-            sum += course.monthlyGrades[idx]?.score || 85;
-          });
-          return {
-            name: monthStr,
-            "Average Grade": Math.round(sum / progressList.length),
-            "Syllabus Grade": undefined as number | undefined
-          };
+      const months = ["April 2026", "May 2026", "June 2026"];
+      return months.map((monthStr, idx) => {
+        const row: Record<string, any> = { name: monthStr };
+
+        let sumGrade = 0;
+        let sumAtt = 0;
+
+        displayList.forEach(course => {
+          const score = course.monthlyGrades[idx]?.score || 85;
+          const attScore = Math.min(100, Math.max(75, course.attendance - (2 - idx) * 2));
+          
+          row[course.subject] = chartMetric === 'grade' ? score : Math.round(attScore);
+          sumGrade += score;
+          sumAtt += attScore;
         });
-      } else {
-        const selected = progressList.find(c => c.classId === selectedClassId);
-        if (!selected) return [];
-        return selected.monthlyGrades.map(mg => ({
-          name: mg.month,
-          "Average Grade": undefined as number | undefined,
-          "Syllabus Grade": mg.score
-        }));
-      }
+
+        const count = displayList.length || 1;
+        row["Average Grade"] = Math.round(sumGrade / count);
+        row["Average Attendance"] = Math.round(sumAtt / count);
+        row["Performance Index"] = chartMetric === 'grade' ? row["Average Grade"] : row["Average Attendance"];
+
+        if (selectedClassId !== "overall") {
+          const selected = displayList.find(c => c.classId === selectedClassId);
+          if (selected) {
+            row["Syllabus Grade"] = chartMetric === 'grade' 
+              ? (selected.monthlyGrades[idx]?.score || 85)
+              : Math.round(selected.attendance);
+          }
+        }
+
+        return row;
+      });
     }
-  }, [progressList, selectedClassId, timeframe]);
+  }, [progressList, selectedClassId, timeframe, chartMetric]);
 
   // Subject-wise grouping for Radar/Bar Strengths
   const strengthData = useMemo(() => {
@@ -290,6 +353,57 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
   return (
     <div className="space-y-8" id="student_academic_progress_widget">
       
+      {/* Attendance QR Pass Launch & Alerts Header Toolbar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+            <QrCode className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+              Class Attendance QR Pass & Tracker
+            </h3>
+            <p className="text-[11px] text-slate-300">
+              Scan instructor's session QR code or view your attendance history.
+            </p>
+          </div>
+        </div>
+
+        <button
+          id="btn_open_student_qr_scanner"
+          onClick={() => setIsQrModalOpen(true)}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+        >
+          <QrCode className="w-4 h-4" /> Scan Class QR Code
+        </button>
+      </div>
+
+      {/* Low Attendance Automated Alert Banner */}
+      {overallMetrics.attendance < 80 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-3.5 text-rose-900 shadow-2xs"
+        >
+          <div className="p-2 bg-rose-500 text-white rounded-xl shrink-0 mt-0.5">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black text-rose-950 flex items-center gap-1.5">
+                ⚠️ Automated Attendance Threshold Alert ({overallMetrics.attendance}% Standing)
+              </h4>
+              <span className="text-[10px] font-mono font-bold bg-rose-200/80 text-rose-900 px-2 py-0.5 rounded-md">
+                Threshold: 80% Minimum
+              </span>
+            </div>
+            <p className="text-[11px] text-rose-800 leading-relaxed mt-1">
+              Your overall attendance standing has dropped below the 80% requirement. Automated warnings have been recorded. Please attend upcoming live sessions or scan session QR passes to avoid academic penalties.
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Dynamic Info Header Badge */}
       {activeBookings.length === 0 && (
         <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3.5 mb-2">
@@ -411,35 +525,50 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
           <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
               <div>
-                <h3 className="text-base font-bold text-slate-900 tracking-tight">Grade Progress Timeline</h3>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">Academic Performance Trend Lines</h3>
                 <p className="text-[11px] text-slate-400">
-                  {timeframe === 'threeMonths' ? 'Monthly academic performance tracking over the last three months.' : 'Weekly average test scores from study units coursework.'}
+                  {timeframe === 'threeMonths' ? 'Monthly performance trends over time powered by Recharts.' : 'Weekly average grade & attendance trajectory over coursework.'}
                 </p>
               </div>
               
               {/* Dropdown & Timeframe isolate controls */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 border border-slate-200/60 dark:bg-slate-200/10">
+                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 border border-slate-200/60">
+                  <button
+                    onClick={() => setChartMetric('grade')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${chartMetric === 'grade' ? 'bg-white text-indigo-650 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Grades (%)
+                  </button>
+                  <button
+                    onClick={() => setChartMetric('attendance')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${chartMetric === 'attendance' ? 'bg-white text-indigo-650 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Attendance (%)
+                  </button>
+                </div>
+
+                <div className="inline-flex rounded-xl p-0.5 bg-slate-100 border border-slate-200/60">
                   <button
                     onClick={() => setTimeframe('weekly')}
-                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${timeframe === 'weekly' ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${timeframe === 'weekly' ? 'bg-white text-indigo-650 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     Weekly
                   </button>
                   <button
                     onClick={() => setTimeframe('threeMonths')}
-                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${timeframe === 'threeMonths' ? 'bg-white dark:bg-slate-800 text-indigo-650 dark:text-indigo-400 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${timeframe === 'threeMonths' ? 'bg-white text-indigo-650 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    Last 3 Months
+                    3 Months
                   </button>
                 </div>
 
                 <select
                   value={selectedClassId}
                   onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="text-xs font-semibold px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-indigo-500 transition-colors"
+                  className="text-xs font-semibold px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:border-indigo-500 transition-colors"
                 >
-                  <option value="overall">All Courses Average</option>
+                  <option value="overall">All Subjects Overview</option>
                   {progressList.map(course => (
                     <option key={course.classId} value={course.classId}>{course.title}</option>
                   ))}
@@ -447,19 +576,13 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
               </div>
             </div>
 
-            {/* Recharts Area Chart */}
+            {/* Recharts Line Chart */}
             <div className="h-68 w-full mt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
+                <LineChart
                   data={trendData}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  margin={{ top: 15, right: 15, left: -20, bottom: 5 }}
                 >
-                  <defs>
-                    <linearGradient id="colorGrade" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.25}/>
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0}/>
-                    </linearGradient>
-                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis 
                     dataKey="name" 
@@ -474,27 +597,74 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
                     fontSize={11}
                     tickLine={false} 
                     axisLine={false}
+                    unit="%"
                   />
                   <Tooltip 
                     contentStyle={{ 
-                      backgroundColor: '#1e293b', 
+                      backgroundColor: '#0f172a', 
                       borderRadius: '12px', 
                       border: 'none',
                       color: '#f8fafc',
                       fontSize: '11px',
                       fontWeight: 'bold',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)'
                     }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey={selectedClassId === "overall" ? "Average Grade" : "Syllabus Grade"} 
-                    stroke="#4f46e5" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorGrade)" 
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '10px', fontSize: '11px', fontWeight: 'bold' }} 
                   />
-                </AreaChart>
+
+                  {selectedClassId === "overall" ? (
+                    <>
+                      <Line 
+                        type="monotone" 
+                        dataKey="Average Grade" 
+                        name="Average Overall Score"
+                        stroke="#4f46e5" 
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: "#4f46e5", strokeWidth: 2, stroke: "#ffffff" }}
+                        activeDot={{ r: 7 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="Mathematics" 
+                        name="Mathematics"
+                        stroke="#0284c7" 
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={{ r: 3, fill: "#0284c7" }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="Physics" 
+                        name="Physics"
+                        stroke="#059669" 
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={{ r: 3, fill: "#059669" }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="Coding" 
+                        name="Coding"
+                        stroke="#d97706" 
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={{ r: 3, fill: "#d97706" }}
+                      />
+                    </>
+                  ) : (
+                    <Line 
+                      type="monotone" 
+                      dataKey="Syllabus Grade" 
+                      name={`${classes.find(c => c.id === selectedClassId)?.title || "Course"} Trend`}
+                      stroke="#4f46e5" 
+                      strokeWidth={3.5}
+                      dot={{ r: 5, fill: "#4f46e5", strokeWidth: 2, stroke: "#ffffff" }}
+                      activeDot={{ r: 8 }}
+                    />
+                  )}
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -740,6 +910,35 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({ 
         </div>
 
       </div>
+
+      {/* Semester Daily Attendance & Activity Heatmap Component */}
+      <AttendanceCalendarHeatmap
+        attendanceRecords={attendanceRecords}
+        classes={classes}
+        bookings={userBookings}
+        studentId={currentUser.uid}
+        title="Your Daily Attendance & Activity Heatmap"
+        subtitle="Visualizing your daily attendance history and session participation across the term"
+      />
+
+      {/* Chronological Attendance Check-In Scan History Log Component */}
+      <AttendanceScanHistory
+        attendanceRecords={attendanceRecords}
+        classes={classes}
+        studentName={currentUser.name}
+      />
+
+      {/* Class QR Code Attendance Scanner Modal */}
+      <ClassQRCodeAttendanceModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        currentUser={currentUser}
+        tutorClasses={classes}
+        bookings={userBookings}
+        attendanceRecords={attendanceRecords}
+        onAttendanceMarked={onAttendanceMarked}
+        showToast={showToast || ((msg) => console.log(msg))}
+      />
 
     </div>
   );

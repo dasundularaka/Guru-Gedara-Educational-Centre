@@ -5,7 +5,7 @@ import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
-import { Booking, Payment, NotificationItem } from '../types';
+import { Booking, Payment, NotificationItem, AttendanceRecord } from '../types';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
@@ -57,6 +57,7 @@ export const StudentDashboard: React.FC = () => {
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCameraModal, setShowCameraModal] = useState(false);
 
@@ -124,6 +125,16 @@ export const StudentDashboard: React.FC = () => {
     }
   };
 
+  const loadAttendanceRecords = async () => {
+    if (!currentUser) return;
+    try {
+      const records = await firestoreService.getStudentAttendance(currentUser.uid);
+      setAttendanceRecords(records);
+    } catch (e) {
+      console.warn("Failed loading student attendance records", e);
+    }
+  };
+
   const fetchDashboardData = async () => {
     if (!currentUser) return;
     setLoading(true);
@@ -134,6 +145,8 @@ export const StudentDashboard: React.FC = () => {
 
       const matchedPayments = payments.filter(p => p.studentId === currentUser.uid);
       setPaymentsList(matchedPayments);
+
+      await loadAttendanceRecords();
 
       // 2. If the context is empty, execute a safe background refresh of bookings and payments
       if (bookings.length === 0 || payments.length === 0) {
@@ -518,6 +531,9 @@ export const StudentDashboard: React.FC = () => {
                   currentUser={currentUser}
                   userBookings={studentBookings}
                   classes={classes}
+                  attendanceRecords={attendanceRecords}
+                  onAttendanceMarked={loadAttendanceRecords}
+                  showToast={showToast}
                 />
               </motion.div>
             )}
