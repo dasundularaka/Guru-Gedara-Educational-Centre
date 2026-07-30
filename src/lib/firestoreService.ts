@@ -534,6 +534,7 @@ const firestoreServiceRaw = {
   },
 
   async getAllUsers(): Promise<UserProfile[]> {
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
     let cloudUsers: UserProfile[] = [];
     if (isUsingCloud) {
       try {
@@ -546,7 +547,8 @@ const firestoreServiceRaw = {
           const data = doc.data();
           return {
             ...data,
-            uid: doc.id
+            uid: doc.id,
+            id: doc.id
           } as UserProfile;
         });
       } catch (e) {
@@ -556,27 +558,31 @@ const firestoreServiceRaw = {
 
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    const deletedUids = handleFallback<string[]>('local_deleted_uids', []);
     
     const userMap = new Map<string, UserProfile>();
     // If cloud returned users, add them first
-    cloudUsers.forEach(u => userMap.set(u.uid, u));
+    cloudUsers.forEach(u => {
+      const key = u.uid || u.id;
+      if (key) userMap.set(key, u);
+    });
     // If cloud didn't have certain fallback tutors or registered users, add if not deleted
     tutors.forEach(u => {
-      if (!userMap.has(u.uid)) userMap.set(u.uid, u);
+      const key = u.uid || u.id;
+      if (key && !userMap.has(key)) userMap.set(key, u);
     });
     registered.forEach(u => {
-      if (!userMap.has(u.uid)) userMap.set(u.uid, u);
+      const key = u.uid || u.id;
+      if (key && !userMap.has(key)) userMap.set(key, u);
     });
     
-    return Array.from(userMap.values()).filter(u => !deletedUids.includes(u.uid));
+    return Array.from(userMap.values()).filter(u => !deletedUids.includes(u.uid || u.id));
   },
 
   // -------------------------------------------------------------
   // CLASSES
   // -------------------------------------------------------------
   async getClasses(): Promise<ClassItem[]> {
-    const deletedIds = handleFallback<string[]>('local_deleted_class_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
     let cloudClasses: ClassItem[] = [];
     if (isUsingCloud) {
       try {
@@ -585,7 +591,7 @@ const firestoreServiceRaw = {
           8000,
           { docs: [] } as any
         );
-        cloudClasses = snap.docs.map(doc => doc.data() as ClassItem);
+        cloudClasses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ClassItem);
         if (cloudClasses.length > 0) {
           saveFallback('local_classes', cloudClasses);
           return cloudClasses.filter(c => !deletedIds.includes(c.id));
@@ -595,7 +601,11 @@ const firestoreServiceRaw = {
       }
     }
     const fallbackClasses = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
-    return fallbackClasses.filter(c => !deletedIds.includes(c.id));
+    const classMap = new Map<string, ClassItem>();
+    fallbackClasses.forEach(c => {
+      if (c.id) classMap.set(c.id, c);
+    });
+    return Array.from(classMap.values()).filter(c => !deletedIds.includes(c.id));
   },
 
   async createNewClass(classData: Omit<ClassItem, 'id'>): Promise<ClassItem> {
@@ -713,7 +723,7 @@ const firestoreServiceRaw = {
   // PAYMENTS
   // -------------------------------------------------------------
   async getPayments(): Promise<Payment[]> {
-    const deletedIds = handleFallback<string[]>('local_deleted_payment_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
     let cloudPayments: Payment[] = [];
     if (isUsingCloud) {
        try {
@@ -958,7 +968,7 @@ const firestoreServiceRaw = {
     const filteredReg = registered.filter(u => u.uid !== uid);
     saveFallback('local_registered_users', filteredReg);
 
-    const deletedUids = handleFallback<string[]>('local_deleted_uids', []);
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
     if (!deletedUids.includes(uid)) {
       deletedUids.push(uid);
       saveFallback('local_deleted_uids', deletedUids);
@@ -966,32 +976,34 @@ const firestoreServiceRaw = {
   },
 
   async updateUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
+    const fullData = { ...data, uid, id: uid };
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'users', uid), data, { merge: true });
+        await setDoc(doc(db, 'users', uid), fullData, { merge: true });
       } catch (e) {
         console.warn("Failed to update user profile in Firestore.", e);
       }
     }
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-    const updatedTutors = tutors.map(t => t.uid === uid ? { ...t, ...data } : t);
+    const updatedTutors = tutors.map(t => (t.uid === uid || t.id === uid) ? { ...t, ...fullData } : t);
     saveFallback('local_users_tutors', updatedTutors);
 
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    const updatedReg = registered.map(u => u.uid === uid ? { ...u, ...data } : u);
+    const updatedReg = registered.map(u => (u.uid === uid || u.id === uid) ? { ...u, ...fullData } : u);
     saveFallback('local_registered_users', updatedReg);
   },
 
   async updateClass(classId: string, data: Partial<ClassItem>): Promise<void> {
+    const fullData = { ...data, id: classId };
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'classes', classId), data, { merge: true });
+        await setDoc(doc(db, 'classes', classId), fullData, { merge: true });
       } catch (e) {
         console.warn("Failed to update class in Firestore.", e);
       }
     }
     const items = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
-    const updated = items.map(c => c.id === classId ? { ...c, ...data } : c);
+    const updated = items.map(c => c.id === classId ? { ...c, ...fullData } : c);
     saveFallback('local_classes', updated);
   },
 
@@ -1007,7 +1019,7 @@ const firestoreServiceRaw = {
     const filtered = items.filter(c => c.id !== classId);
     saveFallback('local_classes', filtered);
 
-    const deletedIds = handleFallback<string[]>('local_deleted_class_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
     if (!deletedIds.includes(classId)) {
       deletedIds.push(classId);
       saveFallback('local_deleted_class_ids', deletedIds);
@@ -1015,15 +1027,16 @@ const firestoreServiceRaw = {
   },
 
   async updatePayment(paymentId: string, data: Partial<Payment>): Promise<void> {
+    const fullData = { ...data, id: paymentId };
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'payments', paymentId), data, { merge: true });
+        await setDoc(doc(db, 'payments', paymentId), fullData, { merge: true });
       } catch (e) {
         console.warn("Failed to update payment in Firestore.", e);
       }
     }
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
-    const updated = payments.map(p => p.id === paymentId ? { ...p, ...data } : p);
+    const updated = payments.map(p => p.id === paymentId ? { ...p, ...fullData } : p);
     saveFallback('local_payments', updated);
   },
 
@@ -1039,7 +1052,7 @@ const firestoreServiceRaw = {
     const filtered = payments.filter(p => p.id !== paymentId);
     saveFallback('local_payments', filtered);
 
-    const deletedIds = handleFallback<string[]>('local_deleted_payment_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
     if (!deletedIds.includes(paymentId)) {
       deletedIds.push(paymentId);
       saveFallback('local_deleted_payment_ids', deletedIds);
@@ -1178,15 +1191,52 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   // REAL-TIME SUBSCRIPTIONS (CROSS-BROWSER SYNC)
   // -------------------------------------------------------------
+  subscribeUsers(callback: (users: UserProfile[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'users'), (snap) => {
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
+    const cloudUsers = snap.docs
+      .map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as unknown as UserProfile))
+      .filter(u => !deletedUids.includes(u.uid || u.id || ''));
+
+          const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
+          const registered = handleFallback<UserProfile>('local_registered_users', []);
+
+          const userMap = new Map<string, UserProfile>();
+          cloudUsers.forEach(u => {
+            const key = u.uid || u.id;
+            if (key) userMap.set(key, u);
+          });
+          tutors.forEach(u => {
+            const key = u.uid || u.id;
+            if (key && !userMap.has(key) && !deletedUids.includes(key)) userMap.set(key, u);
+          });
+          registered.forEach(u => {
+            const key = u.uid || u.id;
+            if (key && !userMap.has(key) && !deletedUids.includes(key)) userMap.set(key, u);
+          });
+
+          const result = Array.from(userMap.values());
+          callback(result);
+        }, (err) => console.warn("Users snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to users", e);
+      }
+    }
+    return () => {};
+  },
+
   subscribeClasses(callback: (classes: ClassItem[]) => void): () => void {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'classes'), (snap) => {
-          const docs = snap.docs.map(doc => doc.data() as ClassItem);
-          if (docs.length > 0) {
-            saveFallback('local_classes', docs);
-            callback(docs);
-          }
+          const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
+          const docs = snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }) as ClassItem)
+            .filter(c => !deletedIds.includes(c.id));
+          saveFallback('local_classes', docs);
+          callback(docs);
         }, (err) => console.warn("Classes snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to classes", e);
@@ -1199,11 +1249,9 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'bookings'), (snap) => {
-          const docs = snap.docs.map(doc => doc.data() as Booking);
-          if (docs.length > 0) {
-            saveFallback('local_bookings', docs);
-            callback(docs);
-          }
+          const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Booking);
+          saveFallback('local_bookings', docs);
+          callback(docs);
         }, (err) => console.warn("Bookings snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to bookings", e);
@@ -1216,11 +1264,12 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'payments'), (snap) => {
-          const docs = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Payment);
-          if (docs.length > 0) {
-            saveFallback('local_payments', docs);
-            callback(docs);
-          }
+          const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
+          const docs = snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }) as Payment)
+            .filter(p => !deletedIds.includes(p.id));
+          saveFallback('local_payments', docs);
+          callback(docs);
         }, (err) => console.warn("Payments snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to payments", e);
@@ -1233,11 +1282,12 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'reviews'), (snap) => {
-          const docs = snap.docs.map(doc => doc.data() as Review);
-          if (docs.length > 0) {
-            saveFallback('local_reviews', docs);
-            callback(docs);
-          }
+          const deletedIds = handleFallback<string>('local_deleted_review_ids', []);
+          const docs = snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }) as Review)
+            .filter(r => !deletedIds.includes(r.id));
+          saveFallback('local_reviews', docs);
+          callback(docs);
         }, (err) => console.warn("Reviews snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to reviews", e);

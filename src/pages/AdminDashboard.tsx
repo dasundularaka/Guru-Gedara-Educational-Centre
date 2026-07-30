@@ -46,7 +46,8 @@ import {
   BarChart3,
   Download,
   Sparkles,
-  Star
+  Star,
+  Upload
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -452,6 +453,26 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchAdminDatasets();
+
+    const unsubUsers = firestoreService.subscribeUsers((updatedUsers) => {
+      setUsers(updatedUsers);
+    });
+    const unsubClasses = firestoreService.subscribeClasses((updatedClasses) => {
+      setClassesList(updatedClasses);
+    });
+    const unsubPayments = firestoreService.subscribePayments((updatedPayments) => {
+      setPaymentsList(updatedPayments);
+    });
+    const unsubBookings = firestoreService.subscribeBookings((updatedBookings) => {
+      setBookingsList(updatedBookings);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubClasses();
+      unsubPayments();
+      unsubBookings();
+    };
   }, []);
 
   const handleUpdatePaymentStatus = async (paymentId: string, status: 'paid' | 'failed' | 'pending') => {

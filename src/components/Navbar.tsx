@@ -23,9 +23,10 @@ import { Booking } from '../types';
 interface NavbarProps {
   currentTab: string;
   onChangeTab: (tab: string) => void;
+  onOpenGmail?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab, onOpenGmail }) => {
   const { 
     currentUser, 
     logout, 
@@ -290,6 +291,19 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
             {currentUser ? (
               <>
+                {/* Gmail Communications Hub Button */}
+                {onOpenGmail && (
+                  <button
+                    onClick={onOpenGmail}
+                    className="p-2 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer border border-red-200/50 dark:border-red-900/40 flex items-center gap-1.5"
+                    title="Gmail Communications Hub"
+                    id="gmail_hub_btn"
+                  >
+                    <Mail className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    <span className="text-xs font-bold font-sans hidden lg:inline text-red-700 dark:text-red-300">Gmail</span>
+                  </button>
+                )}
+
                 {/* Notification Bell */}
                 <div className="relative">
                   <button
