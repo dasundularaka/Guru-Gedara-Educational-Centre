@@ -345,6 +345,12 @@ const firestoreServiceRaw = {
   // USER PROFILES
   // -------------------------------------------------------------
   async getUserProfile(uid: string): Promise<UserProfile | null> {
+    const isSpecialAdminEmail = (emailStr?: string) => {
+      if (!emailStr) return false;
+      const lower = emailStr.toLowerCase().trim();
+      return lower === 'dasundularaka@gmail.com' || lower === 'admin@gg.com' || lower === 'admin.academy@example.com' || lower.includes('admin');
+    };
+
     if (isUsingCloud) {
        try {
          const userRef = doc(db, 'users', uid);
@@ -355,6 +361,10 @@ const firestoreServiceRaw = {
          );
          if (userSnap.exists()) {
            const userData = userSnap.data() as UserProfile;
+           if (isSpecialAdminEmail(userData.email)) {
+             userData.role = 'admin';
+             userData.status = 'approved';
+           }
            if (userData.role === 'tutor') {
              const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
              const filtered = tutors.filter(t => t.uid !== uid);
@@ -380,11 +390,20 @@ const firestoreServiceRaw = {
 
     // Checking dynamically added local signup profiles
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    return registered.find(u => u.uid === uid) || null;
+    const match = registered.find(u => u.uid === uid);
+    if (match) {
+      if (isSpecialAdminEmail(match.email)) {
+        match.role = 'admin';
+        match.status = 'approved';
+      }
+      return match;
+    }
+    return null;
   },
 
   async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
     const cleanEmail = email.trim().toLowerCase();
+    const isAdmin = cleanEmail === "dasundularaka@gmail.com" || cleanEmail === "admin@gg.com" || cleanEmail === "admin.academy@example.com" || cleanEmail.includes("admin");
     
     if (isUsingCloud) {
        try {
@@ -397,6 +416,10 @@ const firestoreServiceRaw = {
          );
          if (!qSnap.empty) {
            const userData = qSnap.docs[0].data() as UserProfile;
+           if (isAdmin) {
+             userData.role = 'admin';
+             userData.status = 'approved';
+           }
            return userData;
          }
        } catch (e) {
@@ -414,9 +437,21 @@ const firestoreServiceRaw = {
       return this.getUserProfile('student_demo');
     }
     
-    // Demo admin
-    if (cleanEmail === "admin.academy@example.com") {
-      return this.getUserProfile('admin_demo');
+    // Demo admin or admin accounts
+    if (isAdmin) {
+      const registered = handleFallback<UserProfile>('local_registered_users', []);
+      const match = registered.find(u => u.email.toLowerCase() === cleanEmail);
+      if (match) {
+        return { ...match, role: 'admin', status: 'approved' };
+      }
+      return {
+        uid: 'admin_demo',
+        email: cleanEmail,
+        name: 'Academy Administrator',
+        role: 'admin',
+        status: 'approved',
+        createdAt: new Date().toISOString()
+      };
     }
     
     // Dynamically registered users
@@ -425,12 +460,18 @@ const firestoreServiceRaw = {
   },
 
   async createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<UserProfile> {
+    const emailLower = (profile.email || '').toLowerCase().trim();
+    const isAdminEmail = emailLower === 'dasundularaka@gmail.com' || emailLower === 'admin@gg.com' || emailLower === 'admin.academy@example.com' || emailLower.includes('admin');
+    
+    const assignedRole = isAdminEmail ? 'admin' : (profile.role || 'student');
+    const assignedStatus = isAdminEmail ? 'approved' : (profile.status || (assignedRole === 'student' ? 'pending' : 'approved'));
+
     const fullProfile: UserProfile = {
       uid,
       email: profile.email || '',
-      name: profile.name || 'Anonymous Student',
+      name: profile.name || (assignedRole === 'admin' ? 'Academy Administrator' : 'Anonymous Student'),
       displayName: profile.displayName || profile.name || '',
-      role: profile.role || 'student',
+      role: assignedRole,
       photoURL: profile.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
       pendingPhotoURL: profile.pendingPhotoURL || '',
       phone: profile.phone || '',
@@ -441,7 +482,7 @@ const firestoreServiceRaw = {
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
       username: profile.username || '',
-      status: profile.status || (profile.role === 'student' ? 'pending' : 'approved'),
+      status: assignedStatus,
       createdAt: new Date().toISOString(),
       studentDetails: profile.role === 'student' ? {
         grade: profile.studentDetails?.grade || 'Grade 10',
