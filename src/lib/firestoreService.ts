@@ -919,7 +919,7 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   // REAL MESSAGES (FEEDBACK/CHAT)
   // -------------------------------------------------------------
-  async getDirectMessages(userId1: string, userId2: string): Promise<DirectMessage[]> {
+  async getUserMessages(userId: string): Promise<DirectMessage[]> {
     let cloudMessages: DirectMessage[] = [];
     if (isUsingCloud) {
       try {
@@ -945,11 +945,47 @@ const firestoreServiceRaw = {
     }
 
     return mergedList
+      .filter(m => m.senderId === userId || m.receiverId === userId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  },
+
+  async getDirectMessages(userId1: string, userId2: string): Promise<DirectMessage[]> {
+    const allMsgs = await this.getUserMessages(userId1);
+    return allMsgs
       .filter(m => 
         (m.senderId === userId1 && m.receiverId === userId2) || 
         (m.senderId === userId2 && m.receiverId === userId1)
       )
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  },
+
+  async markMessagesAsRead(senderId: string, receiverId: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        const q = query(
+          collection(db, 'messages'),
+          where('senderId', '==', senderId),
+          where('receiverId', '==', receiverId)
+        );
+        const snap = await getDocs(q);
+        const unreadDocs = snap.docs.filter(d => !d.data().isRead);
+        await Promise.all(unreadDocs.map(d => updateDoc(d.ref, { isRead: true })));
+      } catch (e) {
+        console.warn("Error marking cloud messages as read", e);
+      }
+    }
+    const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
+    let updated = false;
+    const newLocal = localMsgs.map(m => {
+      if (m.senderId === senderId && m.receiverId === receiverId && !m.isRead) {
+        updated = true;
+        return { ...m, isRead: true };
+      }
+      return m;
+    });
+    if (updated) {
+      saveFallback('local_messages', newLocal);
+    }
   },
 
   async sendDirectMessage(senderId: string, senderName: string, receiverId: string, messageText: string): Promise<DirectMessage> {
@@ -960,7 +996,8 @@ const firestoreServiceRaw = {
       senderName,
       receiverId,
       message: messageText,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      isRead: false
     };
 
     if (isUsingCloud) {
@@ -1340,6 +1377,39 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   // REAL-TIME DIRECT MESSAGES SUBSCRIPTION
   // -------------------------------------------------------------
+  subscribeUserMessages(userId: string, callback: (messages: DirectMessage[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        const q = query(collection(db, 'messages'));
+        return onSnapshot(q, (snap) => {
+          const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
+          const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
+          const messageMap = new Map<string, DirectMessage>();
+          localMsgs.forEach(m => messageMap.set(m.id, m));
+          cloudMessages.forEach(m => messageMap.set(m.id, m));
+          const mergedList = Array.from(messageMap.values());
+          
+          if (cloudMessages.length > 0) {
+            saveFallback('local_messages', mergedList);
+          }
+          
+          const filtered = mergedList
+            .filter(m => m.senderId === userId || m.receiverId === userId)
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          
+          callback(filtered);
+        }, (error) => {
+          console.error('Error on user messages snapshot: ', error);
+        });
+      } catch (e) {
+        console.warn("Error subscribing to user messages", e);
+      }
+    }
+    
+    this.getUserMessages(userId).then(callback);
+    return () => {};
+  },
+
   subscribeDirectMessages(userId1: string, userId2: string, callback: (messages: DirectMessage[]) => void): () => void {
     if (isUsingCloud) {
       try {

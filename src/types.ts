@@ -108,6 +108,7 @@ export interface DirectMessage {
   receiverId: string;
   message: string;
   createdAt: string;
+  isRead?: boolean;
 }
 
 export interface NotificationSettings {
