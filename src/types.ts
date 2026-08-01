@@ -109,6 +109,10 @@ export interface DirectMessage {
   message: string;
   createdAt: string;
   isRead?: boolean;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: string;
 }
 
 export interface NotificationSettings {

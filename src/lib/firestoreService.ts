@@ -466,6 +466,14 @@ const firestoreServiceRaw = {
     const assignedRole = isAdminEmail ? 'admin' : (profile.role || 'student');
     const assignedStatus = isAdminEmail ? 'approved' : (profile.status || (assignedRole === 'student' ? 'pending' : 'approved'));
 
+    const defaultUsername = profile.username || (
+      assignedRole === 'admin' 
+        ? (emailLower.includes('dasundularaka') ? 'GA-DASUNDU01' : 'GA-' + uid.slice(0, 6).toUpperCase())
+        : assignedRole === 'tutor'
+          ? 'GT-' + uid.slice(0, 6).toUpperCase()
+          : 'GB-' + uid.slice(0, 6).toUpperCase()
+    );
+
     const fullProfile: UserProfile = {
       uid,
       email: profile.email || '',
@@ -481,7 +489,7 @@ const firestoreServiceRaw = {
       guardianPhone: profile.guardianPhone || '',
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
-      username: profile.username || '',
+      username: defaultUsername,
       status: assignedStatus,
       createdAt: new Date().toISOString(),
       studentDetails: profile.role === 'student' ? {
@@ -988,7 +996,18 @@ const firestoreServiceRaw = {
     }
   },
 
-  async sendDirectMessage(senderId: string, senderName: string, receiverId: string, messageText: string): Promise<DirectMessage> {
+  async sendDirectMessage(
+    senderId: string, 
+    senderName: string, 
+    receiverId: string, 
+    messageText: string,
+    attachment?: {
+      fileUrl: string;
+      fileName: string;
+      fileType: string;
+      fileSize?: string;
+    }
+  ): Promise<DirectMessage> {
     const id = "msg_" + Math.random().toString(36).substr(2, 9);
     const newMsg: DirectMessage = {
       id,
@@ -997,7 +1016,11 @@ const firestoreServiceRaw = {
       receiverId,
       message: messageText,
       createdAt: new Date().toISOString(),
-      isRead: false
+      isRead: false,
+      fileUrl: attachment?.fileUrl,
+      fileName: attachment?.fileName,
+      fileType: attachment?.fileType,
+      fileSize: attachment?.fileSize
     };
 
     if (isUsingCloud) {

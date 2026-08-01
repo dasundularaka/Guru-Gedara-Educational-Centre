@@ -573,17 +573,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               photoURL: firebaseUser.photoURL || undefined
             });
             showToast("Account profile synced from Google!", "success");
-          } else if (isAdminEmail && (profile.role !== 'admin' || profile.status === 'pending')) {
+          } else if (isAdminEmail && (profile.role !== 'admin' || profile.status === 'pending' || !profile.username)) {
+            const adminUsername = profile.username || (email.includes('dasundularaka') ? 'GA-DASUNDU01' : 'GA-' + firebaseUser.uid.slice(0, 6).toUpperCase());
             profile = {
               ...profile,
               role: 'admin',
               status: 'approved',
+              username: adminUsername,
               name: profile.name && profile.name !== 'Anonymous Student' ? profile.name : 'Academy Administrator'
             };
             await firestoreService.updateUserProfile(firebaseUser.uid, {
               role: 'admin',
-              status: 'approved'
+              status: 'approved',
+              username: adminUsername
             });
+          }
+
+          if (profile && !profile.username) {
+            const generatedUsername = profile.role === 'admin' 
+              ? (email.includes('dasundularaka') ? 'GA-DASUNDU01' : 'GA-' + firebaseUser.uid.slice(0, 6).toUpperCase())
+              : profile.role === 'tutor'
+                ? 'GT-' + firebaseUser.uid.slice(0, 6).toUpperCase()
+                : 'GB-' + firebaseUser.uid.slice(0, 6).toUpperCase();
+            profile = { ...profile, username: generatedUsername };
+            await firestoreService.updateUserProfile(firebaseUser.uid, { username: generatedUsername });
           }
 
           setCurrentUser(profile);

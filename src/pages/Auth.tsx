@@ -829,68 +829,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           Sign In with Google
         </button>
 
-        {/* Quick Portal Access Buttons */}
-        <div className="mt-6 pt-5 border-t border-slate-100">
-          <p className="text-[10px] uppercase font-mono text-slate-400 font-bold text-center mb-2.5">
-            Quick Portal Access (Demo & Administrator)
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  setLoading(true);
-                  await loginWithEmail('admin@gg.com', 'test123');
-                  onAuthSuccess();
-                } catch (err: any) {
-                  showToast(err.message || "Failed to log in as Admin", "error");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="py-2 px-2 bg-slate-900 hover:bg-black text-white text-[11px] font-extrabold rounded-xl transition-all cursor-pointer text-center shadow-xs"
-            >
-              👑 Admin Access
-            </button>
-
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  setLoading(true);
-                  await loginWithEmail('tutor@gg.com', 'test123');
-                  onAuthSuccess();
-                } catch (err: any) {
-                  showToast(err.message || "Failed to log in as Tutor", "error");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="py-2 px-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold rounded-xl transition-all cursor-pointer text-center shadow-xs"
-            >
-              🎓 Tutor Portal
-            </button>
-
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  setLoading(true);
-                  await loginWithEmail('student@gg.com', 'test123');
-                  onAuthSuccess();
-                } catch (err: any) {
-                  showToast(err.message || "Failed to log in as Student", "error");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold rounded-xl transition-all cursor-pointer text-center shadow-xs"
-            >
-              📚 Student Portal
-            </button>
-          </div>
-        </div>
-
       </div>
     </div>
   );

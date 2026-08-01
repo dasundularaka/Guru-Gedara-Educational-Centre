@@ -18,7 +18,13 @@ import {
   RefreshCw,
   Users,
   X,
-  Filter
+  Filter,
+  Paperclip,
+  FileText,
+  Download,
+  ExternalLink,
+  Image as ImageIcon,
+  FileUp
 } from 'lucide-react';
 
 interface ChatWidgetProps {
@@ -45,6 +51,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [contactFilter, setContactFilter] = useState<'all' | 'students' | 'tutors' | 'admins'>('all');
   const [directoryTab, setDirectoryTab] = useState<'conversations' | 'all_contacts'>('conversations');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // File Attachment State
+  const [selectedAttachment, setSelectedAttachment] = useState<{
+    fileUrl: string;
+    fileName: string;
+    fileType: 'image' | 'pdf' | string;
+    fileSize: string;
+  } | null>(null);
+  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -246,12 +262,55 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
     ];
   }, [currentUserRole]);
 
+  // Handle File Selection (Images and PDFs up to 5MB)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("File size exceeds 5MB limit. Please choose a smaller image or PDF.", "error");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const isPdf = file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
+    const isImage = file.type.startsWith("image/");
+
+    if (!isPdf && !isImage) {
+      showToast("Only image files (PNG, JPG, WEBP) and PDF study materials are supported.", "error");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const sizeFormatted = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = reader.result as string;
+      setSelectedAttachment({
+        fileUrl: result,
+        fileName: file.name,
+        fileType: isPdf ? 'pdf' : 'image',
+        fileSize: sizeFormatted
+      });
+      showToast(`Attached ${file.name} (${sizeFormatted})`, "info");
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   // Handle send message
   const handleSendMessage = async (textToSend: string) => {
-    if (!selectedUser || !textToSend.trim()) return;
+    if (!selectedUser) return;
+    if (!textToSend.trim() && !selectedAttachment) return;
 
     setLoading(true);
+    const msgText = textToSend.trim();
+    const attachmentToSend = selectedAttachment ? { ...selectedAttachment } : undefined;
+
     setInputText("");
+    setSelectedAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     try {
       const parentUser = await firestoreService.getUserProfile(currentUserId);
@@ -261,7 +320,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
         currentUserId,
         senderName,
         selectedUser.uid,
-        textToSend.trim()
+        msgText || (attachmentToSend?.fileType === 'pdf' ? `📎 Attached Study Material: ${attachmentToSend.fileName}` : '🖼 Attached Image'),
+        attachmentToSend
       );
       showToast(`Message sent to ${selectedUser.name}`, "success");
     } catch (err) {
@@ -643,6 +703,66 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
 
                           <p className="whitespace-pre-wrap break-words">{m.message}</p>
 
+                          {m.fileUrl && (
+                            <div className="mt-2 mb-1">
+                              {m.fileType === 'pdf' || m.fileUrl.startsWith('data:application/pdf') || m.fileName?.toLowerCase().endsWith('.pdf') ? (
+                                <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 ${
+                                  isOwn ? 'bg-blue-700/60 border-blue-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                                }`}>
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="p-2 rounded-lg bg-red-500 text-white shrink-0 shadow-xs">
+                                      <FileText className="w-5 h-5" />
+                                    </div>
+                                    <div className="truncate">
+                                      <span className="block text-xs font-bold truncate">{m.fileName || 'Study_Material.pdf'}</span>
+                                      <span className={`block text-[10px] ${isOwn ? 'text-blue-200' : 'text-slate-400'}`}>
+                                        PDF Material • {m.fileSize || 'Attachment'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <a 
+                                    href={m.fileUrl} 
+                                    download={m.fileName || 'Study_Material.pdf'} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0 flex items-center gap-1 transition-all ${
+                                      isOwn ? 'bg-white text-blue-700 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    }`}
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> Download
+                                  </a>
+                                </div>
+                              ) : (
+                                <div className="relative group rounded-xl overflow-hidden border border-slate-200/40 shadow-xs max-w-sm">
+                                  <img 
+                                    src={m.fileUrl} 
+                                    alt={m.fileName || 'Image Attachment'} 
+                                    onClick={() => setPreviewModalUrl(m.fileUrl!)}
+                                    className="max-h-60 w-full object-cover rounded-xl cursor-pointer hover:opacity-95 transition-opacity" 
+                                  />
+                                  <div className="absolute top-2 right-2 flex gap-1 opacity-90 group-hover:opacity-100">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewModalUrl(m.fileUrl!)}
+                                      className="p-1.5 bg-black/60 text-white rounded-lg hover:bg-black/80 cursor-pointer backdrop-blur-xs"
+                                      title="Expand Image"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </button>
+                                    <a
+                                      href={m.fileUrl}
+                                      download={m.fileName || 'chat-image.png'}
+                                      className="p-1.5 bg-black/60 text-white rounded-lg hover:bg-black/80 cursor-pointer backdrop-blur-xs"
+                                      title="Download Image"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </a>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <div className={`flex items-center justify-end gap-1 text-[9px] font-mono mt-1.5 ${
                             isOwn ? 'text-blue-100' : 'text-slate-400'
                           }`}>
@@ -681,6 +801,41 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
               ))}
             </div>
 
+            {/* Selected File Attachment Preview */}
+            {selectedAttachment && (
+              <div className="px-3 pt-2 pb-1 bg-slate-50 border-t border-slate-150 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-2xs truncate">
+                  {selectedAttachment.fileType === 'pdf' ? (
+                    <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                  ) : (
+                    <ImageIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                  )}
+                  <span className="truncate max-w-[200px]">{selectedAttachment.fileName}</span>
+                  <span className="text-[10px] text-slate-400 font-mono">({selectedAttachment.fileSize})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAttachment(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="p-1 hover:bg-slate-200 text-slate-500 rounded-lg cursor-pointer"
+                  title="Remove Attachment"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Hidden File Input */}
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileSelect} 
+              accept="image/*,.pdf,application/pdf" 
+              className="hidden" 
+            />
+
             {/* Input Form */}
             <form 
               onSubmit={(e) => {
@@ -689,18 +844,26 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
               }} 
               className="p-3 border-t border-slate-150 bg-white flex items-center gap-2"
             >
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-2xl transition-all cursor-pointer shrink-0"
+                title="Attach Image or PDF Study Material"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+
               <input
-                required
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Write a message to ${selectedUser.name}...`}
+                placeholder={selectedAttachment ? "Add a message caption (optional)..." : `Write a message to ${selectedUser.name}...`}
                 className="flex-1 text-xs px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:border-blue-500 font-sans transition-all"
               />
 
               <button
                 type="submit"
-                disabled={loading || !inputText.trim()}
+                disabled={loading || (!inputText.trim() && !selectedAttachment)}
                 className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-sm transition-all cursor-pointer disabled:opacity-40 shrink-0 flex items-center justify-center"
               >
                 <Send className="w-4 h-4" />
@@ -721,6 +884,32 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({
           </div>
         )}
       </div>
+
+      {/* Image Lightbox Modal */}
+      {previewModalUrl && (
+        <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setPreviewModalUrl(null)}>
+          <div className="relative max-w-4xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setPreviewModalUrl(null)}
+              className="absolute -top-10 right-0 text-white hover:text-slate-300 p-2 font-bold cursor-pointer"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img src={previewModalUrl} alt="Attachment Preview" className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+            <div className="mt-3 flex justify-end gap-2">
+              <a 
+                href={previewModalUrl} 
+                download="attachment-image" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+              >
+                <Download className="w-4 h-4" /> Download Original Image
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
