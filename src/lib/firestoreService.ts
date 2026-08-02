@@ -16,7 +16,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth, firebaseConfig } from './firebase';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -425,11 +425,22 @@ const firestoreServiceRaw = {
   },
 
   async createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<UserProfile> {
+    // Server-side validation checks before committing profile
+    if (profile.email && (!profile.email.includes('@') || typeof profile.email !== 'string')) {
+      throw new Error("Invalid email format provided.");
+    }
+    if (!profile.name || typeof profile.name !== 'string' || !profile.name.trim()) {
+      throw new Error("Full name is required.");
+    }
+
+    // Requirement 1: In database, username and uid must be equal (username = uid)
+    const effectiveUsername = uid;
+
     const baseProfile: Record<string, any> = {
       uid,
       email: profile.email || '',
-      name: profile.name || 'Anonymous Student',
-      displayName: profile.displayName || profile.name || '',
+      name: profile.name.trim(),
+      displayName: profile.displayName?.trim() || profile.name.trim(),
       role: profile.role || 'student',
       photoURL: profile.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
       pendingPhotoURL: profile.pendingPhotoURL || '',
@@ -441,9 +452,12 @@ const firestoreServiceRaw = {
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
       isPasswordResetRequired: profile.isPasswordResetRequired ?? false,
-      username: profile.username || '',
+      username: effectiveUsername, // Enforce username = uid
       status: profile.status || (profile.role === 'student' ? 'pending' : 'approved'),
-      createdAt: profile.createdAt || new Date().toISOString()
+      createdAt: profile.createdAt || new Date().toISOString(),
+      admissionFeeCollected: profile.admissionFeeCollected ?? false,
+      admissionAmount: profile.admissionAmount || 0,
+      isFreeCard: profile.isFreeCard ?? false
     };
 
     if (profile.dob) baseProfile.dob = profile.dob;
@@ -482,6 +496,14 @@ const firestoreServiceRaw = {
     const filteredReg = registered.filter(u => u.uid !== uid);
     filteredReg.push(fullProfile);
     saveFallback('local_registered_users', filteredReg);
+
+    // Audit Log for user creation
+    await this.addAuditLog({
+      username: profile.email || uid,
+      action: 'USER_CREATED',
+      details: `Created ${fullProfile.role} profile for ${fullProfile.name} (${fullProfile.uid})`
+    });
+
     return fullProfile;
   },
 
@@ -1182,7 +1204,476 @@ const firestoreServiceRaw = {
     const filtered = list.filter(a => a.id !== record.id);
     filtered.push(record);
     saveFallback('local_attendance', filtered);
+
+    // Write Audit Log
+    await this.addAuditLog({
+      username: record.tutorId || 'tutor',
+      action: 'ATTENDANCE_MARKED',
+      details: `Marked ${record.status} (${record.type}) for ${record.studentName} in ${record.classTitle}`
+    });
+
     return record;
+  },
+
+  async autoMarkAbsencesForClass(classId: string, classTitle: string, tutorId: string): Promise<number> {
+    const today = new Date().toISOString().split('T')[0];
+    const allUsers = await this.getAllUsers();
+    const enrolledStudents = allUsers.filter(u => u.role === 'student' && u.selectedClasses?.includes(classId));
+    const attendance = await this.getAttendance();
+
+    let markedCount = 0;
+    for (const student of enrolledStudents) {
+      const existing = attendance.find(a => a.classId === classId && a.studentId === student.uid && a.date === today);
+      if (!existing) {
+        const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        const record: AttendanceRecord = {
+          id,
+          classId,
+          classTitle,
+          studentId: student.uid,
+          studentName: student.name,
+          date: today,
+          status: 'Absent',
+          markedAt: new Date().toISOString(),
+          tutorId,
+          type: 'manual'
+        };
+        await this.markAttendance(record);
+        markedCount++;
+
+        // Send Guardian SMS notification for absence
+        if (student.guardianPhone || student.phone) {
+          const smsMsg = `Dear Parent, ${student.displayName || student.name} was NOT PRESENT (Absent) for ${classTitle} class today (${today}).`;
+          await this.triggerNotification(
+            student.uid,
+            `Class Attendance Alert: Absent`,
+            smsMsg,
+            'announcement'
+          );
+        }
+      }
+    }
+    return markedCount;
+  },
+
+  // -------------------------------------------------------------
+  // AUDIT LOGS
+  // -------------------------------------------------------------
+  async addAuditLog(log: { username: string; action: string; details: string }): Promise<void> {
+    const newLog: AuditLog = {
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      timestamp: new Date().toISOString(),
+      username: log.username || 'system',
+      action: log.action,
+      details: log.details
+    };
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'auditLogs', newLog.id), newLog);
+      } catch (e) {
+        console.warn("Failed writing audit log online", e);
+      }
+    }
+    const logs = handleFallback<AuditLog>('local_audit_logs', []);
+    logs.unshift(newLog);
+    saveFallback('local_audit_logs', logs.slice(0, 500));
+  },
+
+  async getAuditLogs(): Promise<AuditLog[]> {
+    if (isUsingCloud) {
+      try {
+        const qSnap = await promiseWithTimeout(
+          getDocs(collection(db, 'auditLogs')),
+          8000,
+          { docs: [] } as any
+        );
+        const list: AuditLog[] = qSnap.docs.map(d => d.data() as AuditLog);
+        if (list.length > 0) {
+          saveFallback('local_audit_logs', list);
+          return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        }
+      } catch (e) {
+        console.warn("Failed reading audit logs online", e);
+      }
+    }
+    return handleFallback<AuditLog>('local_audit_logs', []);
+  },
+
+  // -------------------------------------------------------------
+  // BANNERS (CAROUSEL)
+  // -------------------------------------------------------------
+  async getBanners(): Promise<BannerImage[]> {
+    const defaultBanners: BannerImage[] = [
+      {
+        id: 'b1',
+        imageUrl: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200',
+        title: 'New Intake Open for 2026/2027',
+        subtitle: 'Enroll in Top STEM & Languages Curriculums',
+        active: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'b2',
+        imageUrl: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200',
+        title: 'Learn from Certified University Professors',
+        subtitle: 'Interactive virtual labs and 1-on-1 guidance',
+        active: true,
+        createdAt: new Date().toISOString()
+      }
+    ];
+    if (isUsingCloud) {
+      try {
+        const qSnap = await promiseWithTimeout(
+          getDocs(collection(db, 'banners')),
+          8000,
+          { docs: [] } as any
+        );
+        const list: BannerImage[] = qSnap.docs.map(d => d.data() as BannerImage);
+        if (list.length > 0) {
+          saveFallback('local_banners', list);
+          return list;
+        }
+      } catch (e) {}
+    }
+    return handleFallback<BannerImage>('local_banners', defaultBanners);
+  },
+
+  async saveBanner(banner: BannerImage): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'banners', banner.id), banner);
+      } catch (e) {}
+    }
+    const banners = await this.getBanners();
+    const idx = banners.findIndex(b => b.id === banner.id);
+    if (idx !== -1) banners[idx] = banner;
+    else banners.push(banner);
+    saveFallback('local_banners', banners);
+  },
+
+  async deleteBanner(id: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'banners', id));
+      } catch (e) {}
+    }
+    const banners = await this.getBanners();
+    saveFallback('local_banners', banners.filter(b => b.id !== id));
+  },
+
+  // -------------------------------------------------------------
+  // SUBJECTS MANAGEMENT
+  // -------------------------------------------------------------
+  async getSubjects(): Promise<SubjectItem[]> {
+    const defaultSubjects: SubjectItem[] = [
+      { id: 'sub_1', name: 'Combined Mathematics', createdAt: new Date().toISOString() },
+      { id: 'sub_2', name: 'Physics', createdAt: new Date().toISOString() },
+      { id: 'sub_3', name: 'Chemistry', createdAt: new Date().toISOString() },
+      { id: 'sub_4', name: 'ICT & Web Development', createdAt: new Date().toISOString() },
+      { id: 'sub_5', name: 'English Language', createdAt: new Date().toISOString() },
+      { id: 'sub_6', name: 'Biology', createdAt: new Date().toISOString() }
+    ];
+    if (isUsingCloud) {
+      try {
+        const qSnap = await promiseWithTimeout(
+          getDocs(collection(db, 'subjects')),
+          8000,
+          { docs: [] } as any
+        );
+        const list: SubjectItem[] = qSnap.docs.map(d => d.data() as SubjectItem);
+        if (list.length > 0) {
+          saveFallback('local_subjects', list);
+          return list;
+        }
+      } catch (e) {}
+    }
+    return handleFallback<SubjectItem>('local_subjects', defaultSubjects);
+  },
+
+  async addSubject(name: string): Promise<SubjectItem> {
+    const item: SubjectItem = {
+      id: 'sub_' + Date.now(),
+      name: name.trim(),
+      createdAt: new Date().toISOString()
+    };
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'subjects', item.id), item);
+      } catch (e) {}
+    }
+    const subjects = await this.getSubjects();
+    subjects.push(item);
+    saveFallback('local_subjects', subjects);
+    return item;
+  },
+
+  async deleteSubject(id: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'subjects', id));
+      } catch (e) {}
+    }
+    const subjects = await this.getSubjects();
+    saveFallback('local_subjects', subjects.filter(s => s.id !== id));
+  },
+
+  // -------------------------------------------------------------
+  // ADVANCED COURSE PATHWAYS
+  // -------------------------------------------------------------
+  async getPathways(): Promise<PathwayItem[]> {
+    const defaultPathways: PathwayItem[] = [
+      {
+        id: 'path_1',
+        title: 'Advanced Mathematics',
+        description: 'Algebra basics, Linear curves, Vector matrices, Trigonometry structures, and full AP Pre-Calculus preparation.',
+        iconName: 'BookOpen',
+        category: 'Mathematics'
+      },
+      {
+        id: 'path_2',
+        title: 'Interactive Science',
+        description: 'Newtonian mechanics, electrostatics, thermodynamics, organic chemistry basics, and verified virtual laboratory modules.',
+        iconName: 'Cpu',
+        category: 'Science'
+      },
+      {
+        id: 'path_3',
+        title: 'English & Creative Writing',
+        description: 'Essay outline methodologies, SAT reading grammar guides, literature interpretation templates, and vocabulary growth circles.',
+        iconName: 'Compass',
+        category: 'Languages'
+      },
+      {
+        id: 'path_4',
+        title: 'Coding & CS',
+        description: 'Full-stack web concepts, algorithm patterns, object oriented python scripting, and database structure templates.',
+        iconName: 'Bookmark',
+        category: 'Technology'
+      }
+    ];
+    if (isUsingCloud) {
+      try {
+        const qSnap = await promiseWithTimeout(
+          getDocs(collection(db, 'pathways')),
+          8000,
+          { docs: [] } as any
+        );
+        const list: PathwayItem[] = qSnap.docs.map(d => d.data() as PathwayItem);
+        if (list.length > 0) {
+          saveFallback('local_pathways', list);
+          return list;
+        }
+      } catch (e) {}
+    }
+    return handleFallback<PathwayItem>('local_pathways', defaultPathways);
+  },
+
+  async savePathway(pathway: PathwayItem): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'pathways', pathway.id), pathway);
+      } catch (e) {}
+    }
+    const items = await this.getPathways();
+    const idx = items.findIndex(p => p.id === pathway.id);
+    if (idx !== -1) items[idx] = pathway;
+    else items.push(pathway);
+    saveFallback('local_pathways', items);
+  },
+
+  // -------------------------------------------------------------
+  // STUDY MATERIALS & CLASS RESOURCES
+  // -------------------------------------------------------------
+  async getStudyMaterials(classId?: string): Promise<StudyMaterial[]> {
+    let cloudMaterials: StudyMaterial[] = [];
+    if (isUsingCloud) {
+      try {
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'materials')),
+          8000,
+          { docs: [] } as any
+        );
+        cloudMaterials = snap.docs.map(d => d.data() as StudyMaterial);
+        if (cloudMaterials.length > 0) {
+          saveFallback('local_materials', cloudMaterials);
+          if (classId) return cloudMaterials.filter(m => m.classId === classId);
+          return cloudMaterials;
+        }
+      } catch (e) {}
+    }
+    const local = handleFallback<StudyMaterial>('local_materials', []);
+    if (classId) return local.filter(m => m.classId === classId);
+    return local;
+  },
+
+  async saveStudyMaterial(material: Omit<StudyMaterial, 'id' | 'createdAt'>): Promise<StudyMaterial> {
+    const id = 'mat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const item: StudyMaterial = {
+      ...material,
+      id,
+      createdAt: new Date().toISOString()
+    };
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'materials', id), item);
+      } catch (e) {}
+    }
+    const list = handleFallback<StudyMaterial>('local_materials', []);
+    list.unshift(item);
+    saveFallback('local_materials', list);
+
+    await this.addAuditLog({
+      username: item.tutorId,
+      action: 'RESOURCE_ADDED',
+      details: `Added ${item.type || 'material'} "${item.title}" to ${item.classTitle || 'general'}`
+    });
+
+    return item;
+  },
+
+  async deleteStudyMaterial(id: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'materials', id));
+      } catch (e) {}
+    }
+    const list = handleFallback<StudyMaterial>('local_materials', []);
+    saveFallback('local_materials', list.filter(m => m.id !== id));
+  },
+
+  // -------------------------------------------------------------
+  // USER ROLE CHANGE WITH ADMIN PASSWORD REQUIREMENT
+  // -------------------------------------------------------------
+  async changeUserRoleWithPassword(
+    adminUid: string,
+    adminPasswordInput: string,
+    targetUid: string,
+    newRole: 'student' | 'tutor' | 'admin'
+  ): Promise<string> {
+    const allUsers = await this.getAllUsers();
+    const adminUser = allUsers.find(u => u.uid === adminUid || u.role === 'admin');
+
+    if (!adminUser) {
+      throw new Error("Admin privileges not found.");
+    }
+    if (adminUser.password && adminUser.password !== adminPasswordInput) {
+      throw new Error("Invalid admin password. Role change aborted.");
+    }
+
+    const targetUser = allUsers.find(u => u.uid === targetUid);
+    if (!targetUser) {
+      throw new Error("Target user profile not found.");
+    }
+
+    if (targetUser.role === newRole) {
+      return targetUid; // No change needed
+    }
+
+    // Generate new unique username/UID corresponding to role
+    const random6 = Math.floor(100000 + Math.random() * 900000);
+    let newUid = targetUid;
+    if (newRole === 'student') newUid = `STU${random6}`;
+    else if (newRole === 'tutor') newUid = `TUT${random6}`;
+    else if (newRole === 'admin') newUid = `GA${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+    const updatedProfile: UserProfile = {
+      ...targetUser,
+      uid: newUid,
+      username: newUid,
+      role: newRole
+    };
+
+    // Remove old record and set new record
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'users', targetUid));
+        await setDoc(doc(db, 'users', newUid), updatedProfile);
+      } catch (e) {
+        console.warn("Failed cloud role change update.", e);
+      }
+    }
+
+    const registered = handleFallback<UserProfile>('local_registered_users', []);
+    const filteredReg = registered.filter(u => u.uid !== targetUid);
+    filteredReg.push(updatedProfile);
+    saveFallback('local_registered_users', filteredReg);
+
+    // Track deleted UID to prevent resurfacing
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
+    if (!deletedUids.includes(targetUid)) {
+      deletedUids.push(targetUid);
+      saveFallback('local_deleted_uids', deletedUids);
+    }
+
+    await this.addAuditLog({
+      username: adminUser.email || adminUid,
+      action: 'ROLE_CHANGED',
+      details: `Changed role of user ${targetUser.name} (${targetUid}) from ${targetUser.role} to ${newRole}. New UID: ${newUid}`
+    });
+
+    return newUid;
+  },
+
+  // -------------------------------------------------------------
+  // MONTHLY PAYMENT REMINDERS & AUTO-SUSPENSION (Requirement 13)
+  // -------------------------------------------------------------
+  async runMonthlyPaymentAuditAndReminders(adminUid: string): Promise<{ reminded: number; suspended: number }> {
+    const allUsers = await this.getAllUsers();
+    const students = allUsers.filter(u => u.role === 'student');
+    const payments = await this.getPayments();
+
+    let reminded = 0;
+    let suspended = 0;
+
+    for (const student of students) {
+      if (student.isFreeCard) continue; // Free Card students are exempted
+
+      const enrolledClassIds = student.selectedClasses || [];
+      for (const classId of enrolledClassIds) {
+        // Check if paid for current month
+        const hasPaidCurrentMonth = payments.some(
+          p => p.studentId === student.uid && p.classId === classId && p.status === 'paid'
+        );
+
+        if (!hasPaidCurrentMonth) {
+          reminded++;
+          // Trigger system, email, and SMS reminder
+          const msg = `Payment Reminder: Monthly fee for class ${classId} is overdue. Please settle payment to maintain uninterrupted access.`;
+          await this.triggerNotification(student.uid, 'Monthly Class Fee Due', msg, 'payment');
+
+          // If unpaid and not marked late payment or free card, suspend class access
+          const currentClassStatus = student.classEnrollmentStatus?.[classId];
+          if (currentClassStatus !== 'late_payment' && currentClassStatus !== 'free_card') {
+            suspended++;
+            const updatedClassStatus = {
+              ...(student.classEnrollmentStatus || {}),
+              [classId]: 'suspended' as const
+            };
+            const updatedStudent = {
+              ...student,
+              classEnrollmentStatus: updatedClassStatus
+            };
+
+            if (isUsingCloud) {
+              try {
+                await setDoc(doc(db, 'users', student.uid), { classEnrollmentStatus: updatedClassStatus }, { merge: true });
+              } catch (e) {}
+            }
+            const registered = handleFallback<UserProfile>('local_registered_users', []);
+            const updatedReg = registered.map(u => u.uid === student.uid ? updatedStudent : u);
+            saveFallback('local_registered_users', updatedReg);
+          }
+        }
+      }
+    }
+
+    await this.addAuditLog({
+      username: adminUid,
+      action: 'PAYMENT_AUDIT_RUN',
+      details: `Triggered payment audit: Sent ${reminded} reminders and suspended ${suspended} unpaid class access records.`
+    });
+
+    return { reminded, suspended };
   },
 
   // -------------------------------------------------------------

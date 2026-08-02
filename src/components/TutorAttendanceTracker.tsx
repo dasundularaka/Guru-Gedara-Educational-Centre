@@ -142,7 +142,8 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
       date: selectedDate,
       status,
       markedAt: new Date().toISOString(),
-      tutorId: booking.tutorId
+      tutorId: booking.tutorId,
+      type: 'manual'
     };
 
     try {
@@ -185,7 +186,8 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           date: selectedDate,
           status,
           markedAt: new Date().toISOString(),
-          tutorId: booking.tutorId
+          tutorId: booking.tutorId,
+          type: 'manual'
         };
         await firestoreService.markAttendance(record);
       }
@@ -454,13 +456,23 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
                         {/* Session Status Pill */}
                         <td className="py-3.5 px-4 font-bold">
                           {currentRecord?.status === 'Present' ? (
-                            <span className="text-emerald-600 flex items-center gap-1 text-xs">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Present
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-emerald-600 flex items-center gap-1 text-xs">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Present
+                              </span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                {currentRecord.type === 'qrcode' ? 'QR Code' : 'Manual'}
+                              </span>
+                            </div>
                           ) : currentRecord?.status === 'Absent' ? (
-                            <span className="text-rose-600 flex items-center gap-1 text-xs">
-                              <XCircle className="w-4 h-4 text-rose-500" /> Absent
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-rose-600 flex items-center gap-1 text-xs">
+                                <XCircle className="w-4 h-4 text-rose-500" /> Absent
+                              </span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                {currentRecord.type === 'qrcode' ? 'QR Code' : 'Manual'}
+                              </span>
+                            </div>
                           ) : (
                             <span className="text-slate-400 font-normal italic text-xs">Not marked</span>
                           )}

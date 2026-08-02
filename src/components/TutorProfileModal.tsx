@@ -36,12 +36,27 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4" id={`tutor_profile_modal_${tutor.uid}`}>
-      <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-150 shadow-2xl relative font-sans max-h-[90vh] flex flex-col overflow-hidden">
+    <div 
+      className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4" 
+      id={`tutor_profile_modal_${tutor.uid}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-white rounded-3xl max-w-2xl w-full border border-slate-150 shadow-2xl relative font-sans max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header close button */}
         <button 
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           className="absolute top-5 right-5 text-slate-400 hover:text-slate-650 p-2 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer z-10"
         >
           <X className="w-5 h-5" />

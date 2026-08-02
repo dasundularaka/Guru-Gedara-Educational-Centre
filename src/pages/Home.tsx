@@ -1,34 +1,51 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
-import { ClassItem, UserProfile } from '../types';
+import { ClassItem, UserProfile, BannerImage, Review } from '../types';
 import { ClassCard } from '../components/ClassCard';
 import { TutorCard } from '../components/TutorCard';
-import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { 
   Sparkles, 
   GraduationCap, 
   BookOpen, 
   Cpu, 
-  Compass, 
-  CheckCircle2, 
   ShieldCheck, 
   Users, 
   School, 
-  Bookmark, 
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  MessageSquare,
+  Send,
+  CheckCircle2
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface HomeProps {
   onNavigateTab: (tab: string) => void;
 }
 
 export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
-  const { classes, refreshClasses, reviews } = useApp();
+  const { classes, refreshClasses, reviews, showToast, currentUser } = useApp();
   const [highlightedClasses, setHighlightedClasses] = useState<ClassItem[]>([]);
   const [topTutors, setTopTutors] = useState<UserProfile[]>([]);
+  const [banners, setBanners] = useState<BannerImage[]>([]);
+  const [currentBannerIdx, setCurrentBannerIdx] = useState(0);
+
+  // Carousels active indexes
+  const [tutorSlideIdx, setTutorSlideIdx] = useState(0);
+  const [classSlideIdx, setClassSlideIdx] = useState(0);
+  const [reviewSlideIdx, setReviewSlideIdx] = useState(0);
+
+  // Comment submission state
+  const [commentName, setCommentName] = useState('');
+  const [commentRole, setCommentRole] = useState<'Student' | 'Parent'>('Student');
+  const [commentRating, setCommentRating] = useState(5);
+  const [commentText, setCommentText] = useState('');
+  const [commentTarget, setCommentTarget] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   const approvedReviews = useMemo(() => {
     return (reviews || []).filter(r => r.status === 'approved');
@@ -42,13 +59,11 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
         const list = await firestoreService.getAllUsers();
         const tutorsList = list.filter(u => u.role === 'tutor');
         const featuredTutors = tutorsList.filter(u => u.isFeatured === true);
-        
-        // Use featured tutors, or fallback to first 3 if none featured
-        if (featuredTutors.length > 0) {
-          setTopTutors(featuredTutors);
-        } else {
-          setTopTutors(tutorsList.slice(0, 3));
-        }
+        setTopTutors(featuredTutors.length > 0 ? featuredTutors : tutorsList);
+
+        // Load banners
+        const bannerData = await firestoreService.getBanners();
+        setBanners(bannerData);
       } catch (e) {
         console.warn(e);
       }
@@ -58,24 +73,124 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
   useEffect(() => {
     if (classes && classes.length > 0) {
-      const featuredClasses = classes.filter(c => c.isFeatured === true);
-      // Use featured classes, or fallback to first 3 if none featured
-      if (featuredClasses.length > 0) {
-        setHighlightedClasses(featuredClasses);
-      } else {
-        setHighlightedClasses(classes.slice(0, 3));
-      }
+      setHighlightedClasses(classes);
     }
   }, [classes]);
 
+  // Pre-fill user details if logged in
+  useEffect(() => {
+    if (currentUser) {
+      setCommentName(currentUser.name || '');
+      if (currentUser.role === 'student') setCommentRole('Student');
+    }
+  }, [currentUser]);
+
+  // Auto rotate banner carousel
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentBannerIdx(prev => (prev + 1) % banners.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [banners.length]);
+
+  const handleNextBanner = () => {
+    if (banners.length === 0) return;
+    setCurrentBannerIdx(prev => (prev + 1) % banners.length);
+  };
+
+  const handlePrevBanner = () => {
+    if (banners.length === 0) return;
+    setCurrentBannerIdx(prev => (prev - 1 + banners.length) % banners.length);
+  };
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentName.trim() || !commentText.trim()) {
+      showToast("Please enter your name and comment text.", "error");
+      return;
+    }
+
+    setSubmittingComment(true);
+    try {
+      await firestoreService.createReview({
+        studentId: currentUser?.uid || 'guest_' + Math.random().toString(36).substring(2, 7),
+        studentName: `${commentName.trim()} (${commentRole})`,
+        rating: commentRating,
+        comment: commentText.trim(),
+        classTitle: commentTarget.trim() || 'General Academy Feedback',
+        status: 'pending'
+      });
+
+      showToast("Thank you! Your feedback has been submitted and is parked for admin approval.", "success");
+      setCommentText('');
+      setCommentTarget('');
+    } catch (err) {
+      showToast("Failed to submit review. Please try again.", "error");
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Carousel helpers
+  const visibleTutorsCount = 3;
+  const visibleClassesCount = 3;
+  const visibleReviewsCount = 3;
+
+  const nextTutors = () => {
+    setTutorSlideIdx(prev => (prev + 1) % Math.max(1, topTutors.length));
+  };
+  const prevTutors = () => {
+    setTutorSlideIdx(prev => (prev - 1 + topTutors.length) % Math.max(1, topTutors.length));
+  };
+
+  const nextClasses = () => {
+    setClassSlideIdx(prev => (prev + 1) % Math.max(1, highlightedClasses.length));
+  };
+  const prevClasses = () => {
+    setClassSlideIdx(prev => (prev - 1 + highlightedClasses.length) % Math.max(1, highlightedClasses.length));
+  };
+
+  const nextReviews = () => {
+    setReviewSlideIdx(prev => (prev + 1) % Math.max(1, approvedReviews.length));
+  };
+  const prevReviews = () => {
+    setReviewSlideIdx(prev => (prev - 1 + approvedReviews.length) % Math.max(1, approvedReviews.length));
+  };
+
+  // Slice displayed items for carousels
+  const displayedTutors = useMemo(() => {
+    if (topTutors.length <= visibleTutorsCount) return topTutors;
+    const result = [];
+    for (let i = 0; i < visibleTutorsCount; i++) {
+      result.push(topTutors[(tutorSlideIdx + i) % topTutors.length]);
+    }
+    return result;
+  }, [topTutors, tutorSlideIdx]);
+
+  const displayedClasses = useMemo(() => {
+    if (highlightedClasses.length <= visibleClassesCount) return highlightedClasses;
+    const result = [];
+    for (let i = 0; i < visibleClassesCount; i++) {
+      result.push(highlightedClasses[(classSlideIdx + i) % highlightedClasses.length]);
+    }
+    return result;
+  }, [highlightedClasses, classSlideIdx]);
+
+  const displayedReviews = useMemo(() => {
+    if (approvedReviews.length <= visibleReviewsCount) return approvedReviews;
+    const result = [];
+    for (let i = 0; i < visibleReviewsCount; i++) {
+      result.push(approvedReviews[(reviewSlideIdx + i) % approvedReviews.length]);
+    }
+    return result;
+  }, [approvedReviews, reviewSlideIdx]);
+
   return (
     <div className="bg-slate-50/20" id="homepage_container">
-      {/* 1. Hero banner Section */}
-      <div className="relative overflow-hidden bg-linear-to-b from-slate-50 via-white to-white py-16 sm:py-24">
-        {/* Abstract background circles */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full bg-indigo-50/40 mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
-        <div className="absolute bottom-10 left-10 w-72 h-72 rounded-full bg-slate-100/30 mix-blend-multiply filter blur-2xl opacity-40"></div>
-
+      
+      {/* 1. HERO SECTION */}
+      <div className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-white py-12 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             
@@ -85,15 +200,15 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               transition={{ duration: 0.6 }}
               className="space-y-6"
             >
-              <div className="inline-flex items-center gap-2 px-3  py-1 bg-indigo-50/60 border border-indigo-100 rounded-full">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-650" />
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
                 <span className="text-[10px] font-extrabold text-indigo-850 uppercase tracking-wider font-mono">
                   The Premium standard in academic tutoring
                 </span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                Unlock Academic <span className="text-indigo-600 bg-linear-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Excellence</span> with Verified Faculty.
+                Unlock Academic <span className="text-indigo-600 bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Excellence</span> with Verified Faculty.
               </h1>
 
               <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-lg">
@@ -103,7 +218,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   onClick={() => onNavigateTab('classes')}
-                  className="px-6 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs shadow-md hover:shadow-lg hover:shadow-slate-900/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-6 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                   id="hero_classes_cta"
                 >
                   Explore Class Subjects <ArrowRight className="w-4 h-4" />
@@ -143,6 +258,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             >
               <div className="bg-gradient-to-tr from-blue-600 to-indigo-700 rounded-3xl p-2.5 shadow-2xl shadow-blue-200 relative overflow-hidden">
                 <img 
+                  referrerPolicy="no-referrer"
                   src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=600" 
                   alt="Students Studying" 
                   className="rounded-2xl w-full object-cover h-[350px] brightness-95" 
@@ -175,192 +291,338 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
         </div>
       </div>
 
-      {/* 2. Path subject tracks */}
-      <div className="py-16 bg-gray-50/50 border-y border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-lg mx-auto mb-12">
-            <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Educational Pipelines</span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Advanced Course Pathways</h2>
-            <p className="text-xs text-gray-500 mt-2">Tailored subjects prepared by board-accredited educators designed to strengthen foundational concepts.</p>
-          </div>
+      {/* 2. ADVERTISING BANNERS CAROUSEL */}
+      {banners.length > 0 && (
+        <div className="py-8 bg-slate-900 text-white relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 p-6 sm:p-10 min-h-[220px] flex items-center justify-between">
+              
+              <AnimatePresence mode="wait">
+                {banners[currentBannerIdx] && (
+                  <motion.div
+                    key={banners[currentBannerIdx].id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.4 }}
+                    className="flex flex-col md:flex-row items-center justify-between gap-6 w-full"
+                  >
+                    <div className="space-y-3 max-w-xl">
+                      <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-bold font-mono tracking-widest uppercase">
+                        Featured Highlight
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                        {banners[currentBannerIdx].title}
+                      </h3>
+                      {banners[currentBannerIdx].subtitle && (
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {banners[currentBannerIdx].subtitle}
+                        </p>
+                      )}
+                      {banners[currentBannerIdx].linkUrl && (
+                        <a 
+                          href={banners[currentBannerIdx].linkUrl}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors mt-2"
+                        >
+                          Learn More <ArrowRight className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-blue-100 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 border border-blue-100">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900">Advanced Mathematics</h3>
-              <p className="text-xs text-gray-500 mt-2 leading-relaxed">Algebra basics, Linear curves, Vector matrices, Trigonometry structures, and full AP Pre-Calculus preparation.</p>
-            </div>
+                    {banners[currentBannerIdx].imageUrl && (
+                      <div className="w-full md:w-80 h-44 rounded-2xl overflow-hidden border border-slate-800 shrink-0">
+                        <img 
+                          referrerPolicy="no-referrer"
+                          src={banners[currentBannerIdx].imageUrl} 
+                          alt={banners[currentBannerIdx].title}
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-purple-100 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4 border border-purple-100">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900">Interactive Science</h3>
-              <p className="text-xs text-gray-500 mt-2 leading-relaxed">Newtonian mechanics, electrostatics, thermodynamics, organic chemistry basics, and verified virtual laboratory modules.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-pink-100 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center mb-4 border border-pink-100">
-                <Compass className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900">English & Creative Writing</h3>
-              <p className="text-xs text-gray-500 mt-2 leading-relaxed">Essay outline methodologies, SAT reading grammar guides, literature interpretation templates, and vocabulary growth circles.</p>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-emerald-100 transition-all hover:-translate-y-1">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 border border-emerald-100">
-                <Bookmark className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-900">Coding & CS</h3>
-              <p className="text-xs text-gray-500 mt-2 leading-relaxed">Full-stack web concepts, algorithm patterns, object oriented python scripting, and database structure templates.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Highlighted Classes */}
-      <div className="py-16 sm:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-12">
-            <div>
-              <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Enroll Now</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Featured Classes Open for intake</h2>
-              <p className="text-xs text-gray-500 mt-2">Limited-capacity courses. Reserve a seat today.</p>
-            </div>
-            <button
-              onClick={() => onNavigateTab('classes')}
-              className="mt-4 sm:mt-0 text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline cursor-pointer"
-            >
-              View Full Subjects Directory <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {highlightedClasses.length === 0 ? (
-              <div className="col-span-3 text-center py-12 px-6 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 text-xs">
-                <BookOpen className="w-8 h-8 text-slate-400 mx-auto mb-2 opacity-60" />
-                <p className="font-bold text-slate-700 dark:text-slate-300">No classes published yet</p>
-                <p className="mt-1">Admins and tutors can add and schedule classes to make them available for student enrollment.</p>
-              </div>
-            ) : (
-              highlightedClasses.map((item) => (
-                <div key={item.id}>
-                  <ClassCard 
-                    item={item} 
-                    onBookSuccess={() => onNavigateTab('dashboard')} 
-                    onRedirectToLogin={() => onNavigateTab('auth')} 
-                  />
+              {/* Controls */}
+              <div className="absolute bottom-4 right-6 flex items-center gap-2">
+                <button 
+                  onClick={handlePrevBanner}
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer"
+                  title="Previous banner"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="flex gap-1">
+                  {banners.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentBannerIdx(i)}
+                      className={`h-2 rounded-full transition-all cursor-pointer ${i === currentBannerIdx ? 'w-6 bg-indigo-500' : 'w-2 bg-slate-700'}`}
+                    />
+                  ))}
                 </div>
-              ))
-            )}
+                <button 
+                  onClick={handleNextBanner}
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer"
+                  title="Next banner"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Class Schedule Widget Section */}
-      <div className="py-16 bg-slate-50 dark:bg-slate-950/20 border-t border-b border-slate-100 dark:border-slate-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <ClassScheduleWidget />
-        </div>
-      </div>
-
-      {/* 4. Faculty highlights */}
+      {/* 3. LECTURERS / FACULTY CAROUSEL */}
       <div className="py-16 bg-blue-50/50 border-t border-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-12">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
             <div>
               <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Highly-Respected Instructors</h2>
-              <p className="text-xs text-gray-500 mt-2">Ph.D. academics and programming veterans with verifiable curriculum success.</p>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Respected Instructors</h2>
+              <p className="text-xs text-gray-500 mt-1">Accredited professors, Ph.D. researchers, and industrial professionals</p>
             </div>
-            <button
-              onClick={() => onNavigateTab('tutors')}
-              className="mt-4 sm:mt-0 text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline cursor-pointer"
-            >
-              Browse Full Faculty Directory <ArrowRight className="w-4 h-4" />
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={prevTutors}
+                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
+                title="Previous faculty"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={nextTutors}
+                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
+                title="Next faculty"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onNavigateTab('tutors')}
+                className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer ml-2"
+              >
+                View All Faculty
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {topTutors.length === 0 ? (
-              <div className="col-span-3 text-center py-12 px-6 bg-white/80 rounded-2xl border border-dashed border-blue-200 text-slate-500 text-xs">
-                <Users className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-60" />
-                <p className="font-bold text-slate-700">No faculty members listed yet</p>
-                <p className="mt-1">Sign up as an instructor or register faculty members in the Admin Portal.</p>
+            {displayedTutors.map(tut => (
+              <TutorCard key={tut.uid} tutor={tut} onContactClick={() => onNavigateTab('tutors')} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. CLASSES CAROUSEL */}
+      <div className="py-16 bg-white border-t border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+            <div>
+              <span className="text-xs font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">Featured Subject Classes</h2>
+              <p className="text-xs text-slate-500 mt-1">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={prevClasses}
+                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Previous class"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={nextClasses}
+                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Next class"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onNavigateTab('classes')}
+                className="px-4 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-950 transition-colors cursor-pointer ml-2"
+              >
+                All Curriculums
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {displayedClasses.map(cls => (
+              <ClassCard key={cls.id} item={cls} onBookClick={() => onNavigateTab('classes')} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 5. COMMENTS & TESTIMONIALS CAROUSEL + SUBMISSION BOX */}
+      <div className="py-16 bg-slate-50 border-t border-slate-200/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-10 gap-4">
+            <div>
+              <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Parent & Student Reviews</h2>
+              <p className="text-xs text-gray-500 mt-1">Real feedback approved by academy administration</p>
+            </div>
+
+            {approvedReviews.length > visibleReviewsCount && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={prevReviews}
+                  className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shadow-xs"
+                  title="Previous review"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={nextReviews}
+                  className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shadow-xs"
+                  title="Next review"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            ) : (
-              topTutors.map((tutor) => (
-                <div key={tutor.uid}>
-                  <TutorCard tutor={tutor} />
-                </div>
-              ))
             )}
           </div>
+
+          {/* Approved reviews grid/carousel */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            {displayedReviews.length > 0 ? (
+              displayedReviews.map((rev) => (
+                <div key={rev.id} className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1 mb-3">
+                      {[...Array(5)].map((_, i) => (
+                        <Star 
+                          key={i} 
+                          className={`w-3.5 h-3.5 ${i < rev.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-650 leading-relaxed font-sans italic">
+                      "{rev.comment}"
+                    </p>
+                  </div>
+                  <div className="mt-5 border-t border-slate-100 pt-4 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">{rev.studentName}</span>
+                      <span className="text-[10px] text-slate-400 block font-mono">{rev.classTitle || rev.tutorName || 'Academy Feedback'}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {new Date(rev.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-3 text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+                No approved reviews yet. Be the first to submit feedback below!
+              </div>
+            )}
+          </div>
+
+          {/* Interactive Comment Submission Box */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-md max-w-3xl mx-auto">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Write a Comment / Review</h3>
+                <p className="text-xs text-slate-500">Your comment will be submitted to administrative staff for approval before appearing on the public carousel.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitComment} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Your Full Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={commentName}
+                    onChange={(e) => setCommentName(e.target.value)}
+                    placeholder="e.g. John Doe"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Role / Persona</label>
+                  <select 
+                    value={commentRole}
+                    onChange={(e) => setCommentRole(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-indigo-500"
+                  >
+                    <option value="Student">Student Scholar</option>
+                    <option value="Parent">Parent / Guardian</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Target Course / Tutor (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={commentTarget}
+                    onChange={(e) => setCommentTarget(e.target.value)}
+                    placeholder="e.g. AP Calculus or Dr. Jenkins"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Overall Rating</label>
+                  <div className="flex items-center gap-2 pt-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setCommentRating(star)}
+                        className="cursor-pointer focus:outline-none transition-transform hover:scale-110"
+                      >
+                        <Star 
+                          className={`w-5 h-5 ${star <= commentRating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
+                        />
+                      </button>
+                    ))}
+                    <span className="text-xs font-bold text-slate-700 font-mono ml-2">{commentRating} / 5 Stars</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Your Detailed Feedback / Comment</label>
+                <textarea 
+                  required
+                  rows={3}
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Share your experience regarding course content, teaching style, or general feedback..."
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 leading-relaxed"
+                />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={submittingComment}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {submittingComment ? "Submitting..." : "Submit Comment for Review"}
+                </button>
+              </div>
+            </form>
+          </div>
+
         </div>
       </div>
 
-      {/* 5. Testimonial showcase */}
-      <div className="py-16 sm:py-24 bg-white border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-lg mx-auto mb-16">
-            <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Scholarly Praise</span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Testimonials from Parents & Students</h2>
-            <p className="text-xs text-gray-500 mt-2">See how our dynamic class calendars and tracking metrics help achieve premium goals.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 relative">
-              <span className="text-4xl text-blue-200 font-serif absolute top-3 left-4 leading-none select-none">“</span>
-              <p className="text-xs text-gray-650 leading-relaxed font-sans relative z-10 pt-4">
-                The interactive math sessions with Dr. Jenkins were absolutely game-changing. My son's AP Calculus grades spiked from a C+ to an A in less than three months. The visual calendars make bookings incredibly simple!
-              </p>
-              <div className="mt-5 border-t border-gray-100 pt-4 flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs uppercase">
-                  LH
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-gray-800 block">Lucas H. (Parent)</span>
-                  <span className="text-[10px] text-gray-400 block font-mono">AP Prep Core</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 relative">
-              <span className="text-4xl text-blue-200 font-serif absolute top-3 left-4 leading-none select-none">“</span>
-              <p className="text-xs text-gray-650 leading-relaxed font-sans relative z-10 pt-4">
-                David Kross's web development essentials has been fantastic. Building real dynamic landing pages instead of running slides had me hooked from lesson one. The student dashboard tracks my bills and schedules perfectly.
-              </p>
-              <div className="mt-5 border-t border-gray-100 pt-4 flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs uppercase">
-                  AM
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-gray-800 block">Alex Mercer (Student)</span>
-                  <span className="text-[10px] text-gray-400 block font-mono">Grade 11 Web Dev</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 relative">
-              <span className="text-4xl text-blue-200 font-serif absolute top-3 left-4 leading-none select-none">“</span>
-              <p className="text-xs text-gray-650 leading-relaxed font-sans relative z-10 pt-4">
-                As a working parent, the customizable notification preferences (messages, sessions confirmations) give me incredible peace of mind. I can easily monitor tutor feedbacks and track ledger payouts transparently.
-              </p>
-              <div className="mt-5 border-t border-gray-100 pt-4 flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs uppercase">
-                  RW
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-gray-800 block">Rachel W. (Parent)</span>
-                  <span className="text-[10px] text-gray-400 block font-mono">Algebra Foundations</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

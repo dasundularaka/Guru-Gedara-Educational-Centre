@@ -7,7 +7,7 @@ export interface UserProfile {
   displayName?: string;
   role: UserRole;
   username?: string;
-  status?: 'pending' | 'approved' | 'active';
+  status?: 'pending' | 'approved' | 'active' | 'suspended';
   gender?: 'male' | 'female';
   address?: string;
   guardianName?: string;
@@ -15,6 +15,7 @@ export interface UserProfile {
   dob?: string;
   notes?: string;
   selectedClasses?: string[];
+  classEnrollmentStatus?: { [classId: string]: 'active' | 'suspended' | 'late_payment' | 'free_card' };
   photoURL?: string;
   pendingPhotoURL?: string;
   phone?: string;
@@ -23,6 +24,11 @@ export interface UserProfile {
   createdAt: string;
   availabilityStatus?: 'active' | 'away';
   
+  // Registration and Fee Details
+  admissionFeeCollected?: boolean;
+  admissionAmount?: number;
+  isFreeCard?: boolean;
+
   // Specific properties
   studentDetails?: {
     grade: string;
@@ -74,7 +80,9 @@ export interface Booking {
   dayOfWeek: string;
   timeSlot: string;
   bookingDate: string;
-  status: 'active' | 'cancelled';
+  status: 'active' | 'cancelled' | 'pending_approval';
+  approvalType?: 'payment_collected' | 'late_payment' | 'free_card';
+  collectedAmount?: number;
 }
 
 export interface Payment {
@@ -88,6 +96,7 @@ export interface Payment {
   status: 'paid' | 'pending' | 'failed';
   paymentMethod?: string;
   dueDate?: string;
+  paymentType?: 'admission' | 'monthly' | 'late_payment' | 'free_card';
 }
 
 export interface NotificationItem {
@@ -146,7 +155,10 @@ export interface AttendanceRecord {
   status: 'Present' | 'Absent';
   markedAt: string;
   tutorId: string;
+  type: 'qrcode' | 'manual';
 }
+
+export type ResourceType = 'announcement' | 'link' | 'image' | 'video' | 'file' | 'note' | 'quiz';
 
 export interface StudyMaterial {
   id: string;
@@ -154,10 +166,44 @@ export interface StudyMaterial {
   description: string;
   subject: string;
   referenceUrl: string;
+  type?: ResourceType;
   tutorId: string;
   tutorName: string;
   classId?: string;
   classTitle?: string;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  username: string; // actor username or uid
+  action: string;
+  details: string;
+}
+
+export interface BannerImage {
+  id: string;
+  imageUrl: string;
+  title?: string;
+  subtitle?: string;
+  linkUrl?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface PathwayItem {
+  id: string;
+  title: string;
+  description: string;
+  iconName: string;
+  category: string;
+}
+
+export interface SubjectItem {
+  id: string;
+  name: string;
+  code?: string;
   createdAt: string;
 }
 
@@ -169,5 +215,6 @@ export interface SyncLogEntry {
   message: string;
   attempts: number;
 }
+
 
 

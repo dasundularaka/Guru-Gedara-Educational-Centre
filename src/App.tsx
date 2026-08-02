@@ -10,7 +10,6 @@ import { TutorDashboard } from './pages/TutorDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { RestrictedPasswordReset } from './pages/RestrictedPasswordReset';
 import { ToastNotification } from './components/ToastNotification';
-import { SyncTelemetryConsole } from './components/SyncTelemetryConsole';
 import { 
   CheckCircle, 
   XOctagon, 
@@ -451,9 +450,6 @@ function MainAppContent() {
           <ToastNotification toast={toast} onClose={hideToast} />
         )}
       </AnimatePresence>
-
-      {/* Sync Telemetry and Propagation Audit Console */}
-      <SyncTelemetryConsole />
     </div>
   );
 }

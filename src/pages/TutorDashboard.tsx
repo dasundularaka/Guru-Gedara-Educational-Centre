@@ -711,7 +711,8 @@ export const TutorDashboard: React.FC = () => {
                                   date: widgetDate,
                                   status,
                                   markedAt: new Date().toISOString(),
-                                  tutorId: currentUser.uid
+                                  tutorId: currentUser.uid,
+                                  type: 'manual'
                                 };
                                 await firestoreService.markAttendance(newRecord);
                                 showToast(`Attendance marked as ${status} for ${b.studentName}.`, "success");

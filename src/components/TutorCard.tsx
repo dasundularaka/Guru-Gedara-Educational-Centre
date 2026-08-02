@@ -9,6 +9,7 @@ import { TutorProfileModal } from './TutorProfileModal';
 
 interface TutorCardProps {
   tutor: UserProfile;
+  onContactClick?: () => void;
 }
 
 export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
@@ -159,8 +160,11 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
 
           <div className="flex gap-2">
             <button
-              onClick={() => setShowProfileModal(true)}
-              className="px-3 py-2 rounded-xl text-xs font-bold text-indigo-750 hover:bg-indigo-50 transition-all border border-indigo-150 flex items-center gap-1 cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowProfileModal(true);
+              }}
+              className="px-3 py-2 rounded-xl text-xs font-bold text-indigo-755 hover:bg-indigo-50 transition-all border border-indigo-150 flex items-center gap-1 cursor-pointer"
               title="View detailed tutor profile and student reviews"
             >
               <User className="w-3.5 h-3.5" /> Profile

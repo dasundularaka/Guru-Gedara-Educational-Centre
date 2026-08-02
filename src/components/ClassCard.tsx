@@ -10,6 +10,7 @@ interface ClassCardProps {
   item: ClassItem;
   onBookSuccess?: () => void;
   onRedirectToLogin?: () => void;
+  onBookClick?: () => void;
 }
 
 export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRedirectToLogin }) => {

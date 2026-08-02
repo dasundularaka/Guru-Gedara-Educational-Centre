@@ -243,59 +243,109 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
 
   // Submit scan / code attendance logic
   const handleVerifyAttendance = async (rawCodeStr?: string) => {
-    const inputPayload = rawCodeStr || manualCode;
-    if (!inputPayload.trim()) {
-      showToast('Please enter or scan a valid class attendance QR pass.', 'info');
+    const inputPayload = (rawCodeStr || manualCode).trim();
+    if (!inputPayload) {
+      showToast('Please enter or scan a valid attendance QR pass.', 'info');
       return;
     }
 
     try {
-      let parsed: any;
-      if (inputPayload.startsWith('{')) {
-        parsed = JSON.parse(inputPayload);
-      } else {
-        // Fallback simple token format
-        parsed = {
-          classId: selectedClassId || 'demo_class',
-          classTitle: activeClass?.title || 'Enrolled Class Session',
-          tutorId: activeClass?.tutorId || 'tutor_default',
-          date: new Date().toISOString().split('T')[0]
+      if (isTutor) {
+        // Tutor scanning a Student's personal QR code or typing username/UID
+        let scannedStudentId = inputPayload;
+        if (inputPayload.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(inputPayload);
+            scannedStudentId = parsed.studentId || parsed.username || parsed.uid || inputPayload;
+          } catch (e) {}
+        }
+
+        const targetClassId = selectedClassId || tutorClasses[0]?.id;
+        const targetClass = tutorClasses.find(c => c.id === targetClassId);
+        const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+
+        const matchedBooking = bookings.find(b => 
+          (b.classId === targetClassId || !targetClassId) &&
+          (b.studentId === scannedStudentId || b.studentName.toLowerCase() === scannedStudentId.toLowerCase() || b.id === scannedStudentId)
+        ) || bookings.find(b => b.studentId === scannedStudentId || b.studentName.toLowerCase().includes(scannedStudentId.toLowerCase()));
+
+        const studentId = matchedBooking?.studentId || scannedStudentId;
+        const studentName = matchedBooking?.studentName || scannedStudentId;
+        const classTitle = matchedBooking?.classTitle || targetClass?.title || 'Class Session';
+        const classId = matchedBooking?.classId || targetClassId || 'class_default';
+
+        const recordId = `${classId}_${studentId}_${targetDate}`;
+        const record: AttendanceRecord = {
+          id: recordId,
+          classId: classId,
+          classTitle: classTitle,
+          studentId: studentId,
+          studentName: studentName,
+          date: targetDate,
+          status: 'Present',
+          markedAt: new Date().toISOString(),
+          tutorId: currentUser.uid,
+          type: 'qrcode'
         };
+
+        await firestoreService.markAttendance(record);
+
+        setScanResult({
+          success: true,
+          message: `Successfully marked ${studentName} as PRESENT via QR Code for ${classTitle}!`
+        });
+        showToast(`🎉 Scanned Student QR: Marked ${studentName} Present!`, 'success');
+        stopScannerCamera();
+        if (onAttendanceMarked) onAttendanceMarked();
+      } else {
+        // Student scanning class pass QR code
+        let parsed: any;
+        if (inputPayload.startsWith('{')) {
+          parsed = JSON.parse(inputPayload);
+        } else {
+          parsed = {
+            classId: selectedClassId || 'demo_class',
+            classTitle: activeClass?.title || 'Enrolled Class Session',
+            tutorId: activeClass?.tutorId || 'tutor_default',
+            date: new Date().toISOString().split('T')[0]
+          };
+        }
+
+        const targetClassId = parsed.classId || selectedClassId;
+        const targetClassTitle = parsed.classTitle || 'Class Session';
+        const targetDate = parsed.date || new Date().toISOString().split('T')[0];
+
+        const recordId = `${targetClassId}_${currentUser.uid}_${targetDate}`;
+        const record: AttendanceRecord = {
+          id: recordId,
+          classId: targetClassId,
+          classTitle: targetClassTitle,
+          studentId: currentUser.uid,
+          studentName: currentUser.name || 'Scholar Student',
+          date: targetDate,
+          status: 'Present',
+          markedAt: new Date().toISOString(),
+          tutorId: parsed.tutorId || 'tutor',
+          type: 'qrcode'
+        };
+
+        await firestoreService.markAttendance(record);
+        
+        setScanResult({
+          success: true,
+          message: `Successfully checked in as PRESENT for ${targetClassTitle} on ${targetDate}!`
+        });
+        showToast(`🎉 Attendance recorded for ${targetClassTitle}!`, 'success');
+        
+        stopScannerCamera();
+        if (onAttendanceMarked) onAttendanceMarked();
       }
-
-      const targetClassId = parsed.classId || selectedClassId;
-      const targetClassTitle = parsed.classTitle || 'Class Session';
-      const targetDate = parsed.date || new Date().toISOString().split('T')[0];
-
-      const recordId = `${targetClassId}_${currentUser.uid}_${targetDate}`;
-      const record: AttendanceRecord = {
-        id: recordId,
-        classId: targetClassId,
-        classTitle: targetClassTitle,
-        studentId: currentUser.uid,
-        studentName: currentUser.name || 'Scholar Student',
-        date: targetDate,
-        status: 'Present',
-        markedAt: new Date().toISOString(),
-        tutorId: parsed.tutorId || 'tutor'
-      };
-
-      await firestoreService.markAttendance(record);
-      
-      setScanResult({
-        success: true,
-        message: `Successfully checked in as PRESENT for ${targetClassTitle} on ${targetDate}!`
-      });
-      showToast(`🎉 Attendance recorded for ${targetClassTitle}!`, 'success');
-      
-      stopScannerCamera();
-      if (onAttendanceMarked) onAttendanceMarked();
     } catch (err) {
       setScanResult({
         success: false,
         message: 'Invalid QR pass or expired session token. Please try scanning again.'
       });
-      showToast('Verification failed. Invalid session QR code.', 'error');
+      showToast('Verification failed. Invalid QR code.', 'error');
     }
   };
 
