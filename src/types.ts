@@ -2,7 +2,6 @@ export type UserRole = 'student' | 'tutor' | 'admin';
 
 export interface UserProfile {
   uid: string;
-  id?: string;
   email: string;
   name: string;
   displayName?: string;
@@ -108,11 +107,6 @@ export interface DirectMessage {
   receiverId: string;
   message: string;
   createdAt: string;
-  isRead?: boolean;
-  fileUrl?: string;
-  fileName?: string;
-  fileType?: string;
-  fileSize?: string;
 }
 
 export interface NotificationSettings {

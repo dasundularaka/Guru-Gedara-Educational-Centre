@@ -11,9 +11,6 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { RestrictedPasswordReset } from './pages/RestrictedPasswordReset';
 import { ToastNotification } from './components/ToastNotification';
 import { SyncTelemetryConsole } from './components/SyncTelemetryConsole';
-import { GmailMailbox } from './components/GmailMailbox';
-import { firestoreService } from './lib/firestoreService';
-import { UserProfile } from './types';
 import { 
   CheckCircle, 
   XOctagon, 
@@ -167,8 +164,6 @@ function CentralLoadingScreen() {
 
 function MainAppContent() {
   const [currentTab, setCurrentTab] = useState('home');
-  const [showGmailModal, setShowGmailModal] = useState(false);
-  const [appUsersList, setAppUsersList] = useState<UserProfile[]>([]);
   const { 
     toast, 
     hideToast, 
@@ -183,12 +178,6 @@ function MainAppContent() {
     reconcileCloudData,
     syncState
   } = useApp();
-
-  useEffect(() => {
-    if (currentUser) {
-      firestoreService.getAllUsers().then(users => setAppUsersList(users)).catch(console.warn);
-    }
-  }, [currentUser]);
 
   const [pingTime, setPingTime] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
@@ -269,18 +258,7 @@ function MainAppContent() {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       {/* Navbar navigation selection */}
-      <Navbar 
-        currentTab={currentTab} 
-        onChangeTab={setCurrentTab} 
-        onOpenGmail={() => setShowGmailModal(true)} 
-      />
-
-      {/* Gmail Communications Hub Modal */}
-      <GmailMailbox 
-        isOpen={showGmailModal} 
-        onClose={() => setShowGmailModal(false)} 
-        usersList={appUsersList} 
-      />
+      <Navbar currentTab={currentTab} onChangeTab={setCurrentTab} />
 
       {/* Primary tab views selection container */}
       <main className="flex-grow">

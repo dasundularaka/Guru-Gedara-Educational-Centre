@@ -17,16 +17,15 @@ import {
   Moon 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { firestoreService, safeStringify } from '../lib/firestoreService';
+import { firestoreService } from '../lib/firestoreService';
 import { Booking } from '../types';
 
 interface NavbarProps {
   currentTab: string;
   onChangeTab: (tab: string) => void;
-  onOpenGmail?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab, onOpenGmail }) => {
+export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const { 
     currentUser, 
     logout, 
@@ -117,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab, onOpenG
           });
           
           if (updated) {
-            localStorage.setItem(notifiedKey, safeStringify(alreadyNotified));
+            localStorage.setItem(notifiedKey, JSON.stringify(alreadyNotified));
           }
         }
       }
@@ -291,19 +290,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab, onOpenG
 
             {currentUser ? (
               <>
-                {/* Gmail Communications Hub Button */}
-                {onOpenGmail && (
-                  <button
-                    onClick={onOpenGmail}
-                    className="p-2 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer border border-red-200/50 dark:border-red-900/40 flex items-center gap-1.5"
-                    title="Gmail Communications Hub"
-                    id="gmail_hub_btn"
-                  >
-                    <Mail className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    <span className="text-xs font-bold font-sans hidden lg:inline text-red-700 dark:text-red-300">Gmail</span>
-                  </button>
-                )}
-
                 {/* Notification Bell */}
                 <div className="relative">
                   <button

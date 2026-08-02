@@ -4,7 +4,6 @@ import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { UserProfile, ClassItem, Booking, Payment } from '../types';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
-import { ChatWidget } from '../components/ChatWidget';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -47,15 +46,12 @@ import {
   BarChart3,
   Download,
   Sparkles,
-  Star,
-  Upload,
-  MessageSquare
+  Star
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments, resetDatabase } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews' | 'messages'>('analytics');
-  const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
@@ -456,26 +452,6 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchAdminDatasets();
-
-    const unsubUsers = firestoreService.subscribeUsers((updatedUsers) => {
-      setUsers(updatedUsers);
-    });
-    const unsubClasses = firestoreService.subscribeClasses((updatedClasses) => {
-      setClassesList(updatedClasses);
-    });
-    const unsubPayments = firestoreService.subscribePayments((updatedPayments) => {
-      setPaymentsList(updatedPayments);
-    });
-    const unsubBookings = firestoreService.subscribeBookings((updatedBookings) => {
-      setBookingsList(updatedBookings);
-    });
-
-    return () => {
-      unsubUsers();
-      unsubClasses();
-      unsubPayments();
-      unsubBookings();
-    };
   }, []);
 
   const handleUpdatePaymentStatus = async (paymentId: string, status: 'paid' | 'failed' | 'pending') => {
@@ -1127,13 +1103,6 @@ export const AdminDashboard: React.FC = () => {
             >
               <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse" /> Moderate Reviews
             </button>
-            <button
-              id="admin_tab_messages"
-              onClick={() => setActiveTab('messages')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'messages' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <MessageSquare className="w-4 h-4 text-blue-400" /> Messages Inbox
-            </button>
           </div>
         </div>
 
@@ -1740,17 +1709,6 @@ export const AdminDashboard: React.FC = () => {
                         {/* Card Action Controls */}
                         <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                           <button 
-                            id={`message-student-btn-${stud.uid}`}
-                            onClick={() => {
-                              setSelectedChatUserId(stud.uid);
-                              setActiveTab('messages');
-                            }}
-                            className="p-1 px-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                            title="Message scholar"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" /> Message
-                          </button>
-                          <button 
                             id={`edit-student-btn-${stud.uid}`}
                             onClick={() => openEditModal('student', stud)}
                             className="p-1 px-2.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
@@ -1892,17 +1850,6 @@ export const AdminDashboard: React.FC = () => {
                         >
                           <Star className={`w-3.5 h-3.5 ${tut.isFeatured ? 'fill-amber-400 text-amber-500' : 'text-gray-400'}`} /> 
                           {tut.isFeatured ? 'Featured' : 'Feature'}
-                        </button>
-                        <button 
-                          id={`message-tutor-btn-${tut.uid}`}
-                          onClick={() => {
-                            setSelectedChatUserId(tut.uid);
-                            setActiveTab('messages');
-                          }}
-                          className="p-1 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                          title="Message tutor"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" /> Message
                         </button>
                         <button 
                           id={`edit-tutor-btn-${tut.uid}`}
@@ -2506,21 +2453,6 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
-            )}
-
-            {/* Tab 8: Messages Inbox View */}
-            {activeTab === 'messages' && (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <ChatWidget 
-                  currentUserId={currentUser.uid} 
-                  currentUserRole="admin" 
-                  initialSelectedUserId={selectedChatUserId || undefined}
-                />
               </motion.div>
             )}
 
