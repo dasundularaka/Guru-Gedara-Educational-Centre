@@ -425,7 +425,7 @@ const firestoreServiceRaw = {
   },
 
   async createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<UserProfile> {
-    const fullProfile: UserProfile = {
+    const baseProfile: Record<string, any> = {
       uid,
       email: profile.email || '',
       name: profile.name || 'Anonymous Student',
@@ -440,15 +440,23 @@ const firestoreServiceRaw = {
       guardianPhone: profile.guardianPhone || '',
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
+      isPasswordResetRequired: profile.isPasswordResetRequired ?? false,
       username: profile.username || '',
       status: profile.status || (profile.role === 'student' ? 'pending' : 'approved'),
-      createdAt: new Date().toISOString(),
-      studentDetails: profile.role === 'student' ? {
+      createdAt: profile.createdAt || new Date().toISOString()
+    };
+
+    if (profile.dob) baseProfile.dob = profile.dob;
+    if (profile.notes) baseProfile.notes = profile.notes;
+
+    if ((profile.role || 'student') === 'student') {
+      baseProfile.studentDetails = {
         grade: profile.studentDetails?.grade || 'Grade 10',
         parentContact: profile.guardianPhone || profile.studentDetails?.parentContact || '',
         interests: profile.studentDetails?.interests || []
-      } : undefined,
-      tutorDetails: profile.role === 'tutor' ? {
+      };
+    } else if (profile.role === 'tutor') {
+      baseProfile.tutorDetails = {
         bio: profile.tutorDetails?.bio || 'Passionate education tutor ready to instruct.',
         subjects: profile.tutorDetails?.subjects || ['Science'],
         experience: profile.tutorDetails?.experience || 1,
@@ -456,8 +464,10 @@ const firestoreServiceRaw = {
         hourlyRate: profile.tutorDetails?.hourlyRate || 30,
         rating: 5.0,
         availability: profile.tutorDetails?.availability || [{ day: "Monday", slots: ["04:00 PM"] }]
-      } : undefined
-    };
+      };
+    }
+
+    const fullProfile = baseProfile as UserProfile;
 
     if (isUsingCloud) {
       try {
@@ -556,7 +566,7 @@ const firestoreServiceRaw = {
 
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    const deletedUids = handleFallback<string[]>('local_deleted_uids', []);
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
     
     const userMap = new Map<string, UserProfile>();
     // If cloud returned users, add them first
@@ -576,7 +586,7 @@ const firestoreServiceRaw = {
   // CLASSES
   // -------------------------------------------------------------
   async getClasses(): Promise<ClassItem[]> {
-    const deletedIds = handleFallback<string[]>('local_deleted_class_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
     let cloudClasses: ClassItem[] = [];
     if (isUsingCloud) {
       try {
@@ -713,7 +723,7 @@ const firestoreServiceRaw = {
   // PAYMENTS
   // -------------------------------------------------------------
   async getPayments(): Promise<Payment[]> {
-    const deletedIds = handleFallback<string[]>('local_deleted_payment_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
     let cloudPayments: Payment[] = [];
     if (isUsingCloud) {
        try {
@@ -958,7 +968,7 @@ const firestoreServiceRaw = {
     const filteredReg = registered.filter(u => u.uid !== uid);
     saveFallback('local_registered_users', filteredReg);
 
-    const deletedUids = handleFallback<string[]>('local_deleted_uids', []);
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
     if (!deletedUids.includes(uid)) {
       deletedUids.push(uid);
       saveFallback('local_deleted_uids', deletedUids);
@@ -1007,7 +1017,7 @@ const firestoreServiceRaw = {
     const filtered = items.filter(c => c.id !== classId);
     saveFallback('local_classes', filtered);
 
-    const deletedIds = handleFallback<string[]>('local_deleted_class_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
     if (!deletedIds.includes(classId)) {
       deletedIds.push(classId);
       saveFallback('local_deleted_class_ids', deletedIds);
@@ -1039,7 +1049,7 @@ const firestoreServiceRaw = {
     const filtered = payments.filter(p => p.id !== paymentId);
     saveFallback('local_payments', filtered);
 
-    const deletedIds = handleFallback<string[]>('local_deleted_payment_ids', []);
+    const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
     if (!deletedIds.includes(paymentId)) {
       deletedIds.push(paymentId);
       saveFallback('local_deleted_payment_ids', deletedIds);

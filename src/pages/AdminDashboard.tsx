@@ -46,7 +46,8 @@ import {
   BarChart3,
   Download,
   Sparkles,
-  Star
+  Star,
+  Upload
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -845,14 +846,18 @@ export const AdminDashboard: React.FC = () => {
 
           let realUid = "stud_" + Math.random().toString(36).substr(2, 9);
           // Try to enroll them into firebase authentication
+          let tempApp: any = null;
           try {
-            const tempApp = initializeApp(firebaseConfig, "TempAppStudentAdd_" + Math.floor(Math.random() * 100000));
+            tempApp = initializeApp(firebaseConfig, "TempAppStudentAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
             const userCredentials = await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
             realUid = userCredentials.user.uid;
-            await deleteApp(tempApp);
           } catch (firebaseErr: any) {
             console.warn("Firebase Auth auto-creation failed, using custom local UID. Reason: ", firebaseErr.message);
+          } finally {
+            if (tempApp) {
+              try { await deleteApp(tempApp); } catch (e) {}
+            }
           }
 
           // Set registration status to approved since it was explicitly added by Admin
@@ -910,14 +915,18 @@ export const AdminDashboard: React.FC = () => {
           uProfile.password = finalPassword;
 
           let realUid = "tut_" + Math.random().toString(36).substr(2, 9);
+          let tempApp: any = null;
           try {
-            const tempApp = initializeApp(firebaseConfig, "TempAppTutorAdd_" + Math.floor(Math.random() * 100000));
+            tempApp = initializeApp(firebaseConfig, "TempAppTutorAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
             const userCredentials = await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
             realUid = userCredentials.user.uid;
-            await deleteApp(tempApp);
           } catch (firebaseErr: any) {
             console.warn("Firebase Auth auto-creation failed for tutor. Reason: ", firebaseErr.message);
+          } finally {
+            if (tempApp) {
+              try { await deleteApp(tempApp); } catch (e) {}
+            }
           }
 
           await firestoreService.createUserProfile(realUid, uProfile);
@@ -985,8 +994,9 @@ export const AdminDashboard: React.FC = () => {
       }
       setModalType(null);
       await fetchAdminDatasets();
-    } catch (err) {
-      showToast("Administrative saving command failed.", "error");
+    } catch (err: any) {
+      console.error("Error saving modal data:", err);
+      showToast(`Administrative saving command failed: ${err?.message || String(err)}`, "error");
     } finally {
       setLoading(false);
     }
