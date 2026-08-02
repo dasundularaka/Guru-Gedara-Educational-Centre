@@ -17,7 +17,7 @@ import {
   Moon 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { firestoreService } from '../lib/firestoreService';
+import { firestoreService, safeStringify } from '../lib/firestoreService';
 import { Booking } from '../types';
 
 interface NavbarProps {
@@ -117,7 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab, onOpenG
           });
           
           if (updated) {
-            localStorage.setItem(notifiedKey, JSON.stringify(alreadyNotified));
+            localStorage.setItem(notifiedKey, safeStringify(alreadyNotified));
           }
         }
       }

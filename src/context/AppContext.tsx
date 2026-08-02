@@ -196,7 +196,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSyncLogs(prev => {
       const next = [newEntry, ...prev].slice(0, 50);
       try {
-        localStorage.setItem('local_sync_logs', JSON.stringify(next));
+        localStorage.setItem('local_sync_logs', safeStringify(next));
       } catch (e) {}
       return next;
     });

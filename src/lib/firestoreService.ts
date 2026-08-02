@@ -35,62 +35,83 @@ let isOriginalCloud = true;
 export function safeStringify(obj: any): string {
   if (obj === undefined) return 'undefined';
   if (obj === null) return 'null';
+  if (typeof obj === 'string') return JSON.stringify(obj);
+  if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
 
-  const seen = new WeakSet();
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(obj, (_key, value) => {
+      if (value === null || value === undefined) return value;
+      if (typeof value === 'function' || typeof value === 'symbol') return undefined;
 
-  const replacer = (_key: string, value: any) => {
-    if (typeof value === 'object' && value !== null) {
-      // Handle Firestore Timestamp
-      if (typeof value.toDate === 'function') {
+      if (typeof value === 'object') {
+        if (seen.has(value)) {
+          return undefined;
+        }
+        seen.add(value);
+
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+
+        if (typeof value.toDate === 'function') {
+          try {
+            return value.toDate().toISOString();
+          } catch (e) {
+            return undefined;
+          }
+        }
+
+        if (
+          value.nodeType !== undefined ||
+          value === window ||
+          value._firestore ||
+          value._delegate ||
+          value._key ||
+          value.firestore
+        ) {
+          return undefined;
+        }
+
         try {
-          return value.toDate().toISOString();
+          const cName = value.constructor?.name;
+          if (cName && cName !== 'Object' && cName !== 'Array') {
+            if (
+              cName.length <= 3 ||
+              cName.includes('Firestore') ||
+              cName.includes('Snapshot') ||
+              cName.includes('Reference') ||
+              cName.includes('Query') ||
+              cName.includes('Auth') ||
+              cName.includes('User') ||
+              cName.includes('Element') ||
+              cName.includes('Event') ||
+              cName.includes('Fiber')
+            ) {
+              return undefined;
+            }
+          }
         } catch (e) {
           return undefined;
         }
       }
-      // Handle Date
-      if (value instanceof Date) {
-        return value.toISOString();
-      }
-      // Handle DOM nodes, Window, Events, or non-serializable objects
-      if (
-        value.nodeType !== undefined ||
-        value === window ||
-        (value.constructor && value.constructor.name && (
-          value.constructor.name.startsWith('Y2') ||
-          value.constructor.name.startsWith('Ka') ||
-          value.constructor.name.includes('Firestore') ||
-          value.constructor.name.includes('Snapshot') ||
-          value.constructor.name.includes('Element') ||
-          value.constructor.name.includes('Event')
-        ))
-      ) {
-        return undefined;
-      }
 
-      // Circular reference check
-      if (seen.has(value)) {
-        return undefined; // Prune circular references completely
-      }
-      seen.add(value);
-    }
-
-    if (typeof value === 'function' || typeof value === 'symbol') {
-      return undefined;
-    }
-
-    return value;
-  };
-
-  try {
-    return JSON.stringify(obj, replacer);
+      return value;
+    });
   } catch (err) {
-    console.warn("[safeStringify] Fallback stringify triggered:", err);
+    console.warn("[safeStringify] Initial stringify failed, attempting shallow fallback:", err);
     try {
-      // Secondary fallback if native replacer encountered an unhandled getter error
+      const shallowSeen = new WeakSet();
       return JSON.stringify(obj, (_k, v) => {
-        if (typeof v === 'object' && v !== null) return '[Object]';
-        if (typeof v === 'function') return undefined;
+        if (typeof v === 'object' && v !== null) {
+          if (shallowSeen.has(v)) return undefined;
+          shallowSeen.add(v);
+          const name = v.constructor?.name;
+          if (name && name !== 'Object' && name !== 'Array') {
+            return undefined;
+          }
+        }
+        if (typeof v === 'function' || typeof v === 'symbol') return undefined;
         return v;
       });
     } catch (e2) {
@@ -354,11 +375,7 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
        try {
          const userRef = doc(db, 'users', uid);
-         const userSnap = await promiseWithTimeout(
-           getDoc(userRef),
-           2000,
-           { exists: () => false } as any
-         );
+         const userSnap = await getDoc(userRef);
          if (userSnap.exists()) {
            const userData = userSnap.data() as UserProfile;
            if (isSpecialAdminEmail(userData.email)) {
@@ -409,11 +426,7 @@ const firestoreServiceRaw = {
        try {
          const usersRef = collection(db, 'users');
          const q = query(usersRef, where('email', '==', cleanEmail));
-         const qSnap = await promiseWithTimeout(
-           getDocs(q),
-           2000,
-           { empty: true, docs: [] } as any
-         );
+         const qSnap = await getDocs(q);
          if (!qSnap.empty) {
            const userData = qSnap.docs[0].data() as UserProfile;
            if (isAdmin) {
@@ -431,11 +444,6 @@ const firestoreServiceRaw = {
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const tutorMatch = tutors.find(t => t.email.toLowerCase() === cleanEmail);
     if (tutorMatch) return tutorMatch;
-    
-    // Demo student
-    if (cleanEmail === "alex.mercer@example.com") {
-      return this.getUserProfile('student_demo');
-    }
     
     // Demo admin or admin accounts
     if (isAdmin) {
@@ -584,15 +592,10 @@ const firestoreServiceRaw = {
 
   async getAllUsers(): Promise<UserProfile[]> {
     const deletedUids = handleFallback<string>('local_deleted_uids', []);
-    let cloudUsers: UserProfile[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await promiseWithTimeout(
-          getDocs(collection(db, 'users')),
-          8000,
-          { docs: [] } as any
-        );
-        cloudUsers = snap.docs.map(doc => {
+        const snap = await getDocs(collection(db, 'users'));
+        const cloudUsers = snap.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
@@ -600,6 +603,8 @@ const firestoreServiceRaw = {
             id: doc.id
           } as UserProfile;
         });
+        saveFallback('local_registered_users', cloudUsers);
+        return cloudUsers.filter(u => !deletedUids.includes(u.uid || u.id));
       } catch (e) {
         console.warn("Fallback to local users list in getAllUsers", e);
       }
@@ -607,23 +612,15 @@ const firestoreServiceRaw = {
 
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    
     const userMap = new Map<string, UserProfile>();
-    // If cloud returned users, add them first
-    cloudUsers.forEach(u => {
+    tutors.forEach(u => {
       const key = u.uid || u.id;
       if (key) userMap.set(key, u);
     });
-    // If cloud didn't have certain fallback tutors or registered users, add if not deleted
-    tutors.forEach(u => {
-      const key = u.uid || u.id;
-      if (key && !userMap.has(key)) userMap.set(key, u);
-    });
     registered.forEach(u => {
       const key = u.uid || u.id;
-      if (key && !userMap.has(key)) userMap.set(key, u);
+      if (key) userMap.set(key, u);
     });
-    
     return Array.from(userMap.values()).filter(u => !deletedUids.includes(u.uid || u.id));
   },
 
@@ -632,29 +629,18 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   async getClasses(): Promise<ClassItem[]> {
     const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
-    let cloudClasses: ClassItem[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await promiseWithTimeout(
-          getDocs(collection(db, 'classes')),
-          8000,
-          { docs: [] } as any
-        );
-        cloudClasses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ClassItem);
-        if (cloudClasses.length > 0) {
-          saveFallback('local_classes', cloudClasses);
-          return cloudClasses.filter(c => !deletedIds.includes(c.id));
-        }
+        const snap = await getDocs(collection(db, 'classes'));
+        const cloudClasses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ClassItem);
+        saveFallback('local_classes', cloudClasses);
+        return cloudClasses.filter(c => !deletedIds.includes(c.id));
       } catch (e) {
         console.warn("Fallback classes loading.", e);
       }
     }
     const fallbackClasses = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
-    const classMap = new Map<string, ClassItem>();
-    fallbackClasses.forEach(c => {
-      if (c.id) classMap.set(c.id, c);
-    });
-    return Array.from(classMap.values()).filter(c => !deletedIds.includes(c.id));
+    return fallbackClasses.filter(c => !deletedIds.includes(c.id));
   },
 
   async createNewClass(classData: Omit<ClassItem, 'id'>): Promise<ClassItem> {
@@ -702,19 +688,12 @@ const firestoreServiceRaw = {
   // BOOKINGS / ENROLLMENTS
   // -------------------------------------------------------------
   async getBookings(): Promise<Booking[]> {
-    let cloudBookings: Booking[] = [];
     if (isUsingCloud) {
        try {
-         const snap = await promiseWithTimeout(
-           getDocs(collection(db, 'bookings')),
-           8000,
-           { docs: [] } as any
-         );
-         cloudBookings = snap.docs.map(doc => doc.data() as Booking);
-         if (cloudBookings.length > 0) {
-           saveFallback('local_bookings', cloudBookings);
-           return cloudBookings;
-         }
+         const snap = await getDocs(collection(db, 'bookings'));
+         const cloudBookings = snap.docs.map(doc => doc.data() as Booking);
+         saveFallback('local_bookings', cloudBookings);
+         return cloudBookings;
        } catch (e) {
          console.warn("Fallback reading bookings.", e);
        }
@@ -773,25 +752,18 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   async getPayments(): Promise<Payment[]> {
     const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
-    let cloudPayments: Payment[] = [];
     if (isUsingCloud) {
        try {
-         const snap = await promiseWithTimeout(
-           getDocs(collection(db, 'payments')),
-           8000,
-           { docs: [] } as any
-         );
-         cloudPayments = snap.docs.map(doc => {
+         const snap = await getDocs(collection(db, 'payments'));
+         const cloudPayments = snap.docs.map(doc => {
            const data = doc.data();
            return {
              ...data,
              id: doc.id
            } as Payment;
          });
-         if (cloudPayments.length > 0) {
-           saveFallback('local_payments', cloudPayments);
-           return cloudPayments.filter(p => !deletedIds.includes(p.id));
-         }
+         saveFallback('local_payments', cloudPayments);
+         return cloudPayments.filter(p => !deletedIds.includes(p.id));
        } catch (e) {
          console.warn("Fallback read payments.", e);
        }
@@ -852,32 +824,19 @@ const firestoreServiceRaw = {
   // NOTIFICATIONS
   // -------------------------------------------------------------
   async getNotifications(userId: string): Promise<NotificationItem[]> {
-    let cloudNotifications: NotificationItem[] = [];
     if (isUsingCloud) {
       try {
         const qRef = query(collection(db, 'notifications'), where('userId', '==', userId));
-        const snap = await promiseWithTimeout(
-          getDocs(qRef),
-          8000,
-          { docs: [] } as any
-        );
-        cloudNotifications = snap.docs.map(doc => doc.data() as NotificationItem);
+        const snap = await getDocs(qRef);
+        const cloudNotifications = snap.docs.map(doc => doc.data() as NotificationItem);
+        saveFallback('local_notifications', cloudNotifications);
+        return cloudNotifications;
       } catch (e) {
         console.warn("Fallback matching client notifications for " + userId, e);
       }
     }
-
     const localNots = handleFallback<NotificationItem>('local_notifications', INITIAL_NOTIFICATIONS);
-    const notMap = new Map<string, NotificationItem>();
-    localNots.forEach(n => notMap.set(n.id, n));
-    cloudNotifications.forEach(n => notMap.set(n.id, n));
-    const mergedList = Array.from(notMap.values());
-
-    if (cloudNotifications.length > 0) {
-      saveFallback('local_notifications', mergedList);
-    }
-
-    return mergedList.filter(n => n.userId === userId || n.userId === 'all');
+    return localNots.filter(n => n.userId === userId || n.userId === 'all');
   },
 
   async triggerNotification(userId: string, title: string, message: string, type: 'reminder' | 'payment' | 'announcement' | 'message'): Promise<NotificationItem> {
@@ -928,31 +887,21 @@ const firestoreServiceRaw = {
   // REAL MESSAGES (FEEDBACK/CHAT)
   // -------------------------------------------------------------
   async getUserMessages(userId: string): Promise<DirectMessage[]> {
-    let cloudMessages: DirectMessage[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await promiseWithTimeout(
-          getDocs(collection(db, 'messages')),
-          8000,
-          { docs: [] } as any
-        );
-        cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
+        const snap = await getDocs(collection(db, 'messages'));
+        const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
+        saveFallback('local_messages', cloudMessages);
+        return cloudMessages
+          .filter(m => m.senderId === userId || m.receiverId === userId)
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       } catch (e) {
         console.warn("Fallback loader messages.", e);
       }
     }
 
     const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
-    const messageMap = new Map<string, DirectMessage>();
-    localMsgs.forEach(m => messageMap.set(m.id, m));
-    cloudMessages.forEach(m => messageMap.set(m.id, m));
-    const mergedList = Array.from(messageMap.values());
-
-    if (cloudMessages.length > 0) {
-      saveFallback('local_messages', mergedList);
-    }
-
-    return mergedList
+    return localMsgs
       .filter(m => m.senderId === userId || m.receiverId === userId)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
@@ -1164,19 +1113,12 @@ const firestoreServiceRaw = {
   // REVIEWS & RATINGS
   // -------------------------------------------------------------
   async getReviews(): Promise<Review[]> {
-    let cloudReviews: Review[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await promiseWithTimeout(
-          getDocs(collection(db, 'reviews')),
-          8000,
-          { docs: [] } as any
-        );
-        cloudReviews = snap.docs.map(doc => doc.data() as Review);
-        if (cloudReviews.length > 0) {
-          saveFallback('local_reviews', cloudReviews);
-          return cloudReviews;
-        }
+        const snap = await getDocs(collection(db, 'reviews'));
+        const cloudReviews = snap.docs.map(doc => doc.data() as Review);
+        saveFallback('local_reviews', cloudReviews);
+        return cloudReviews;
       } catch (e) {
         console.warn("Fallback reading reviews.", e);
       }
@@ -1253,19 +1195,12 @@ const firestoreServiceRaw = {
   // ATTENDANCE METHODS
   // -------------------------------------------------------------
   async getAttendance(): Promise<AttendanceRecord[]> {
-    let cloudAttendance: AttendanceRecord[] = [];
     if (isUsingCloud) {
       try {
-        const snap = await promiseWithTimeout(
-          getDocs(collection(db, 'attendance')),
-          8000,
-          { docs: [] } as any
-        );
-        cloudAttendance = snap.docs.map(doc => doc.data() as AttendanceRecord);
-        if (cloudAttendance.length > 0) {
-          saveFallback('local_attendance', cloudAttendance);
-          return cloudAttendance;
-        }
+        const snap = await getDocs(collection(db, 'attendance'));
+        const cloudAttendance = snap.docs.map(doc => doc.data() as AttendanceRecord);
+        saveFallback('local_attendance', cloudAttendance);
+        return cloudAttendance;
       } catch (e) {
         console.warn("Fallback reading attendance.", e);
       }
@@ -1296,30 +1231,12 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'users'), (snap) => {
-    const deletedUids = handleFallback<string>('local_deleted_uids', []);
-    const cloudUsers = snap.docs
-      .map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as unknown as UserProfile))
-      .filter(u => !deletedUids.includes(u.uid || u.id || ''));
-
-          const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-          const registered = handleFallback<UserProfile>('local_registered_users', []);
-
-          const userMap = new Map<string, UserProfile>();
-          cloudUsers.forEach(u => {
-            const key = u.uid || u.id;
-            if (key) userMap.set(key, u);
-          });
-          tutors.forEach(u => {
-            const key = u.uid || u.id;
-            if (key && !userMap.has(key) && !deletedUids.includes(key)) userMap.set(key, u);
-          });
-          registered.forEach(u => {
-            const key = u.uid || u.id;
-            if (key && !userMap.has(key) && !deletedUids.includes(key)) userMap.set(key, u);
-          });
-
-          const result = Array.from(userMap.values());
-          callback(result);
+          const deletedUids = handleFallback<string>('local_deleted_uids', []);
+          const cloudUsers = snap.docs
+            .map(doc => ({ ...doc.data(), uid: doc.id, id: doc.id } as unknown as UserProfile))
+            .filter(u => !deletedUids.includes(u.uid || u.id || ''));
+          saveFallback('local_registered_users', cloudUsers);
+          callback(cloudUsers);
         }, (err) => console.warn("Users snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to users", e);
@@ -1406,20 +1323,10 @@ const firestoreServiceRaw = {
         const q = query(collection(db, 'messages'));
         return onSnapshot(q, (snap) => {
           const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
-          const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
-          const messageMap = new Map<string, DirectMessage>();
-          localMsgs.forEach(m => messageMap.set(m.id, m));
-          cloudMessages.forEach(m => messageMap.set(m.id, m));
-          const mergedList = Array.from(messageMap.values());
-          
-          if (cloudMessages.length > 0) {
-            saveFallback('local_messages', mergedList);
-          }
-          
-          const filtered = mergedList
+          saveFallback('local_messages', cloudMessages);
+          const filtered = cloudMessages
             .filter(m => m.senderId === userId || m.receiverId === userId)
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-          
           callback(filtered);
         }, (error) => {
           console.error('Error on user messages snapshot: ', error);
@@ -1436,28 +1343,16 @@ const firestoreServiceRaw = {
   subscribeDirectMessages(userId1: string, userId2: string, callback: (messages: DirectMessage[]) => void): () => void {
     if (isUsingCloud) {
       try {
-        const q = query(
-          collection(db, 'messages')
-        );
+        const q = query(collection(db, 'messages'));
         return onSnapshot(q, (snap) => {
           const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
-          const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
-          const messageMap = new Map<string, DirectMessage>();
-          localMsgs.forEach(m => messageMap.set(m.id, m));
-          cloudMessages.forEach(m => messageMap.set(m.id, m));
-          const mergedList = Array.from(messageMap.values());
-          
-          if (cloudMessages.length > 0) {
-            saveFallback('local_messages', mergedList);
-          }
-          
-          const filtered = mergedList
+          saveFallback('local_messages', cloudMessages);
+          const filtered = cloudMessages
             .filter(m => 
               (m.senderId === userId1 && m.receiverId === userId2) || 
               (m.senderId === userId2 && m.receiverId === userId1)
             )
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-          
           callback(filtered);
         }, (error) => {
           console.error('Error on messages snapshot: ', error);
@@ -1467,7 +1362,6 @@ const firestoreServiceRaw = {
       }
     }
     
-    // Offline fallback: one-time fetch
     this.getDirectMessages(userId1, userId2).then(callback);
     return () => {};
   }
