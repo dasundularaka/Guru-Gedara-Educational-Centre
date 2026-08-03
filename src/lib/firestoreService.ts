@@ -1332,33 +1332,69 @@ const firestoreServiceRaw = {
         if (list.length > 0) {
           saveFallback('local_banners', list);
           return list;
+        } else {
+          // Seed defaults to Firestore if cloud collection is empty
+          for (const b of defaultBanners) {
+            try {
+              await setDoc(doc(db, 'banners', b.id), b);
+            } catch (e) {}
+          }
+          saveFallback('local_banners', defaultBanners);
+          return defaultBanners;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Cloud getBanners error", e);
+      }
     }
     return handleFallback<BannerImage>('local_banners', defaultBanners);
   },
 
   async saveBanner(banner: BannerImage): Promise<void> {
-    if (isUsingCloud) {
-      try {
-        await setDoc(doc(db, 'banners', banner.id), banner);
-      } catch (e) {}
-    }
     const banners = await this.getBanners();
     const idx = banners.findIndex(b => b.id === banner.id);
     if (idx !== -1) banners[idx] = banner;
     else banners.push(banner);
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'banners', banner.id), banner);
+      } catch (e) {
+        console.warn("Failed to save banner doc to Firestore", e);
+      }
+    }
     saveFallback('local_banners', banners);
   },
 
   async deleteBanner(id: string): Promise<void> {
+    const banners = await this.getBanners();
+    const filtered = banners.filter(b => b.id !== id);
+
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'banners', id));
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Failed to delete banner doc from Firestore", e);
+      }
     }
-    const banners = await this.getBanners();
-    saveFallback('local_banners', banners.filter(b => b.id !== id));
+    saveFallback('local_banners', filtered);
+  },
+
+  subscribeBanners(callback: (banners: BannerImage[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'banners'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as BannerImage);
+          if (docs.length > 0) {
+            saveFallback('local_banners', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Banners snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to banners", e);
+      }
+    }
+    this.getBanners().then(callback);
+    return () => {};
   },
 
   // -------------------------------------------------------------

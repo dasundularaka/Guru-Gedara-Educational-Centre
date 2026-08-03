@@ -685,6 +685,12 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchAdminDatasets();
+    const unsubBanners = firestoreService.subscribeBanners((banners) => {
+      setBannersList(banners);
+    });
+    return () => {
+      unsubBanners();
+    };
   }, []);
 
   const handleUpdatePaymentStatus = async (paymentId: string, status: 'paid' | 'failed' | 'pending') => {

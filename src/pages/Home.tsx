@@ -60,15 +60,20 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
         const tutorsList = list.filter(u => u.role === 'tutor');
         const featuredTutors = tutorsList.filter(u => u.isFeatured === true);
         setTopTutors(featuredTutors.length > 0 ? featuredTutors : tutorsList);
-
-        // Load banners
-        const bannerData = await firestoreService.getBanners();
-        setBanners(bannerData.filter(b => b.active !== false));
       } catch (e) {
         console.warn(e);
       }
     };
     loadHomeRecords();
+
+    // Real-time subscription for hero banners
+    const unsubscribeBanners = firestoreService.subscribeBanners((bannerData) => {
+      setBanners(bannerData.filter(b => b.active !== false));
+    });
+
+    return () => {
+      unsubscribeBanners();
+    };
   }, []);
 
   useEffect(() => {
