@@ -204,6 +204,66 @@ function syncCloudFlag() {
   isUsingCloud = isOriginalCloud;
 }
 
+// Default fallback demo profiles
+export const DEFAULT_DEMO_USERS: Record<'admin' | 'tutor' | 'student', UserProfile> = {
+  admin: {
+    uid: 'admin_demo',
+    email: 'admin@gg.com',
+    name: 'Academy Administrator',
+    displayName: 'Academy Admin',
+    role: 'admin',
+    username: 'GA10000000',
+    photoURL: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop',
+    status: 'approved',
+    phone: '+94 77 111 2233',
+    gender: 'female',
+    createdAt: new Date().toISOString()
+  },
+  tutor: {
+    uid: 'tutor_sarah',
+    email: 'tutor@gg.com',
+    name: 'Faculty Tutor',
+    displayName: 'Faculty Tutor',
+    role: 'tutor',
+    username: 'GT20000000',
+    photoURL: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop',
+    status: 'approved',
+    phone: '+94 77 444 5566',
+    gender: 'female',
+    createdAt: new Date().toISOString(),
+    tutorDetails: {
+      bio: 'Senior Faculty Lecturer in Mathematics and Pure Science.',
+      subjects: ['Mathematics', 'Physics'],
+      experience: 8,
+      qualification: 'B.Sc. (Hons) First Class',
+      hourlyRate: 40,
+      rating: 5.0,
+      availability: [{ day: 'Monday', slots: ['04:00 PM', '06:00 PM'] }]
+    }
+  },
+  student: {
+    uid: 'student_demo',
+    email: 'student@gg.com',
+    name: 'Scholar Student',
+    displayName: 'Scholar Student',
+    role: 'student',
+    username: 'GB30000000',
+    photoURL: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop',
+    status: 'approved',
+    phone: '+94 77 777 8899',
+    gender: 'male',
+    address: '123 University Avenue, Colombo 07',
+    guardianName: 'D. M. Perera',
+    guardianPhone: '+94 71 222 3344',
+    createdAt: new Date().toISOString(),
+    studentDetails: {
+      grade: 'Grade 11',
+      parentContact: '+94 71 222 3344',
+      interests: ['Mathematics', 'Physics']
+    }
+  }
+};
+
 const firestoreServiceRaw = {
   isCloudConnected() {
     return isUsingCloud;
@@ -231,12 +291,6 @@ const firestoreServiceRaw = {
         { collection: 'classes', id: 'class_creative_writing' },
         { collection: 'classes', id: 'class_coding_web' },
         { collection: 'classes', id: 'class_algebra_basics' },
-        { collection: 'users', id: 'tutor_sarah' },
-        { collection: 'users', id: 'tutor_marcus' },
-        { collection: 'users', id: 'tutor_elena' },
-        { collection: 'users', id: 'tutor_david' },
-        { collection: 'users', id: 'student_demo' },
-        { collection: 'users', id: 'admin_demo' },
         { collection: 'bookings', id: 'booking_abc_1' },
         { collection: 'bookings', id: 'booking_abc_2' },
         { collection: 'payments', id: 'pay_1' },
@@ -263,27 +317,6 @@ const firestoreServiceRaw = {
           deleteDoc(doc(db, item.collection, item.id)).catch(() => {})
         )
       );
-
-      // Wipe local storage keys if they contain demo data
-      const scopedProj = firebaseConfig.projectId || 'default';
-      const cacheKeys = [
-        `local_classes_${scopedProj}`,
-        `local_users_tutors_${scopedProj}`,
-        `local_bookings_${scopedProj}`,
-        `local_payments_${scopedProj}`,
-        `local_notifications_${scopedProj}`,
-        `local_messages_${scopedProj}`,
-        `local_reviews_${scopedProj}`,
-        `local_study_materials_${scopedProj}`
-      ];
-      cacheKeys.forEach(k => {
-        try {
-          const raw = localStorage.getItem(k);
-          if (raw && (raw.includes('student_demo') || raw.includes('tutor_sarah') || raw.includes('class_calc_abc') || raw.includes('mat_1'))) {
-            localStorage.removeItem(k);
-          }
-        } catch (e) {}
-      });
 
       localStorage.setItem(cleanupKey, 'true');
       console.log("Demo data cleaned up successfully!");
@@ -345,6 +378,10 @@ const firestoreServiceRaw = {
   // USER PROFILES
   // -------------------------------------------------------------
   async getUserProfile(uid: string): Promise<UserProfile | null> {
+    if (uid === 'admin_demo') return DEFAULT_DEMO_USERS.admin;
+    if (uid === 'tutor_sarah') return DEFAULT_DEMO_USERS.tutor;
+    if (uid === 'student_demo') return DEFAULT_DEMO_USERS.student;
+
     if (isUsingCloud) {
        try {
          const userRef = doc(db, 'users', uid);
@@ -383,45 +420,70 @@ const firestoreServiceRaw = {
     return registered.find(u => u.uid === uid) || null;
   },
 
-  async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
-    const cleanEmail = email.trim().toLowerCase();
-    
+  async getUserProfileByEmailOrUsername(identifier: string): Promise<UserProfile | null> {
+    const cleanId = identifier.trim().toLowerCase();
+
+    if (cleanId === 'admin@gg.com' || cleanId === 'admin.academy@example.com' || cleanId === 'ga10000000') {
+      return DEFAULT_DEMO_USERS.admin;
+    }
+    if (cleanId === 'tutor@gg.com' || cleanId === 'sarah.jenkins@example.com' || cleanId === 'gt20000000') {
+      return DEFAULT_DEMO_USERS.tutor;
+    }
+    if (cleanId === 'student@gg.com' || cleanId === 'alex.mercer@example.com' || cleanId === 'gb30000000') {
+      return DEFAULT_DEMO_USERS.student;
+    }
+
     if (isUsingCloud) {
        try {
          const usersRef = collection(db, 'users');
-         const q = query(usersRef, where('email', '==', cleanEmail));
-         const qSnap = await promiseWithTimeout(
-           getDocs(q),
-           2000,
-           { empty: true, docs: [] } as any
-         );
-         if (!qSnap.empty) {
-           const userData = qSnap.docs[0].data() as UserProfile;
-           return userData;
+         const q1 = query(usersRef, where('email', '==', cleanId));
+         const qSnap1 = await promiseWithTimeout(getDocs(q1), 2500, { empty: true, docs: [] } as any);
+         if (!qSnap1.empty) {
+           return qSnap1.docs[0].data() as UserProfile;
          }
+
+         const q2 = query(usersRef, where('username', '==', cleanId.toUpperCase()));
+         const qSnap2 = await promiseWithTimeout(getDocs(q2), 2500, { empty: true, docs: [] } as any);
+         if (!qSnap2.empty) {
+           return qSnap2.docs[0].data() as UserProfile;
+         }
+
+         const q3 = query(usersRef, where('username', '==', cleanId));
+         const qSnap3 = await promiseWithTimeout(getDocs(q3), 2500, { empty: true, docs: [] } as any);
+         if (!qSnap3.empty) {
+           return qSnap3.docs[0].data() as UserProfile;
+         }
+
+         const all = await this.getAllUsers();
+         const match = all.find(u => 
+           (u.email || '').toLowerCase() === cleanId || 
+           (u.username || '').toLowerCase() === cleanId
+         );
+         if (match) return match;
        } catch (e) {
-         console.warn("Falling back search by email", e);
+         console.warn("Falling back search by email/username", e);
        }
     }
-    
-    // Check tutors
-    const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-    const tutorMatch = tutors.find(t => t.email.toLowerCase() === cleanEmail);
-    if (tutorMatch) return tutorMatch;
-    
-    // Demo student
-    if (cleanEmail === "alex.mercer@example.com") {
-      return this.getUserProfile('student_demo');
-    }
-    
-    // Demo admin
-    if (cleanEmail === "admin.academy@example.com") {
-      return this.getUserProfile('admin_demo');
-    }
-    
-    // Dynamically registered users
+
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    return registered.find(u => u.email.toLowerCase() === cleanEmail) || null;
+    const matchReg = registered.find(u => 
+      (u.email || '').toLowerCase() === cleanId || 
+      (u.username || '').toLowerCase() === cleanId
+    );
+    if (matchReg) return matchReg;
+
+    const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
+    const matchTut = tutors.find(u => 
+      (u.email || '').toLowerCase() === cleanId || 
+      (u.username || '').toLowerCase() === cleanId
+    );
+    if (matchTut) return matchTut;
+
+    return null;
+  },
+
+  async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
+    return this.getUserProfileByEmailOrUsername(email);
   },
 
   async createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<UserProfile> {
@@ -433,8 +495,8 @@ const firestoreServiceRaw = {
       throw new Error("Full name is required.");
     }
 
-    // Requirement 1: In database, username and uid must be equal (username = uid)
-    const effectiveUsername = uid;
+    // Preserve provided username or fallback to uid
+    const effectiveUsername = profile.username || uid;
 
     const baseProfile: Record<string, any> = {
       uid,
