@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ClassCard } from '../components/ClassCard';
+import { firestoreService } from '../lib/firestoreService';
 import { 
   Search, 
   SlidersHorizontal, 
@@ -13,14 +14,14 @@ import {
   Plus, 
   ExternalLink 
 } from 'lucide-react';
-import { ClassItem, StudyMaterial } from '../types';
+import { ClassItem, StudyMaterial, SubjectItem } from '../types';
 import { genericFirestoreService } from '../lib/genericFirestore';
 
 interface ClassesProps {
   onNavigateTab: (tab: string) => void;
 }
 
-const SUBJECT_CATEGORIES = ["All Subjects", "Mathematics", "Physics", "English", "Coding"];
+const DEFAULT_SUBJECT_CATEGORIES = ["All Subjects", "Mathematics", "Physics", "English", "Coding"];
 
 const INITIAL_MATERIALS: StudyMaterial[] = [];
 
@@ -29,6 +30,9 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   
   // Tab Switch: 'classes' or 'resources'
   const [activeTab, setActiveTab] = useState<'classes' | 'resources'>('classes');
+
+  // Dynamic Subjects from DB
+  const [subjectCategories, setSubjectCategories] = useState<string[]>(DEFAULT_SUBJECT_CATEGORIES);
 
   // Classes states
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,7 +61,21 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   useEffect(() => {
     refreshClasses();
     fetchStudyMaterials();
+    fetchSubjectsList();
   }, []);
+
+  const fetchSubjectsList = async () => {
+    try {
+      const dbSubjects = await firestoreService.getSubjects();
+      if (dbSubjects && dbSubjects.length > 0) {
+        const names = dbSubjects.map(s => s.name);
+        const merged = Array.from(new Set(["All Subjects", ...DEFAULT_SUBJECT_CATEGORIES.filter(c => c !== "All Subjects"), ...names]));
+        setSubjectCategories(merged);
+      }
+    } catch (e) {
+      console.warn("Could not fetch DB subjects in Classes.tsx", e);
+    }
+  };
 
   // Fetch Study Materials from genericFirestoreService
   const fetchStudyMaterials = async () => {
@@ -290,7 +308,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                     onChange={(e) => setSelectedSubject(e.target.value)}
                     className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
                   >
-                    {SUBJECT_CATEGORIES.map(sub => (
+                    {subjectCategories.map(sub => (
                       <option key={sub} value={sub}>{sub}</option>
                     ))}
                   </select>
@@ -481,7 +499,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                         onChange={(e) => setUploadSubject(e.target.value)}
                         className="w-full text-xs px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 outline-none font-bold text-slate-700 cursor-pointer"
                       >
-                        {SUBJECT_CATEGORIES.filter(cat => cat !== "All Subjects").map(cat => (
+                        {subjectCategories.filter(cat => cat !== "All Subjects").map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
@@ -550,7 +568,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                     onChange={(e) => setResSelectedSubject(e.target.value)}
                     className="w-full text-xs px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-650 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
                   >
-                    {SUBJECT_CATEGORIES.map(sub => (
+                    {subjectCategories.map(sub => (
                       <option key={sub} value={sub}>{sub}</option>
                     ))}
                   </select>

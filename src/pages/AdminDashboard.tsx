@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
-import { UserProfile, ClassItem, Booking, Payment } from '../types';
+import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem } from '../types';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -47,18 +47,42 @@ import {
   Download,
   Sparkles,
   Star,
-  Upload
+  Upload,
+  Compass,
+  Cpu,
+  Bookmark,
+  GraduationCap,
+  Calculator,
+  Atom,
+  FolderPlus,
+  Tag,
+  Layers
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments, resetDatabase } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
   const [paymentsList, setPaymentsList] = useState<Payment[]>(payments || []);
   const [bookingsList, setBookingsList] = useState<Booking[]>(bookings || []);
+  const [pathwaysList, setPathwaysList] = useState<PathwayItem[]>([]);
+  const [subjectsList, setSubjectsList] = useState<SubjectItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Pathway management modal states
+  const [pathwayModalOpen, setPathwayModalOpen] = useState(false);
+  const [editingPathway, setEditingPathway] = useState<PathwayItem | null>(null);
+  const [pathwayTitle, setPathwayTitle] = useState("");
+  const [pathwayDescription, setPathwayDescription] = useState("");
+  const [pathwayIconName, setPathwayIconName] = useState("BookOpen");
+  const [pathwayCategory, setPathwayCategory] = useState("Mathematics");
+  const [isSavingPathway, setIsSavingPathway] = useState(false);
+
+  // Subject management states
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [isAddingSubject, setIsAddingSubject] = useState(false);
 
   // Review status filters
   const [reviewFilterStatus, setReviewFilterStatus] = useState<string>("all");
@@ -432,22 +456,126 @@ export const AdminDashboard: React.FC = () => {
   const fetchAdminDatasets = async () => {
     setLoading(true);
     try {
-      // Fetch users, classes, payments, and bookings in parallel to optimize admin dashboard performance
-      const [allUsers, allClass, allPays, allBook] = await Promise.all([
+      // Fetch users, classes, payments, bookings, pathways, and subjects in parallel
+      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects] = await Promise.all([
         firestoreService.getAllUsers(),
         firestoreService.getClasses(),
         firestoreService.getPayments(),
-        firestoreService.getBookings()
+        firestoreService.getBookings(),
+        firestoreService.getPathways(),
+        firestoreService.getSubjects()
       ]);
 
       setUsers(allUsers);
       setClassesList(allClass);
       setPaymentsList(allPays);
       setBookingsList(allBook);
+      setPathwaysList(allPathways);
+      setSubjectsList(allSubjects);
     } catch (e) {
       console.warn("Failed index mapping of site admin data pools", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Pathways Handlers
+  const handleOpenPathwayModal = (pathway?: PathwayItem) => {
+    if (pathway) {
+      setEditingPathway(pathway);
+      setPathwayTitle(pathway.title);
+      setPathwayDescription(pathway.description);
+      setPathwayIconName(pathway.iconName || 'BookOpen');
+      setPathwayCategory(pathway.category || 'Mathematics');
+    } else {
+      setEditingPathway(null);
+      setPathwayTitle('');
+      setPathwayDescription('');
+      setPathwayIconName('BookOpen');
+      setPathwayCategory('Mathematics');
+    }
+    setPathwayModalOpen(true);
+  };
+
+  const handleSavePathway = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pathwayTitle.trim() || !pathwayDescription.trim()) {
+      showToast("Pathway title and description are required.", "error");
+      return;
+    }
+    setIsSavingPathway(true);
+    try {
+      const pathwayObj: PathwayItem = {
+        id: editingPathway ? editingPathway.id : 'path_' + Date.now(),
+        title: pathwayTitle.trim(),
+        description: pathwayDescription.trim(),
+        iconName: pathwayIconName,
+        category: pathwayCategory.trim()
+      };
+      await firestoreService.savePathway(pathwayObj);
+      showToast(editingPathway ? "Course pathway updated successfully!" : "New course pathway created!", "success");
+      setPathwayModalOpen(false);
+      const updatedPathways = await firestoreService.getPathways();
+      setPathwaysList(updatedPathways);
+    } catch (err: any) {
+      showToast("Failed to save pathway: " + (err.message || String(err)), "error");
+    } finally {
+      setIsSavingPathway(false);
+    }
+  };
+
+  const handleDeletePathwayItem = async (id: string) => {
+    try {
+      await firestoreService.deletePathway(id);
+      showToast("Course pathway deleted successfully.", "success");
+      setPathwaysList(prev => prev.filter(p => p.id !== id));
+    } catch (err: any) {
+      showToast("Failed to delete pathway.", "error");
+    }
+  };
+
+  // Subjects Handlers
+  const handleAddSubjectCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubjectName.trim()) {
+      showToast("Please enter a subject category name.", "error");
+      return;
+    }
+    setIsAddingSubject(true);
+    try {
+      const added = await firestoreService.addSubject(newSubjectName.trim());
+      showToast(`Subject category "${added.name}" added to database!`, "success");
+      setNewSubjectName('');
+      const updatedSubjects = await firestoreService.getSubjects();
+      setSubjectsList(updatedSubjects);
+    } catch (err: any) {
+      showToast("Failed to add subject category.", "error");
+    } finally {
+      setIsAddingSubject(false);
+    }
+  };
+
+  const handleDeleteSubjectCategory = async (id: string, name: string) => {
+    try {
+      await firestoreService.deleteSubject(id);
+      showToast(`Subject "${name}" removed from database.`, "info");
+      setSubjectsList(prev => prev.filter(s => s.id !== id));
+    } catch (err: any) {
+      showToast("Failed to remove subject.", "error");
+    }
+  };
+
+  // Helper to render icon for Pathways
+  const renderPathwayIcon = (iconName: string, className = "w-5 h-5") => {
+    switch (iconName) {
+      case 'Cpu': return <Cpu className={className} />;
+      case 'Compass': return <Compass className={className} />;
+      case 'Bookmark': return <Bookmark className={className} />;
+      case 'GraduationCap': return <GraduationCap className={className} />;
+      case 'Calculator': return <Calculator className={className} />;
+      case 'Atom': return <Atom className={className} />;
+      case 'Sparkles': return <Sparkles className={className} />;
+      default: return <BookOpen className={className} />;
     }
   };
 
@@ -1091,6 +1219,13 @@ export const AdminDashboard: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'classes' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <BookOpen className="w-4 h-4" /> Curriculums
+            </button>
+            <button
+              id="admin_tab_pathways"
+              onClick={() => setActiveTab('pathways')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'pathways' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+            >
+              <Layers className="w-4 h-4 text-cyan-400" /> Course Pathways & Subjects
             </button>
             <button
               id="admin_tab_notices"
@@ -2466,6 +2601,164 @@ export const AdminDashboard: React.FC = () => {
               </motion.div>
             )}
 
+            {/* 9. PATHWAYS & SUBJECTS MANAGEMENT */}
+            {activeTab === 'pathways' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-8"
+              >
+                {/* SECTION 1: ADVANCED COURSE PATHWAYS */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                          <Layers className="w-5 h-5" />
+                        </span>
+                        <h2 className="text-xl font-extrabold text-blue-955 tracking-tight">Advanced Course Pathways</h2>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Configure syllabus track titles, descriptions, categories, and icon representations displayed across the academy portal.
+                      </p>
+                    </div>
+
+                    <button
+                      id="admin_add_pathway_btn"
+                      onClick={() => handleOpenPathwayModal()}
+                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" /> Create Course Pathway
+                    </button>
+                  </div>
+
+                  {pathwaysList.length === 0 ? (
+                    <div className="p-12 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-3">
+                      <Layers className="w-10 h-10 text-gray-400 mx-auto" />
+                      <h4 className="text-sm font-bold text-gray-700">No Course Pathways Configured</h4>
+                      <p className="text-xs text-gray-400 max-w-sm mx-auto">Click "Create Course Pathway" to publish advanced track details to the portal database.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5">
+                      {pathwaysList.map(pathway => (
+                        <div 
+                          key={pathway.id}
+                          className="p-5 rounded-2xl border border-gray-100 hover:border-blue-200 bg-white hover:shadow-md transition-all space-y-4 flex flex-col justify-between"
+                        >
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                                  {renderPathwayIcon(pathway.iconName, "w-5 h-5")}
+                                </div>
+                                <div>
+                                  <h3 className="text-sm font-bold text-blue-955">{pathway.title}</h3>
+                                  <span className="inline-block mt-0.5 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[10px] font-bold uppercase tracking-wider font-mono">
+                                    {pathway.category || 'General'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <p className="text-xs text-gray-600 leading-relaxed font-sans">
+                              {pathway.description}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+                            <button
+                              id={`edit-pathway-${pathway.id}`}
+                              onClick={() => handleOpenPathwayModal(pathway)}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit Details
+                            </button>
+                            <button
+                              id={`delete-pathway-${pathway.id}`}
+                              onClick={() => handleDeletePathwayItem(pathway.id)}
+                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* SECTION 2: DATABASE SUBJECT CATEGORIES */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+                          <Tag className="w-5 h-5" />
+                        </span>
+                        <h2 className="text-xl font-extrabold text-blue-955 tracking-tight">Database Subjects & Categories</h2>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Add or modify available subjects in the database. These subject categories are dynamically available when publishing new classes and filtering courses.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Add New Subject Form */}
+                  <form onSubmit={handleAddSubjectCategory} className="flex flex-col sm:flex-row gap-3 items-stretch">
+                    <div className="relative flex-1">
+                      <Tag className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" />
+                      <input 
+                        type="text" 
+                        required
+                        value={newSubjectName} 
+                        onChange={(e) => setNewSubjectName(e.target.value)}
+                        placeholder="Enter subject name (e.g., Combined Mathematics, Artificial Intelligence, Biology)..."
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs outline-none focus:border-purple-500 bg-gray-50/50"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isAddingSubject}
+                      id="admin_add_subject_category_btn"
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
+                    >
+                      <Plus className="w-4 h-4" /> {isAddingSubject ? 'Adding...' : 'Add Subject to DB'}
+                    </button>
+                  </form>
+
+                  {/* List of Registered Subjects */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
+                      Current Registered Database Subjects ({subjectsList.length}):
+                    </h4>
+                    {subjectsList.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">No custom subject categories added yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2.5">
+                        {subjectsList.map(sub => (
+                          <div 
+                            key={sub.id}
+                            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2 shadow-2xs hover:border-purple-300 transition-colors"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                            <span>{sub.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSubjectCategory(sub.id, sub.name)}
+                              className="text-gray-400 hover:text-red-600 transition-colors p-0.5 ml-1 cursor-pointer"
+                              title="Delete Subject"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
           </div>
         )}
 
@@ -2911,14 +3204,23 @@ export const AdminDashboard: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Subject Domain</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Subject Category / Domain</label>
+                      <select 
+                        value={classSubject} 
+                        onChange={(e) => setClassSubject(e.target.value)}
+                        className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500 text-xs font-semibold mb-1.5"
+                      >
+                        <option value="">-- Select Subject from Database --</option>
+                        {subjectsList.map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
                       <input 
-                        required 
                         type="text" 
                         value={classSubject} 
                         onChange={(e) => setClassSubject(e.target.value)}
-                        placeholder="Calculus"
-                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                        placeholder="Or enter custom subject category..."
+                        className="w-full p-2 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -3189,6 +3491,110 @@ export const AdminDashboard: React.FC = () => {
                   className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 cursor-pointer"
                 >
                   Save Entity Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* PATHWAY MODAL */}
+      {pathwayModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5 animate-fade-in text-xs font-sans text-gray-800">
+            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+              <h3 className="text-base font-extrabold text-blue-955 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-blue-600" />
+                {editingPathway ? 'Edit Course Pathway Details' : 'Create New Course Pathway'}
+              </h3>
+              <button 
+                onClick={() => setPathwayModalOpen(false)} 
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePathway} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                  Pathway Title
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  value={pathwayTitle}
+                  onChange={(e) => setPathwayTitle(e.target.value)}
+                  placeholder="e.g. Advanced Mathematics & Pre-Calculus"
+                  className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                    Category Tag
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    value={pathwayCategory}
+                    onChange={(e) => setPathwayCategory(e.target.value)}
+                    placeholder="e.g. Mathematics, Science"
+                    className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                    Pathway Icon
+                  </label>
+                  <select 
+                    value={pathwayIconName}
+                    onChange={(e) => setPathwayIconName(e.target.value)}
+                    className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500 font-medium"
+                  >
+                    <option value="BookOpen">BookOpen (Standard)</option>
+                    <option value="Cpu">Cpu (Tech/Science)</option>
+                    <option value="Compass">Compass (Explore/Art)</option>
+                    <option value="Bookmark">Bookmark (Literature)</option>
+                    <option value="GraduationCap">GraduationCap (Academic)</option>
+                    <option value="Calculator">Calculator (Maths)</option>
+                    <option value="Atom">Atom (Physics)</option>
+                    <option value="Sparkles">Sparkles (Featured)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                  Detailed Description
+                </label>
+                <textarea 
+                  rows={4}
+                  required
+                  value={pathwayDescription}
+                  onChange={(e) => setPathwayDescription(e.target.value)}
+                  placeholder="Comprehensive description of topics, syllabus modules, and target outcomes covered in this course pathway..."
+                  className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex gap-3 border-t border-gray-100 pt-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPathwayModalOpen(false)}
+                  className="px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPathway}
+                  id="save_pathway_submit_btn"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {isSavingPathway ? 'Saving Changes...' : 'Save Course Pathway'}
                 </button>
               </div>
             </form>

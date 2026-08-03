@@ -1481,6 +1481,16 @@ const firestoreServiceRaw = {
     saveFallback('local_pathways', items);
   },
 
+  async deletePathway(id: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'pathways', id));
+      } catch (e) {}
+    }
+    const items = await this.getPathways();
+    saveFallback('local_pathways', items.filter(p => p.id !== id));
+  },
+
   // -------------------------------------------------------------
   // STUDY MATERIALS & CLASS RESOURCES
   // -------------------------------------------------------------
