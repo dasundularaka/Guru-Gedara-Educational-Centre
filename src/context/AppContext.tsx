@@ -757,9 +757,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
         const overridePass = overrides[userMatch.email.toLowerCase()] || overrides[cleanInput.toLowerCase()];
 
-        const expectedPassword = overridePass || userMatch.password || 'test123';
+        const expectedPassword = overridePass || userMatch.password;
 
-        if (pass !== expectedPassword) {
+        if (expectedPassword && pass !== expectedPassword) {
           throw new Error("Invalid email/username or password credentials.");
         }
 
@@ -773,48 +773,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return userMatch;
       }
 
-      // 3. Check for password overrides or default passwords for keyword demo accounts
-      const overridesJSON = localStorage.getItem('local_password_overrides');
-      const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
-      const expectedPassword = overrides[lowercaseInput] || 'test123';
-
-      if (pass !== expectedPassword) {
-        throw new Error("Invalid password or credentials entered.");
-      }
-
-      // 4. Match keyword demo credentials
-      if (lowercaseInput === 'student@gg.com' || lowercaseInput.includes('student')) {
-        const dummy = await handleSimulatedDemo('student');
-        return dummy;
-      } else if (lowercaseInput === 'tutor@gg.com' || lowercaseInput.includes('tutor')) {
-        const dummy = await handleSimulatedDemo('tutor');
-        return dummy;
-      } else if (lowercaseInput === 'admin@gg.com' || lowercaseInput.includes('admin')) {
-        const dummy = await handleSimulatedDemo('admin');
-        return dummy;
-      }
-
-      // 5. Default Fallback for custom accounts
-      const dummy = DEFAULT_DEMO_USERS.student;
-      const emailPrefix = lowercaseInput.split('@')[0] || 'scholar';
-      const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-      
-      const customUser: UserProfile = {
-        ...dummy,
-        uid: 'user_' + Date.now(),
-        email: lowercaseInput.includes('@') ? lowercaseInput : `${lowercaseInput}@gg.com`,
-        name: `${displayName} Student`,
-        displayName: displayName,
-        status: 'approved' as const
-      };
-      
-      try {
-        localStorage.setItem('local_running_session', safeStringify(customUser));
-      } catch (err) {}
-      setCurrentUser(customUser);
-      showToast(`Logged in successfully with '${lowercaseInput}'!`, "success");
-      setLoading(false);
-      return customUser;
+      throw new Error("User account not found in database. Please check your credentials or register an account.");
 
     } catch (err: any) {
       setLoading(false);

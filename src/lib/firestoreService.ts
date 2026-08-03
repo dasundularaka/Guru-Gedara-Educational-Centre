@@ -378,16 +378,12 @@ const firestoreServiceRaw = {
   // USER PROFILES
   // -------------------------------------------------------------
   async getUserProfile(uid: string): Promise<UserProfile | null> {
-    if (uid === 'admin_demo') return DEFAULT_DEMO_USERS.admin;
-    if (uid === 'tutor_sarah') return DEFAULT_DEMO_USERS.tutor;
-    if (uid === 'student_demo') return DEFAULT_DEMO_USERS.student;
-
     if (isUsingCloud) {
        try {
          const userRef = doc(db, 'users', uid);
          const userSnap = await promiseWithTimeout(
            getDoc(userRef),
-           2000,
+           2500,
            { exists: () => false } as any
          );
          if (userSnap.exists()) {
@@ -422,16 +418,6 @@ const firestoreServiceRaw = {
 
   async getUserProfileByEmailOrUsername(identifier: string): Promise<UserProfile | null> {
     const cleanId = identifier.trim().toLowerCase();
-
-    if (cleanId === 'admin@gg.com' || cleanId === 'admin.academy@example.com' || cleanId === 'ga10000000') {
-      return DEFAULT_DEMO_USERS.admin;
-    }
-    if (cleanId === 'tutor@gg.com' || cleanId === 'sarah.jenkins@example.com' || cleanId === 'gt20000000') {
-      return DEFAULT_DEMO_USERS.tutor;
-    }
-    if (cleanId === 'student@gg.com' || cleanId === 'alex.mercer@example.com' || cleanId === 'gb30000000') {
-      return DEFAULT_DEMO_USERS.student;
-    }
 
     if (isUsingCloud) {
        try {
