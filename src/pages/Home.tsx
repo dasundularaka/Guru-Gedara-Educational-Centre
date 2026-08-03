@@ -63,7 +63,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
         // Load banners
         const bannerData = await firestoreService.getBanners();
-        setBanners(bannerData);
+        setBanners(bannerData.filter(b => b.active !== false));
       } catch (e) {
         console.warn(e);
       }

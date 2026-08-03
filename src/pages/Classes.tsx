@@ -401,7 +401,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
               <div className="flex gap-2 flex-wrap items-center mt-5 border-t border-slate-100 pt-5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
                 <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Quick Filters:</span>
-                {SUBJECT_CATEGORIES.map(sub => (
+                {subjectCategories.map(sub => (
                   <button
                     key={sub}
                     onClick={() => setSelectedSubject(sub)}

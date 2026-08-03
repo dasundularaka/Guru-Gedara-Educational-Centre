@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
-import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem } from '../types';
+import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage } from '../types';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -56,12 +56,16 @@ import {
   Atom,
   FolderPlus,
   Tag,
-  Layers
+  Layers,
+  Image as ImageIcon,
+  ExternalLink,
+  Check,
+  Power
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments, resetDatabase } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'notices' | 'admins' | 'reviews'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
@@ -69,6 +73,7 @@ export const AdminDashboard: React.FC = () => {
   const [bookingsList, setBookingsList] = useState<Booking[]>(bookings || []);
   const [pathwaysList, setPathwaysList] = useState<PathwayItem[]>([]);
   const [subjectsList, setSubjectsList] = useState<SubjectItem[]>([]);
+  const [bannersList, setBannersList] = useState<BannerImage[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Pathway management modal states
@@ -83,6 +88,16 @@ export const AdminDashboard: React.FC = () => {
   // Subject management states
   const [newSubjectName, setNewSubjectName] = useState("");
   const [isAddingSubject, setIsAddingSubject] = useState(false);
+
+  // Banner management modal states
+  const [bannerModalOpen, setBannerModalOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<BannerImage | null>(null);
+  const [bannerTitle, setBannerTitle] = useState("");
+  const [bannerSubtitle, setBannerSubtitle] = useState("");
+  const [bannerImageUrl, setBannerImageUrl] = useState("");
+  const [bannerLinkUrl, setBannerLinkUrl] = useState("");
+  const [bannerActive, setBannerActive] = useState(true);
+  const [isSavingBanner, setIsSavingBanner] = useState(false);
 
   // Review status filters
   const [reviewFilterStatus, setReviewFilterStatus] = useState<string>("all");
@@ -456,14 +471,15 @@ export const AdminDashboard: React.FC = () => {
   const fetchAdminDatasets = async () => {
     setLoading(true);
     try {
-      // Fetch users, classes, payments, bookings, pathways, and subjects in parallel
-      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects] = await Promise.all([
+      // Fetch users, classes, payments, bookings, pathways, subjects, and banners in parallel
+      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects, allBanners] = await Promise.all([
         firestoreService.getAllUsers(),
         firestoreService.getClasses(),
         firestoreService.getPayments(),
         firestoreService.getBookings(),
         firestoreService.getPathways(),
-        firestoreService.getSubjects()
+        firestoreService.getSubjects(),
+        firestoreService.getBanners()
       ]);
 
       setUsers(allUsers);
@@ -472,11 +488,99 @@ export const AdminDashboard: React.FC = () => {
       setBookingsList(allBook);
       setPathwaysList(allPathways);
       setSubjectsList(allSubjects);
+      setBannersList(allBanners);
     } catch (e) {
       console.warn("Failed index mapping of site admin data pools", e);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Banner Handlers
+  const handleOpenBannerModal = (banner?: BannerImage) => {
+    if (banner) {
+      setEditingBanner(banner);
+      setBannerTitle(banner.title || '');
+      setBannerSubtitle(banner.subtitle || '');
+      setBannerImageUrl(banner.imageUrl || '');
+      setBannerLinkUrl(banner.linkUrl || '');
+      setBannerActive(banner.active ?? true);
+    } else {
+      setEditingBanner(null);
+      setBannerTitle('');
+      setBannerSubtitle('');
+      setBannerImageUrl('https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200');
+      setBannerLinkUrl('');
+      setBannerActive(true);
+    }
+    setBannerModalOpen(true);
+  };
+
+  const handleSaveBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bannerImageUrl.trim()) {
+      showToast("Banner image URL or file is required.", "error");
+      return;
+    }
+    setIsSavingBanner(true);
+    try {
+      const bannerObj: BannerImage = {
+        id: editingBanner ? editingBanner.id : 'b_' + Date.now(),
+        title: bannerTitle.trim() || undefined,
+        subtitle: bannerSubtitle.trim() || undefined,
+        imageUrl: bannerImageUrl.trim(),
+        linkUrl: bannerLinkUrl.trim() || undefined,
+        active: bannerActive,
+        createdAt: editingBanner ? editingBanner.createdAt : new Date().toISOString()
+      };
+      await firestoreService.saveBanner(bannerObj);
+      showToast(editingBanner ? "Hero banner image updated successfully!" : "New hero banner image published!", "success");
+      setBannerModalOpen(false);
+      const updated = await firestoreService.getBanners();
+      setBannersList(updated);
+    } catch (err: any) {
+      showToast("Failed to save banner image: " + (err.message || String(err)), "error");
+    } finally {
+      setIsSavingBanner(false);
+    }
+  };
+
+  const handleDeleteBannerItem = async (id: string) => {
+    try {
+      await firestoreService.deleteBanner(id);
+      showToast("Hero banner image deleted successfully.", "success");
+      setBannersList(prev => prev.filter(b => b.id !== id));
+    } catch (err: any) {
+      showToast("Failed to delete banner image.", "error");
+    }
+  };
+
+  const handleToggleBannerActive = async (banner: BannerImage) => {
+    try {
+      const updatedBanner: BannerImage = { ...banner, active: !banner.active };
+      await firestoreService.saveBanner(updatedBanner);
+      showToast(`Banner image is now ${updatedBanner.active ? 'Active (Visible on Homepage)' : 'Inactive (Hidden)'}.`, "info");
+      setBannersList(prev => prev.map(b => b.id === banner.id ? updatedBanner : b));
+    } catch (err: any) {
+      showToast("Failed to change banner active status.", "error");
+    }
+  };
+
+  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image file size must be less than 5MB.", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (reader.result) {
+        setBannerImageUrl(reader.result as string);
+        showToast("Banner image file uploaded & attached!", "success");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Pathways Handlers
@@ -1226,6 +1330,13 @@ export const AdminDashboard: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'pathways' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <Layers className="w-4 h-4 text-cyan-400" /> Course Pathways & Subjects
+            </button>
+            <button
+              id="admin_tab_banners"
+              onClick={() => setActiveTab('banners')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'banners' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+            >
+              <ImageIcon className="w-4 h-4 text-emerald-400" /> Hero Banners
             </button>
             <button
               id="admin_tab_notices"
@@ -2759,6 +2870,128 @@ export const AdminDashboard: React.FC = () => {
               </motion.div>
             )}
 
+            {/* 10. HERO BANNERS MANAGEMENT */}
+            {activeTab === 'banners' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                          <ImageIcon className="w-5 h-5" />
+                        </span>
+                        <h2 className="text-xl font-extrabold text-blue-955 tracking-tight">Homepage Hero Banner Images</h2>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Manage promotional hero banners, image graphics, titles, and redirect links displayed in the homepage carousel.
+                      </p>
+                    </div>
+
+                    <button
+                      id="admin_add_banner_btn"
+                      onClick={() => handleOpenBannerModal()}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" /> Add Hero Banner Image
+                    </button>
+                  </div>
+
+                  {bannersList.length === 0 ? (
+                    <div className="p-12 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200 space-y-3">
+                      <ImageIcon className="w-10 h-10 text-gray-400 mx-auto" />
+                      <h4 className="text-sm font-bold text-gray-700">No Hero Banners Published</h4>
+                      <p className="text-xs text-gray-400 max-w-sm mx-auto">Click "Add Hero Banner Image" to publish carousel slides for the academy homepage.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {bannersList.map(banner => (
+                        <div 
+                          key={banner.id}
+                          className="p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 bg-white hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                        >
+                          <div className="space-y-3">
+                            {/* Banner Image Preview Container */}
+                            <div className="relative w-full h-40 rounded-xl overflow-hidden border border-gray-100 bg-slate-900 group">
+                              <img 
+                                referrerPolicy="no-referrer"
+                                src={banner.imageUrl} 
+                                alt={banner.title || 'Banner'} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200';
+                                }}
+                              />
+                              {/* Status Badge Overlay */}
+                              <div className="absolute top-3 left-3">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold font-mono tracking-wider uppercase backdrop-blur-md shadow-xs ${banner.active ? 'bg-emerald-500/90 text-white' : 'bg-slate-800/90 text-slate-300 border border-slate-600'}`}>
+                                  {banner.active ? '● Active' : '○ Hidden'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Banner Text Details */}
+                            <div className="space-y-1">
+                              <h3 className="text-sm font-extrabold text-blue-955 line-clamp-1">
+                                {banner.title || 'Untitled Banner'}
+                              </h3>
+                              {banner.subtitle && (
+                                <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                                  {banner.subtitle}
+                                </p>
+                              )}
+                              {banner.linkUrl && (
+                                <a 
+                                  href={banner.linkUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline font-medium mt-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> {banner.linkUrl}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Action Controls */}
+                          <div className="flex items-center justify-between border-t border-gray-100 pt-3 gap-2">
+                            <button
+                              id={`toggle-banner-${banner.id}`}
+                              onClick={() => handleToggleBannerActive(banner)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${banner.active ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}
+                              title={banner.active ? 'Deactivate Banner' : 'Activate Banner'}
+                            >
+                              <Power className="w-3.5 h-3.5" /> {banner.active ? 'Visible' : 'Hidden'}
+                            </button>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                id={`edit-banner-${banner.id}`}
+                                onClick={() => handleOpenBannerModal(banner)}
+                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5 text-blue-600" /> Edit
+                              </button>
+                              <button
+                                id={`delete-banner-${banner.id}`}
+                                onClick={() => handleDeleteBannerItem(banner.id)}
+                                className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-650 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
           </div>
         )}
 
@@ -3595,6 +3828,170 @@ export const AdminDashboard: React.FC = () => {
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
                 >
                   {isSavingPathway ? 'Saving Changes...' : 'Save Course Pathway'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Banner Creation / Editing Modal */}
+      {bannerModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-5 animate-fade-in text-xs font-sans text-gray-800">
+            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+              <h3 className="text-base font-extrabold text-blue-955 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-emerald-600" />
+                {editingBanner ? 'Edit Hero Banner Image' : 'Publish Hero Banner Image'}
+              </h3>
+              <button 
+                onClick={() => setBannerModalOpen(false)} 
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBanner} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                  Banner Headline / Title
+                </label>
+                <input 
+                  type="text"
+                  value={bannerTitle}
+                  onChange={(e) => setBannerTitle(e.target.value)}
+                  placeholder="e.g., New Intake Open for 2026 Academic Year"
+                  className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                  Subtitle / Sub-headline
+                </label>
+                <input 
+                  type="text"
+                  value={bannerSubtitle}
+                  onChange={(e) => setBannerSubtitle(e.target.value)}
+                  placeholder="e.g., Enroll in Top STEM & Languages Curriculums"
+                  className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                  Target / Redirect Link URL (Optional)
+                </label>
+                <input 
+                  type="text"
+                  value={bannerLinkUrl}
+                  onChange={(e) => setBannerLinkUrl(e.target.value)}
+                  placeholder="https://guru-gedara.edu/admissions or #classes"
+                  className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 font-medium"
+                />
+              </div>
+
+              {/* Banner Image Selection */}
+              <div className="space-y-3 pt-1 border-t border-gray-100">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono">
+                  Banner Image Source
+                </label>
+
+                {/* Upload Local Image File */}
+                <div className="flex items-center gap-3">
+                  <label className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 cursor-pointer flex items-center gap-2 transition-all">
+                    <Upload className="w-4 h-4" /> Upload Local Image
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleBannerFileUpload} 
+                      className="hidden" 
+                    />
+                  </label>
+                  <span className="text-[11px] text-gray-400">or enter image web URL below</span>
+                </div>
+
+                <input 
+                  type="text"
+                  required
+                  value={bannerImageUrl}
+                  onChange={(e) => setBannerImageUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 font-mono text-[11px]"
+                />
+
+                {/* Stock Image Presets */}
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 block mb-1.5">Quick Stock Presets:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { name: "STEM Intake", url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200" },
+                      { name: "Virtual Lab", url: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200" },
+                      { name: "Graduation", url: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200" },
+                      { name: "Science Lab", url: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=1200" },
+                      { name: "Coding Bootcamp", url: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200" },
+                    ].map(preset => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => setBannerImageUrl(preset.url)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${bannerImageUrl === preset.url ? 'bg-emerald-600 text-white shadow-xs' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Image Preview */}
+                {bannerImageUrl && (
+                  <div className="pt-2">
+                    <span className="text-[10px] font-bold text-gray-400 block mb-1">Live Image Preview:</span>
+                    <div className="w-full h-36 rounded-xl overflow-hidden border border-gray-200 bg-slate-900">
+                      <img 
+                        referrerPolicy="no-referrer"
+                        src={bannerImageUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200';
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Active Toggle */}
+              <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                <input 
+                  type="checkbox"
+                  id="banner_active_checkbox"
+                  checked={bannerActive}
+                  onChange={(e) => setBannerActive(e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 rounded-md focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                />
+                <label htmlFor="banner_active_checkbox" className="text-xs font-bold text-gray-700 cursor-pointer">
+                  Publish and show on homepage carousel slide
+                </label>
+              </div>
+
+              <div className="flex gap-3 border-t border-gray-100 pt-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setBannerModalOpen(false)}
+                  className="px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingBanner}
+                  id="save_banner_submit_btn"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {isSavingBanner ? 'Saving Banner...' : 'Save Banner Image'}
                 </button>
               </div>
             </form>
