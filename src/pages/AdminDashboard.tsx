@@ -688,8 +688,16 @@ export const AdminDashboard: React.FC = () => {
     const unsubBanners = firestoreService.subscribeBanners((banners) => {
       setBannersList(banners);
     });
+    const unsubPathways = firestoreService.subscribePathways((pathways) => {
+      setPathwaysList(pathways);
+    });
+    const unsubSubjects = firestoreService.subscribeSubjects((subjects) => {
+      setSubjectsList(subjects);
+    });
     return () => {
       unsubBanners();
+      unsubPathways();
+      unsubSubjects();
     };
   }, []);
 

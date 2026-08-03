@@ -1420,8 +1420,16 @@ const firestoreServiceRaw = {
         if (list.length > 0) {
           saveFallback('local_subjects', list);
           return list;
+        } else {
+          for (const s of defaultSubjects) {
+            try { await setDoc(doc(db, 'subjects', s.id), s); } catch (e) {}
+          }
+          saveFallback('local_subjects', defaultSubjects);
+          return defaultSubjects;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Cloud getSubjects error", e);
+      }
     }
     return handleFallback<SubjectItem>('local_subjects', defaultSubjects);
   },
@@ -1432,25 +1440,50 @@ const firestoreServiceRaw = {
       name: name.trim(),
       createdAt: new Date().toISOString()
     };
+    const subjects = await this.getSubjects();
+    subjects.push(item);
+
     if (isUsingCloud) {
       try {
         await setDoc(doc(db, 'subjects', item.id), item);
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Failed saving subject to cloud", e);
+      }
     }
-    const subjects = await this.getSubjects();
-    subjects.push(item);
     saveFallback('local_subjects', subjects);
     return item;
   },
 
   async deleteSubject(id: string): Promise<void> {
+    const subjects = await this.getSubjects();
+    const filtered = subjects.filter(s => s.id !== id);
+
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'subjects', id));
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Failed deleting subject from cloud", e);
+      }
     }
-    const subjects = await this.getSubjects();
-    saveFallback('local_subjects', subjects.filter(s => s.id !== id));
+    saveFallback('local_subjects', filtered);
+  },
+
+  subscribeSubjects(callback: (subjects: SubjectItem[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'subjects'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as SubjectItem);
+          if (docs.length > 0) {
+            saveFallback('local_subjects', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Subjects snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to subjects", e);
+      }
+    }
+    this.getSubjects().then(callback);
+    return () => {};
   },
 
   // -------------------------------------------------------------
@@ -1498,33 +1531,66 @@ const firestoreServiceRaw = {
         if (list.length > 0) {
           saveFallback('local_pathways', list);
           return list;
+        } else {
+          for (const p of defaultPathways) {
+            try { await setDoc(doc(db, 'pathways', p.id), p); } catch (e) {}
+          }
+          saveFallback('local_pathways', defaultPathways);
+          return defaultPathways;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Cloud getPathways error", e);
+      }
     }
     return handleFallback<PathwayItem>('local_pathways', defaultPathways);
   },
 
   async savePathway(pathway: PathwayItem): Promise<void> {
-    if (isUsingCloud) {
-      try {
-        await setDoc(doc(db, 'pathways', pathway.id), pathway);
-      } catch (e) {}
-    }
     const items = await this.getPathways();
     const idx = items.findIndex(p => p.id === pathway.id);
     if (idx !== -1) items[idx] = pathway;
     else items.push(pathway);
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'pathways', pathway.id), pathway);
+      } catch (e) {
+        console.warn("Failed saving pathway to cloud", e);
+      }
+    }
     saveFallback('local_pathways', items);
   },
 
   async deletePathway(id: string): Promise<void> {
+    const items = await this.getPathways();
+    const filtered = items.filter(p => p.id !== id);
+
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'pathways', id));
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Failed deleting pathway from cloud", e);
+      }
     }
-    const items = await this.getPathways();
-    saveFallback('local_pathways', items.filter(p => p.id !== id));
+    saveFallback('local_pathways', filtered);
+  },
+
+  subscribePathways(callback: (pathways: PathwayItem[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'pathways'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as PathwayItem);
+          if (docs.length > 0) {
+            saveFallback('local_pathways', docs);
+            callback(docs);
+          }
+        }, (err) => console.warn("Pathways snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to pathways", e);
+      }
+    }
+    this.getPathways().then(callback);
+    return () => {};
   },
 
   // -------------------------------------------------------------

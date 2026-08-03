@@ -61,7 +61,16 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   useEffect(() => {
     refreshClasses();
     fetchStudyMaterials();
-    fetchSubjectsList();
+    const unsubSubjects = firestoreService.subscribeSubjects((dbSubjects) => {
+      if (dbSubjects && dbSubjects.length > 0) {
+        const names = dbSubjects.map(s => s.name);
+        const merged = Array.from(new Set(["All Subjects", ...DEFAULT_SUBJECT_CATEGORIES.filter(c => c !== "All Subjects"), ...names]));
+        setSubjectCategories(merged);
+      }
+    });
+    return () => {
+      unsubSubjects();
+    };
   }, []);
 
   const fetchSubjectsList = async () => {
