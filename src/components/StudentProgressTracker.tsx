@@ -20,7 +20,6 @@ import {
   LineChart,
   Line
 } from 'recharts';
-import { QRCodeCanvas } from 'qrcode.react';
 import { 
   Award, 
   BookOpen, 
@@ -38,8 +37,7 @@ import {
   GraduationCap,
   QrCode,
   AlertTriangle,
-  Bell,
-  X
+  Bell
 } from 'lucide-react';
 import { Booking, ClassItem, UserProfile, AttendanceRecord } from '../types';
 import { AttendanceCalendarHeatmap } from './AttendanceCalendarHeatmap';
@@ -355,7 +353,7 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
   return (
     <div className="space-y-8" id="student_academic_progress_widget">
       
-      {/* Unique Student QR ID Pass Toolbar */}
+      {/* Attendance QR Pass Launch & Alerts Header Toolbar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
@@ -363,10 +361,10 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-              Official Student ID QR Pass
+              Class Attendance QR Pass & Tracker
             </h3>
             <p className="text-[11px] text-slate-300">
-              Present your unique Student ID QR code to your tutor or admin for instant check-in.
+              Scan instructor's session QR code or view your attendance history.
             </p>
           </div>
         </div>
@@ -376,7 +374,7 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
           onClick={() => setIsQrModalOpen(true)}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
         >
-          <QrCode className="w-4 h-4" /> View My Student QR Code
+          <QrCode className="w-4 h-4" /> Scan Class QR Code
         </button>
       </div>
 
@@ -930,54 +928,17 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
         studentName={currentUser.name}
       />
 
-      {/* Student Unique ID QR Code Modal */}
-      {isQrModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-fade-in font-sans">
-            <button 
-              onClick={() => setIsQrModalOpen(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <QrCode className="w-6 h-6" />
-            </div>
-
-            <h3 className="text-base font-extrabold text-slate-900">Student Identity QR Pass</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Present this pass to your tutor or admin to mark attendance.
-            </p>
-
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl inline-block shadow-inner mb-4">
-              <QRCodeCanvas 
-                value={currentUser.username || currentUser.uid} 
-                size={180}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-
-            <div className="space-y-1 mb-5">
-              <span className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider">Unique Student ID / Username</span>
-              <span className="block text-sm font-extrabold text-indigo-950 font-mono bg-indigo-50 py-1.5 px-3 rounded-lg border border-indigo-100">
-                {currentUser.username || currentUser.uid}
-              </span>
-            </div>
-
-            <button
-              onClick={() => {
-                showToast("Your Student ID QR pass is ready for scanning!", "success");
-                setIsQrModalOpen(false);
-              }}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
-            >
-              Done / Close Pass
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Class QR Code Attendance Scanner Modal */}
+      <ClassQRCodeAttendanceModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        currentUser={currentUser}
+        tutorClasses={classes}
+        bookings={userBookings}
+        attendanceRecords={attendanceRecords}
+        onAttendanceMarked={onAttendanceMarked}
+        showToast={showToast || ((msg) => console.log(msg))}
+      />
 
     </div>
   );

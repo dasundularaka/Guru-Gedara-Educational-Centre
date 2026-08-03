@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
-import { UserProfile, ClassItem, Booking, Payment, BannerImage } from '../types';
-import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
-import { TutorProfileModal } from '../components/TutorProfileModal';
-import { syncClassToGoogleCalendar } from '../lib/googleCalendar';
+import { UserProfile, ClassItem, Booking, Payment } from '../types';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -50,35 +47,18 @@ import {
   Download,
   Sparkles,
   Star,
-  Upload,
-  Camera,
-  Calendar
+  Upload
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { currentUser, showToast, refreshClasses, reviews, updateReviewStatus, deleteReview, classes, bookings, payments, resetDatabase } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews' | 'banners'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'notices' | 'admins' | 'reviews'>('analytics');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
   const [paymentsList, setPaymentsList] = useState<Payment[]>(payments || []);
   const [bookingsList, setBookingsList] = useState<Booking[]>(bookings || []);
-  const [bannersList, setBannersList] = useState<BannerImage[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // QR Scanner & Tutor Profile modal states
-  const [showAdminQrScanner, setShowAdminQrScanner] = useState(false);
-  const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
-
-  // Banner modal states
-  const [showBannerModal, setShowBannerModal] = useState(false);
-  const [editingBanner, setEditingBanner] = useState<BannerImage | null>(null);
-  const [bannerTitle, setBannerTitle] = useState("");
-  const [bannerSubtitle, setBannerSubtitle] = useState("");
-  const [bannerImageUrl, setBannerImageUrl] = useState("");
-  const [bannerLinkUrl, setBannerLinkUrl] = useState("");
-  const [bannerActive, setBannerActive] = useState(true);
-  const [savingBanner, setSavingBanner] = useState(false);
 
   // Review status filters
   const [reviewFilterStatus, setReviewFilterStatus] = useState<string>("all");
@@ -452,20 +432,18 @@ export const AdminDashboard: React.FC = () => {
   const fetchAdminDatasets = async () => {
     setLoading(true);
     try {
-      // Fetch users, classes, payments, bookings, and banners in parallel
-      const [allUsers, allClass, allPays, allBook, allBanners] = await Promise.all([
+      // Fetch users, classes, payments, and bookings in parallel to optimize admin dashboard performance
+      const [allUsers, allClass, allPays, allBook] = await Promise.all([
         firestoreService.getAllUsers(),
         firestoreService.getClasses(),
         firestoreService.getPayments(),
-        firestoreService.getBookings(),
-        firestoreService.getBanners()
+        firestoreService.getBookings()
       ]);
 
       setUsers(allUsers);
       setClassesList(allClass);
       setPaymentsList(allPays);
       setBookingsList(allBook);
-      setBannersList(allBanners);
     } catch (e) {
       console.warn("Failed index mapping of site admin data pools", e);
     } finally {
@@ -521,80 +499,6 @@ export const AdminDashboard: React.FC = () => {
       showToast("Failed to launch global bulletin alerts.", "error");
     } finally {
       setSendingNotice(false);
-    }
-  };
-
-  // Banner handlers
-  const openAddBannerModal = () => {
-    setEditingBanner(null);
-    setBannerTitle("");
-    setBannerSubtitle("");
-    setBannerImageUrl("https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200&auto=format&fit=crop&q=80");
-    setBannerLinkUrl("");
-    setBannerActive(true);
-    setShowBannerModal(true);
-  };
-
-  const openEditBannerModal = (banner: BannerImage) => {
-    setEditingBanner(banner);
-    setBannerTitle(banner.title);
-    setBannerSubtitle(banner.subtitle);
-    setBannerImageUrl(banner.imageUrl);
-    setBannerLinkUrl(banner.linkUrl || "");
-    setBannerActive(banner.active);
-    setShowBannerModal(true);
-  };
-
-  const handleSaveBanner = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bannerTitle.trim() || !bannerImageUrl.trim()) {
-      showToast("Banner title and image URL are required.", "error");
-      return;
-    }
-
-    setSavingBanner(true);
-    try {
-      const bannerItem: BannerImage = {
-        id: editingBanner?.id || 'banner_' + Date.now(),
-        title: bannerTitle.trim(),
-        subtitle: bannerSubtitle.trim(),
-        imageUrl: bannerImageUrl.trim(),
-        linkUrl: bannerLinkUrl.trim() || undefined,
-        active: bannerActive,
-        createdAt: editingBanner?.createdAt || new Date().toISOString()
-      };
-
-      await firestoreService.saveBanner(bannerItem);
-      showToast(`Hero banner ${editingBanner ? 'updated' : 'created'} successfully!`, "success");
-      setShowBannerModal(false);
-      await fetchAdminDatasets();
-    } catch (err: any) {
-      showToast("Failed saving banner: " + err.message, "error");
-    } finally {
-      setSavingBanner(false);
-    }
-  };
-
-  const handleDeleteBanner = async (bannerId: string, title: string) => {
-    if (window.confirm(`Are you sure you want to delete the hero banner "${title}"?`)) {
-      try {
-        await firestoreService.deleteBanner(bannerId);
-        showToast("Hero banner deleted.", "success");
-        await fetchAdminDatasets();
-      } catch {
-        showToast("Failed deleting banner.", "error");
-      }
-    }
-  };
-
-  const handleToggleBannerActive = async (banner: BannerImage) => {
-    try {
-      const updated = { ...banner, active: !banner.active };
-      await firestoreService.saveBanner(updated);
-      showToast(`Banner "${banner.title}" set to ${!banner.active ? 'ACTIVE' : 'INACTIVE'}`, "info");
-      await fetchAdminDatasets();
-    } catch {
-      showToast("Failed toggling banner status.", "error");
     }
   };
 
@@ -1208,20 +1112,6 @@ export const AdminDashboard: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'reviews' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
             >
               <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse" /> Moderate Reviews
-            </button>
-            <button
-              id="admin_tab_banners"
-              onClick={() => setActiveTab('banners')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'banners' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <Sparkles className="w-4 h-4 text-purple-500" /> Hero Banners
-            </button>
-            <button
-              id="admin_btn_scan_qr"
-              onClick={() => setShowAdminQrScanner(true)}
-              className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer border border-slate-700 ml-auto sm:ml-0"
-            >
-              <Camera className="w-3.5 h-3.5 text-indigo-400" /> Scan Student QR
             </button>
           </div>
         </div>
@@ -1949,14 +1839,6 @@ export const AdminDashboard: React.FC = () => {
                       {/* Card Action Controls */}
                       <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
                         <button 
-                          id={`view-tutor-profile-btn-${tut.uid}`}
-                          onClick={() => setSelectedTutorForProfile(tut)}
-                          className="p-1 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                          title="View full tutor profile"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> Profile
-                        </button>
-                        <button 
                           id={`feature-tutor-btn-${tut.uid}`}
                           onClick={async () => {
                             try {
@@ -2054,17 +1936,6 @@ export const AdminDashboard: React.FC = () => {
 
                         {/* Card Action Controls */}
                         <div className="flex flex-col gap-1.5">
-                          <button 
-                            id={`calendar-class-btn-${c.id}`}
-                            onClick={() => {
-                              syncClassToGoogleCalendar(c);
-                              showToast(`Google Calendar invite created for "${c.title}"`, "info");
-                            }}
-                            className="p-1 rounded bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-600 cursor-pointer"
-                            title="Sync class schedule to Google Calendar"
-                          >
-                            <Calendar className="w-3.5 h-3.5" />
-                          </button>
                           <button 
                             id={`feature-class-btn-${c.id}`}
                             onClick={async () => {
@@ -2592,104 +2463,6 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
-            )}
-
-            {/* Tab 8: Hero Banner Image Carousel Manager */}
-            {activeTab === 'banners' && (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6 font-sans"
-              >
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4 border-gray-100">
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-600" />
-                      Homepage Hero Banner Carousel Manager
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Add, edit, toggle active status, or delete marketing banners displayed on the homepage hero section.
-                    </p>
-                  </div>
-
-                  <button
-                    id="admin_btn_add_banner"
-                    onClick={openAddBannerModal}
-                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition-all"
-                  >
-                    <Plus className="w-4 h-4" /> Add Hero Banner
-                  </button>
-                </div>
-
-                {bannersList.length === 0 ? (
-                  <div className="text-center py-12 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                    <Sparkles className="w-8 h-8 text-purple-300 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-700">No Hero Banners Published</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Click 'Add Hero Banner' above to publish homepage banners.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {bannersList.map((b) => (
-                      <div key={b.id} className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
-                        <div>
-                          <div className="relative h-40 bg-slate-100 overflow-hidden">
-                            <img 
-                              referrerPolicy="no-referrer"
-                              src={b.imageUrl} 
-                              alt={b.title}
-                              className="w-full h-full object-cover" 
-                            />
-                            <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-[9px] font-black tracking-wider uppercase shadow-xs ${
-                              b.active ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-200'
-                            }`}>
-                              {b.active ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-
-                          <div className="p-4 space-y-2">
-                            <h4 className="text-xs font-extrabold text-slate-900 line-clamp-1">{b.title}</h4>
-                            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{b.subtitle}</p>
-                            {b.linkUrl && (
-                              <p className="text-[10px] text-indigo-600 font-mono truncate">
-                                Link: {b.linkUrl}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="p-4 border-t border-slate-100 mt-2 flex justify-between items-center gap-2 pt-3">
-                          <button
-                            onClick={() => handleToggleBannerActive(b)}
-                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors cursor-pointer border ${
-                              b.active ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                            }`}
-                          >
-                            {b.active ? 'Disable' : 'Enable'}
-                          </button>
-
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => openEditBannerModal(b)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
-                              title="Edit Banner"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteBanner(b.id, b.title)}
-                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 cursor-pointer"
-                              title="Delete Banner"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </motion.div>
             )}
 
@@ -3421,150 +3194,6 @@ export const AdminDashboard: React.FC = () => {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Hero Banner Manager Modal */}
-      {showBannerModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5 animate-fade-in text-xs font-sans text-gray-800">
-            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
-              <h3 className="text-base font-extrabold text-blue-955 flex items-center gap-1.5">
-                <Sparkles className="w-5 h-5 text-purple-600" />
-                {editingBanner ? 'Edit Hero Banner' : 'Create New Hero Banner'}
-              </h3>
-              <button 
-                onClick={() => setShowBannerModal(false)} 
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveBanner} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Banner Headline Title *</label>
-                <input
-                  required
-                  type="text"
-                  value={bannerTitle}
-                  onChange={(e) => setBannerTitle(e.target.value)}
-                  placeholder="e.g. Master A/L Science & Maths with Sri Lanka's Top Tutors"
-                  className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Subtitle / Description *</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={bannerSubtitle}
-                  onChange={(e) => setBannerSubtitle(e.target.value)}
-                  placeholder="e.g. Interactive live sessions, structured syllabus content, and direct tutor guidance."
-                  className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-purple-500 leading-relaxed"
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Banner Background Image URL *</label>
-                <input
-                  required
-                  type="text"
-                  value={bannerImageUrl}
-                  onChange={(e) => setBannerImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-purple-500"
-                />
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setBannerImageUrl("https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200&auto=format&fit=crop&q=80")}
-                    className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-lg font-bold hover:bg-purple-100 cursor-pointer"
-                  >
-                    Preset 1
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBannerImageUrl("https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1200&auto=format&fit=crop&q=80")}
-                    className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-lg font-bold hover:bg-purple-100 cursor-pointer"
-                  >
-                    Preset 2
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBannerImageUrl("https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80")}
-                    className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded-lg font-bold hover:bg-purple-100 cursor-pointer"
-                  >
-                    Preset 3
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Target Action Link URL (Optional)</label>
-                <input
-                  type="text"
-                  value={bannerLinkUrl}
-                  onChange={(e) => setBannerLinkUrl(e.target.value)}
-                  placeholder="e.g. /classes or https://..."
-                  className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="banner_active_checkbox"
-                  checked={bannerActive}
-                  onChange={(e) => setBannerActive(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 rounded cursor-pointer"
-                />
-                <label htmlFor="banner_active_checkbox" className="text-xs font-bold text-slate-700 cursor-pointer">
-                  Set banner as ACTIVE on Homepage
-                </label>
-              </div>
-
-              <div className="flex gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowBannerModal(false)}
-                  className="w-1/2 py-2.5 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingBanner}
-                  className="w-1/2 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl cursor-pointer disabled:opacity-50"
-                >
-                  {savingBanner ? 'Saving Banner...' : 'Save Banner'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Admin QR Attendance Scanner Modal */}
-      {showAdminQrScanner && (
-        <ClassQRCodeAttendanceModal
-          isOpen={showAdminQrScanner}
-          onClose={() => setShowAdminQrScanner(false)}
-          currentUser={currentUser}
-          tutorClasses={classesList}
-          bookings={bookingsList}
-          showToast={showToast}
-        />
-      )}
-
-      {/* Tutor Profile View Modal for Admin */}
-      {selectedTutorForProfile && (
-        <TutorProfileModal
-          isOpen={!!selectedTutorForProfile}
-          onClose={() => setSelectedTutorForProfile(null)}
-          tutor={selectedTutorForProfile}
-          reviews={reviews}
-        />
       )}
     </motion.div>
   );

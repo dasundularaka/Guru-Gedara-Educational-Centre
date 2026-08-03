@@ -21,15 +21,8 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
   const [sending, setSending] = useState(false);
 
   // Retrieve detail sections
-  const details = tutor.tutorDetails || {
-    bio: tutor.notes || 'Experienced educator at Guru Gedara Educational Centre.',
-    subjects: ['Academics'],
-    experience: 5,
-    qualification: 'Senior Lecturer',
-    hourlyRate: 2500,
-    rating: 5.0,
-    availability: []
-  };
+  const details = tutor.tutorDetails;
+  if (!details) return null;
 
   const tutorReviews = reviews.filter(r => r.tutorId === tutor.uid && r.status === 'approved');
   const avgRating = tutorReviews.length > 0 

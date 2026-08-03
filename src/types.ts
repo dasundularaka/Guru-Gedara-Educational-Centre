@@ -67,9 +67,6 @@ export interface ClassItem {
   tags?: string[];
   imageUrl?: string;
   isFeatured?: boolean;
-  meetLink?: string;
-  videoUrl?: string;
-  materialsUrl?: string;
 }
 
 export interface Booking {
