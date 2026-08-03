@@ -526,10 +526,10 @@ export const AdminDashboard: React.FC = () => {
     try {
       const bannerObj: BannerImage = {
         id: editingBanner ? editingBanner.id : 'b_' + Date.now(),
-        title: bannerTitle.trim() || undefined,
-        subtitle: bannerSubtitle.trim() || undefined,
+        title: bannerTitle.trim() || '',
+        subtitle: bannerSubtitle.trim() || '',
         imageUrl: bannerImageUrl.trim(),
-        linkUrl: bannerLinkUrl.trim() || undefined,
+        linkUrl: bannerLinkUrl.trim() || '',
         active: bannerActive,
         createdAt: editingBanner ? editingBanner.createdAt : new Date().toISOString()
       };
@@ -569,16 +569,44 @@ export const AdminDashboard: React.FC = () => {
   const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Image file size must be less than 5MB.", "error");
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("Image file size must be less than 10MB.", "error");
       return;
     }
     const reader = new FileReader();
-    reader.onloadend = () => {
-      if (reader.result) {
-        setBannerImageUrl(reader.result as string);
-        showToast("Banner image file uploaded & attached!", "success");
-      }
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 800;
+
+        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+          if (width / height > MAX_WIDTH / MAX_HEIGHT) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          } else {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+          setBannerImageUrl(compressedBase64);
+          showToast("Banner image compressed & attached!", "success");
+        }
+      };
+      img.onerror = () => {
+        showToast("Failed to process image file.", "error");
+      };
+      img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };

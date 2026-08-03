@@ -99,6 +99,23 @@ export function safeStringify(obj: any): string {
   }
 }
 
+// Helper to sanitize objects for Firestore to remove undefined properties
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  if (!obj || typeof obj !== 'object') return obj;
+  const clean: Record<string, any> = {};
+  Object.keys(obj).forEach(key => {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+        clean[key] = sanitizeForFirestore(val);
+      } else {
+        clean[key] = val;
+      }
+    }
+  });
+  return clean as T;
+}
+
 // Helper to wrap promises with a timeout to maintain responsiveness under unstable network/slow bandwidth conditions
 export function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
   let timeoutId: any;
@@ -1331,16 +1348,23 @@ const firestoreServiceRaw = {
         const list: BannerImage[] = qSnap.docs.map(d => d.data() as BannerImage);
         if (list.length > 0) {
           saveFallback('local_banners', list);
+          localStorage.setItem('local_banners_seeded', 'true');
           return list;
         } else {
-          // Seed defaults to Firestore if cloud collection is empty
-          for (const b of defaultBanners) {
-            try {
-              await setDoc(doc(db, 'banners', b.id), b);
-            } catch (e) {}
+          const seeded = localStorage.getItem('local_banners_seeded');
+          if (!seeded) {
+            for (const b of defaultBanners) {
+              try {
+                await setDoc(doc(db, 'banners', b.id), sanitizeForFirestore(b));
+              } catch (e) {}
+            }
+            localStorage.setItem('local_banners_seeded', 'true');
+            saveFallback('local_banners', defaultBanners);
+            return defaultBanners;
+          } else {
+            saveFallback('local_banners', []);
+            return [];
           }
-          saveFallback('local_banners', defaultBanners);
-          return defaultBanners;
         }
       } catch (e) {
         console.warn("Cloud getBanners error", e);
@@ -1355,11 +1379,15 @@ const firestoreServiceRaw = {
     if (idx !== -1) banners[idx] = banner;
     else banners.push(banner);
 
+    localStorage.setItem('local_banners_seeded', 'true');
+
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'banners', banner.id), banner);
+        const cleanObj = sanitizeForFirestore(banner);
+        await setDoc(doc(db, 'banners', banner.id), cleanObj);
       } catch (e) {
         console.warn("Failed to save banner doc to Firestore", e);
+        throw e;
       }
     }
     saveFallback('local_banners', banners);
@@ -1369,11 +1397,14 @@ const firestoreServiceRaw = {
     const banners = await this.getBanners();
     const filtered = banners.filter(b => b.id !== id);
 
+    localStorage.setItem('local_banners_seeded', 'true');
+
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'banners', id));
       } catch (e) {
         console.warn("Failed to delete banner doc from Firestore", e);
+        throw e;
       }
     }
     saveFallback('local_banners', filtered);
@@ -1382,12 +1413,18 @@ const firestoreServiceRaw = {
   subscribeBanners(callback: (banners: BannerImage[]) => void): () => void {
     if (isUsingCloud) {
       try {
-        return onSnapshot(collection(db, 'banners'), (snap) => {
+        return onSnapshot(collection(db, 'banners'), async (snap) => {
           const docs = snap.docs.map(doc => doc.data() as BannerImage);
-          if (docs.length > 0) {
-            saveFallback('local_banners', docs);
-            callback(docs);
+          if (docs.length === 0) {
+            const seeded = localStorage.getItem('local_banners_seeded');
+            if (!seeded) {
+              const defaults = await this.getBanners();
+              callback(defaults);
+              return;
+            }
           }
+          saveFallback('local_banners', docs);
+          callback(docs);
         }, (err) => console.warn("Banners snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to banners", e);
@@ -1419,13 +1456,21 @@ const firestoreServiceRaw = {
         const list: SubjectItem[] = qSnap.docs.map(d => d.data() as SubjectItem);
         if (list.length > 0) {
           saveFallback('local_subjects', list);
+          localStorage.setItem('local_subjects_seeded', 'true');
           return list;
         } else {
-          for (const s of defaultSubjects) {
-            try { await setDoc(doc(db, 'subjects', s.id), s); } catch (e) {}
+          const seeded = localStorage.getItem('local_subjects_seeded');
+          if (!seeded) {
+            for (const s of defaultSubjects) {
+              try { await setDoc(doc(db, 'subjects', s.id), sanitizeForFirestore(s)); } catch (e) {}
+            }
+            localStorage.setItem('local_subjects_seeded', 'true');
+            saveFallback('local_subjects', defaultSubjects);
+            return defaultSubjects;
+          } else {
+            saveFallback('local_subjects', []);
+            return [];
           }
-          saveFallback('local_subjects', defaultSubjects);
-          return defaultSubjects;
         }
       } catch (e) {
         console.warn("Cloud getSubjects error", e);
@@ -1442,12 +1487,14 @@ const firestoreServiceRaw = {
     };
     const subjects = await this.getSubjects();
     subjects.push(item);
+    localStorage.setItem('local_subjects_seeded', 'true');
 
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'subjects', item.id), item);
+        await setDoc(doc(db, 'subjects', item.id), sanitizeForFirestore(item));
       } catch (e) {
         console.warn("Failed saving subject to cloud", e);
+        throw e;
       }
     }
     saveFallback('local_subjects', subjects);
@@ -1457,12 +1504,14 @@ const firestoreServiceRaw = {
   async deleteSubject(id: string): Promise<void> {
     const subjects = await this.getSubjects();
     const filtered = subjects.filter(s => s.id !== id);
+    localStorage.setItem('local_subjects_seeded', 'true');
 
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'subjects', id));
       } catch (e) {
         console.warn("Failed deleting subject from cloud", e);
+        throw e;
       }
     }
     saveFallback('local_subjects', filtered);
@@ -1471,12 +1520,18 @@ const firestoreServiceRaw = {
   subscribeSubjects(callback: (subjects: SubjectItem[]) => void): () => void {
     if (isUsingCloud) {
       try {
-        return onSnapshot(collection(db, 'subjects'), (snap) => {
+        return onSnapshot(collection(db, 'subjects'), async (snap) => {
           const docs = snap.docs.map(doc => doc.data() as SubjectItem);
-          if (docs.length > 0) {
-            saveFallback('local_subjects', docs);
-            callback(docs);
+          if (docs.length === 0) {
+            const seeded = localStorage.getItem('local_subjects_seeded');
+            if (!seeded) {
+              const defaults = await this.getSubjects();
+              callback(defaults);
+              return;
+            }
           }
+          saveFallback('local_subjects', docs);
+          callback(docs);
         }, (err) => console.warn("Subjects snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to subjects", e);
@@ -1530,13 +1585,21 @@ const firestoreServiceRaw = {
         const list: PathwayItem[] = qSnap.docs.map(d => d.data() as PathwayItem);
         if (list.length > 0) {
           saveFallback('local_pathways', list);
+          localStorage.setItem('local_pathways_seeded', 'true');
           return list;
         } else {
-          for (const p of defaultPathways) {
-            try { await setDoc(doc(db, 'pathways', p.id), p); } catch (e) {}
+          const seeded = localStorage.getItem('local_pathways_seeded');
+          if (!seeded) {
+            for (const p of defaultPathways) {
+              try { await setDoc(doc(db, 'pathways', p.id), sanitizeForFirestore(p)); } catch (e) {}
+            }
+            localStorage.setItem('local_pathways_seeded', 'true');
+            saveFallback('local_pathways', defaultPathways);
+            return defaultPathways;
+          } else {
+            saveFallback('local_pathways', []);
+            return [];
           }
-          saveFallback('local_pathways', defaultPathways);
-          return defaultPathways;
         }
       } catch (e) {
         console.warn("Cloud getPathways error", e);
@@ -1550,12 +1613,14 @@ const firestoreServiceRaw = {
     const idx = items.findIndex(p => p.id === pathway.id);
     if (idx !== -1) items[idx] = pathway;
     else items.push(pathway);
+    localStorage.setItem('local_pathways_seeded', 'true');
 
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'pathways', pathway.id), pathway);
+        await setDoc(doc(db, 'pathways', pathway.id), sanitizeForFirestore(pathway));
       } catch (e) {
         console.warn("Failed saving pathway to cloud", e);
+        throw e;
       }
     }
     saveFallback('local_pathways', items);
@@ -1564,12 +1629,14 @@ const firestoreServiceRaw = {
   async deletePathway(id: string): Promise<void> {
     const items = await this.getPathways();
     const filtered = items.filter(p => p.id !== id);
+    localStorage.setItem('local_pathways_seeded', 'true');
 
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'pathways', id));
       } catch (e) {
         console.warn("Failed deleting pathway from cloud", e);
+        throw e;
       }
     }
     saveFallback('local_pathways', filtered);
@@ -1578,12 +1645,18 @@ const firestoreServiceRaw = {
   subscribePathways(callback: (pathways: PathwayItem[]) => void): () => void {
     if (isUsingCloud) {
       try {
-        return onSnapshot(collection(db, 'pathways'), (snap) => {
+        return onSnapshot(collection(db, 'pathways'), async (snap) => {
           const docs = snap.docs.map(doc => doc.data() as PathwayItem);
-          if (docs.length > 0) {
-            saveFallback('local_pathways', docs);
-            callback(docs);
+          if (docs.length === 0) {
+            const seeded = localStorage.getItem('local_pathways_seeded');
+            if (!seeded) {
+              const defaults = await this.getPathways();
+              callback(defaults);
+              return;
+            }
           }
+          saveFallback('local_pathways', docs);
+          callback(docs);
         }, (err) => console.warn("Pathways snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to pathways", e);
