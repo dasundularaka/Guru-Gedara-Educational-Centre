@@ -845,9 +845,8 @@ const firestoreServiceRaw = {
     let cloudNotifications: NotificationItem[] = [];
     if (isUsingCloud) {
       try {
-        const qRef = query(collection(db, 'notifications'), where('userId', '==', userId));
         const snap = await promiseWithTimeout(
-          getDocs(qRef),
+          getDocs(collection(db, 'notifications')),
           8000,
           { docs: [] } as any
         );
@@ -859,12 +858,19 @@ const firestoreServiceRaw = {
 
     const localNots = handleFallback<NotificationItem>('local_notifications', INITIAL_NOTIFICATIONS);
     const notMap = new Map<string, NotificationItem>();
+    
+    // Seed initial notifications if notMap is empty
+    INITIAL_NOTIFICATIONS.forEach(n => notMap.set(n.id, n));
     localNots.forEach(n => notMap.set(n.id, n));
     cloudNotifications.forEach(n => notMap.set(n.id, n));
     const mergedList = Array.from(notMap.values());
 
     if (cloudNotifications.length > 0) {
       saveFallback('local_notifications', mergedList);
+    }
+
+    if (!userId || userId === 'all') {
+      return mergedList;
     }
 
     return mergedList.filter(n => n.userId === userId || n.userId === 'all');

@@ -633,15 +633,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Notifications refresh
   const refreshNotifications = async () => {
-    if (currentUser) {
-      try {
-        const nots = await firestoreService.getNotifications(currentUser.uid);
-        setNotifications(nots);
-      } catch (e) {
-        console.warn("Notifications refresh failed", e);
-      }
+    try {
+      const userId = currentUser ? currentUser.uid : 'all';
+      const nots = await firestoreService.getNotifications(userId);
+      setNotifications(nots);
+    } catch (e) {
+      console.warn("Notifications refresh failed", e);
     }
   };
+
+  useEffect(() => {
+    refreshNotifications();
+  }, [currentUser?.uid]);
 
   // Google sign in callback
   const loginWithGoogle = async () => {
