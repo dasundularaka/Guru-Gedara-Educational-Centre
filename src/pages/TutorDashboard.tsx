@@ -27,7 +27,15 @@ import {
   Sparkles,
   ClipboardList,
   CheckSquare,
-  Search
+  Search,
+  Bell,
+  CreditCard,
+  Mail,
+  Shield,
+  CheckCheck,
+  CheckCircle,
+  Megaphone,
+  Info
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
@@ -44,10 +52,16 @@ export const TutorDashboard: React.FC = () => {
     classes,
     bookings,
     refreshBookings,
+    notifications,
+    refreshNotifications,
     executeWriteWithRetry
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'attendance' | 'chat' | 'profile' | 'settings'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'reminders'>('all');
+  const [tutorNoticeTitle, setTutorNoticeTitle] = useState('');
+  const [tutorNoticeMsg, setTutorNoticeMsg] = useState('');
+  const [sendingTutorNotice, setSendingTutorNotice] = useState(false);
   
   const [tutorClasses, setTutorClasses] = useState<ClassItem[]>([]);
   const [rosterBookings, setRosterBookings] = useState<Booking[]>([]);
@@ -247,6 +261,33 @@ export const TutorDashboard: React.FC = () => {
       showToast(`Availability added: ${day} at ${slot}`, "success");
     } catch {
       showToast("Could not save availability.", "error");
+    }
+  };
+
+  const handleTutorBroadcastNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tutorNoticeTitle.trim() || !tutorNoticeMsg.trim() || !currentUser) return;
+    setSendingTutorNotice(true);
+    try {
+      await executeWriteWithRetry(
+        `Broadcast Tutor Announcement: '${tutorNoticeTitle}'`,
+        async () => {
+          await firestoreService.triggerNotification(
+            'all',
+            `📢 [Tutor ${currentUser.name}] ${tutorNoticeTitle}`,
+            tutorNoticeMsg,
+            'announcement'
+          );
+        }
+      );
+      showToast("Class announcement broadcasted to students!", "success");
+      setTutorNoticeTitle('');
+      setTutorNoticeMsg('');
+      await refreshNotifications();
+    } catch (err) {
+      showToast("Failed to broadcast announcement.", "error");
+    } finally {
+      setSendingTutorNotice(false);
     }
   };
 
@@ -614,6 +655,18 @@ export const TutorDashboard: React.FC = () => {
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'chat' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
               >
                 <MessageSquare className="w-4 h-4" /> Students Chat
+              </button>
+              <button
+                id="tutor_tab_alerts"
+                onClick={() => setActiveSubTab('alerts')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer relative ${activeSubTab === 'alerts' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+              >
+                <Bell className="w-4 h-4 text-amber-400" /> Alerts
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                  <span className="px-1.5 py-0.2 bg-red-500 text-white text-[9px] font-black rounded-full animate-pulse">
+                    {notifications.filter(n => !n.isRead).length}
+                  </span>
+                )}
               </button>
               <button
                 id="tutor_tab_profile"
@@ -1162,6 +1215,247 @@ export const TutorDashboard: React.FC = () => {
                       </button>
                     </div>
                   </form>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Tab: Faculty Alert Center & Notifications */}
+            {activeSubTab === 'alerts' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+              >
+                {/* Left Column: Notifications Ledger */}
+                <div className="lg:col-span-8 bg-white border border-gray-150 rounded-2xl p-6 shadow-xs">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4 border-gray-100 mb-4">
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                        <Bell className="w-5 h-5 text-indigo-600" />
+                        <span>Faculty Alert Center & Notifications</span>
+                        {notifications.filter(n => !n.isRead).length > 0 && (
+                          <span className="px-2.5 py-0.5 text-xs bg-red-500 text-white font-bold rounded-full">
+                            {notifications.filter(n => !n.isRead).length} Unread
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Real-time notifications for course registrations, student messages, and system notices.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {notifications.filter(n => !n.isRead).length > 0 && (
+                        <button
+                          onClick={async () => {
+                            await executeWriteWithRetry(
+                              "Mark All Notifications Read",
+                              async () => {
+                                const unread = notifications.filter(n => !n.isRead);
+                                for (const u of unread) {
+                                  await firestoreService.markNotificationRead(u.id);
+                                }
+                                await refreshNotifications();
+                              }
+                            );
+                            showToast("All notifications marked as read", "success");
+                          }}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" /> Read All
+                        </button>
+                      )}
+                      <button
+                        onClick={() => refreshNotifications()}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="flex items-center gap-2 mb-4 p-1.5 bg-slate-50 rounded-xl border border-slate-100 text-xs font-bold">
+                    <button
+                      onClick={() => setNotifFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${notifFilter === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                    >
+                      All ({notifications.length})
+                    </button>
+                    <button
+                      onClick={() => setNotifFilter('unread')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${notifFilter === 'unread' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                    >
+                      Unread ({notifications.filter(n => !n.isRead).length})
+                    </button>
+                    <button
+                      onClick={() => setNotifFilter('announcements')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${notifFilter === 'announcements' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                    >
+                      Announcements
+                    </button>
+                    <button
+                      onClick={() => setNotifFilter('reminders')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${notifFilter === 'reminders' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                    >
+                      Reminders
+                    </button>
+                  </div>
+
+                  {/* Notification items list */}
+                  <div className="space-y-3">
+                    {(() => {
+                      const filtered = notifications.filter(n => {
+                        if (notifFilter === 'unread') return !n.isRead;
+                        if (notifFilter === 'announcements') return n.type === 'announcement';
+                        if (notifFilter === 'reminders') return n.type === 'reminder';
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="p-12 text-center text-slate-400 text-xs bg-slate-50/50 rounded-xl border border-dashed border-slate-200 flex flex-col items-center gap-2">
+                            <Bell className="w-8 h-8 text-slate-300" />
+                            <p className="font-semibold text-slate-600">No alerts logged</p>
+                            <p className="text-[11px] text-slate-400">
+                              {notifFilter === 'unread' ? 'You are all caught up! No unread notifications.' : 'When course updates, student messages, or system alerts occur, they will appear here.'}
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return filtered.map((not) => (
+                        <div
+                          key={not.id}
+                          className={`p-4 rounded-xl border flex items-start justify-between gap-4 transition-all ${
+                            !not.isRead ? 'bg-indigo-50/30 border-indigo-100 shadow-2xs' : 'bg-white border-slate-150'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-slate-100 rounded-xl shrink-0 mt-0.5">
+                              {not.type === 'payment' && <CreditCard className="w-4 h-4 text-emerald-600" />}
+                              {not.type === 'message' && <Mail className="w-4 h-4 text-blue-600" />}
+                              {not.type === 'announcement' && <Shield className="w-4 h-4 text-purple-600" />}
+                              {not.type === 'reminder' && <Bell className="w-4 h-4 text-amber-600" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-900">{not.title}</span>
+                                {!not.isRead && (
+                                  <span className="h-2 w-2 rounded-full bg-indigo-600"></span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-600 mt-1 leading-relaxed">{not.message}</p>
+                              <span className="text-[10px] text-slate-400 mt-2 block font-mono">
+                                Logged: {new Date(not.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          {!not.isRead && (
+                            <button
+                              onClick={async () => {
+                                await executeWriteWithRetry(
+                                  `Mark Notification Read: '${not.title}'`,
+                                  async () => {
+                                    await firestoreService.markNotificationRead(not.id);
+                                    await refreshNotifications();
+                                  }
+                                );
+                              }}
+                              className="px-2.5 py-1 hover:bg-emerald-50 text-emerald-700 rounded-lg text-[10px] font-bold border border-emerald-200 flex items-center gap-1 shrink-0 cursor-pointer"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Read
+                            </button>
+                          )}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                {/* Right Column: Quick Broadcast & Preferences */}
+                <div className="lg:col-span-4 space-y-6">
+                  {/* Broadcast Announcement to Enrolled Students */}
+                  <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-2xl border border-indigo-800 shadow-sm">
+                    <h4 className="text-sm font-bold flex items-center gap-2 pb-3 border-b border-indigo-700/60">
+                      <Megaphone className="w-4 h-4 text-indigo-400 animate-pulse" />
+                      Broadcast Class Announcement
+                    </h4>
+                    <p className="text-xs text-indigo-200 mt-2 mb-4 leading-relaxed">
+                      Send an instant notification alert to students regarding schedule adjustments or exam study prep.
+                    </p>
+
+                    <form onSubmit={handleTutorBroadcastNotice} className="space-y-3 text-xs">
+                      <div>
+                        <label className="block text-[11px] font-bold text-indigo-200 mb-1">Announcement Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={tutorNoticeTitle}
+                          onChange={(e) => setTutorNoticeTitle(e.target.value)}
+                          placeholder="e.g. Physics Revision Class Time Shift"
+                          className="w-full px-3 py-2 bg-indigo-950/80 border border-indigo-700 text-white rounded-xl outline-none text-xs placeholder:text-indigo-400 focus:border-indigo-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-indigo-200 mb-1">Message Body</label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={tutorNoticeMsg}
+                          onChange={(e) => setTutorNoticeMsg(e.target.value)}
+                          placeholder="e.g. Tomorrow's live session starts at 5:00 PM. Please bring worksheet #4."
+                          className="w-full px-3 py-2 bg-indigo-950/80 border border-indigo-700 text-white rounded-xl outline-none text-xs placeholder:text-indigo-400 focus:border-indigo-400"
+                        ></textarea>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={sendingTutorNotice || !tutorNoticeTitle.trim() || !tutorNoticeMsg.trim()}
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                      >
+                        {sendingTutorNotice ? 'Sending...' : 'Publish Announcement'} <Megaphone className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Sync Preferences status */}
+                  <div className="bg-white border border-gray-150 rounded-2xl p-5 shadow-xs">
+                    <h4 className="text-xs font-bold text-slate-800 flex items-center justify-between border-b pb-3 border-slate-100">
+                      <span>Alert Preferences</span>
+                      <SyncStatusIndicator operationPatterns={['notification', 'settings']} />
+                    </h4>
+                    <div className="mt-3 space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600 font-medium">Class Registrations</span>
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings.reminders}
+                          onChange={(e) => updateNotificationSettings({ reminders: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600 font-medium">Tuition Payment Approvals</span>
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings.payments}
+                          onChange={(e) => updateNotificationSettings({ payments: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-600 font-medium">Student Direct Messages</span>
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings.messages}
+                          onChange={(e) => updateNotificationSettings({ messages: e.target.checked })}
+                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
