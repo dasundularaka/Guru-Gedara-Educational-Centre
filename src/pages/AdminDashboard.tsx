@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage } from '../types';
+import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -3479,23 +3480,11 @@ export const AdminDashboard: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Subject Category / Domain</label>
-                      <select 
+                      <SubjectSelector 
                         value={classSubject} 
-                        onChange={(e) => setClassSubject(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500 text-xs font-semibold mb-1.5"
-                      >
-                        <option value="">-- Select Subject from Database --</option>
-                        {subjectsList.map(s => (
-                          <option key={s.id} value={s.name}>{s.name}</option>
-                        ))}
-                      </select>
-                      <input 
-                        type="text" 
-                        value={classSubject} 
-                        onChange={(e) => setClassSubject(e.target.value)}
-                        placeholder="Or enter custom subject category..."
-                        className="w-full p-2 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500"
+                        onChange={setClassSubject} 
+                        label="Subject Category / Domain"
+                        required
                       />
                     </div>
                   </div>

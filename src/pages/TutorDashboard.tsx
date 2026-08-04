@@ -5,7 +5,8 @@ import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
-import { ClassItem, Booking, UserProfile } from '../types';
+import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem } from '../types';
+import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { 
@@ -98,6 +99,34 @@ export const TutorDashboard: React.FC = () => {
   const [profSubjects, setProfSubjects] = useState("");
   const [profBio, setProfBio] = useState("");
   const [profPhoto, setProfPhoto] = useState("");
+
+  // Dynamic Database Subjects and Pathways
+  const [dbSubjects, setDbSubjects] = useState<SubjectItem[]>([]);
+  const [dbPathways, setDbPathways] = useState<PathwayItem[]>([]);
+
+  useEffect(() => {
+    const unsubSub = firestoreService.subscribeSubjects((subjects) => {
+      setDbSubjects(subjects);
+    });
+    const unsubPath = firestoreService.subscribePathways((pathways) => {
+      setDbPathways(pathways);
+    });
+    return () => {
+      unsubSub();
+      unsubPath();
+    };
+  }, []);
+
+  const DEFAULT_SUBJECT_TRACKS = ["Mathematics", "Physics", "Chemistry", "Biology", "Combined Mathematics", "English", "Coding", "Information Technology", "Commerce", "Accounting", "History"];
+
+  const availableSubjectOptions = Array.from(
+    new Set([
+      ...dbSubjects.map(s => s.name),
+      ...dbPathways.map(p => p.title),
+      ...DEFAULT_SUBJECT_TRACKS,
+      ...(newSubject ? [newSubject] : [])
+    ])
+  ).filter(Boolean);
 
   useEffect(() => {
     if (currentUser) {
@@ -1075,6 +1104,35 @@ export const TutorDashboard: React.FC = () => {
                             className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
                           />
                         </SyncBadge>
+                        {availableSubjectOptions.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                            <span className="text-[10px] text-gray-400 font-medium">Quick add from Database:</span>
+                            {availableSubjectOptions.slice(0, 12).map((subj) => {
+                              const currentList = profSubjects.split(',').map(s => s.trim()).filter(Boolean);
+                              const isSelected = currentList.some(s => s.toLowerCase() === subj.toLowerCase());
+                              return (
+                                <button
+                                  key={subj}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setProfSubjects(currentList.filter(s => s.toLowerCase() !== subj.toLowerCase()).join(', '));
+                                    } else {
+                                      setProfSubjects([...currentList, subj].join(', '));
+                                    }
+                                  }}
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  {isSelected ? `✓ ${subj}` : `+ ${subj}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1272,17 +1330,12 @@ export const TutorDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Category Subject Track:</label>
-                  <select
+                  <SubjectSelector
                     value={newSubject}
-                    onChange={(e) => setNewSubject(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-gray-200 bg-white rounded-xl outline-none focus:border-blue-500 font-bold"
-                  >
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Physics">Physics</option>
-                    <option value="English">English</option>
-                    <option value="Coding">Coding</option>
-                  </select>
+                    onChange={setNewSubject}
+                    label="Category Subject Track"
+                    required
+                  />
                 </div>
               </div>
 

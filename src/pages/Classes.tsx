@@ -15,6 +15,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { ClassItem, StudyMaterial, SubjectItem } from '../types';
+import { SubjectSelector } from '../components/SubjectSelector';
 import { genericFirestoreService } from '../lib/genericFirestore';
 
 interface ClassesProps {
@@ -502,16 +503,12 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Subject Category</label>
-                      <select 
+                      <SubjectSelector 
                         value={uploadSubject}
-                        onChange={(e) => setUploadSubject(e.target.value)}
-                        className="w-full text-xs px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 outline-none font-bold text-slate-700 cursor-pointer"
-                      >
-                        {subjectCategories.filter(cat => cat !== "All Subjects").map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
+                        onChange={setUploadSubject}
+                        label="Subject Category"
+                        allowCustom={false}
+                      />
                     </div>
 
                     <div>
