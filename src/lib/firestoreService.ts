@@ -35,48 +35,72 @@ let isOriginalCloud = true;
 export function safeStringify(obj: any): string {
   if (obj === undefined) return 'undefined';
   if (obj === null) return 'null';
+  if (typeof obj !== 'object' && typeof obj !== 'function') {
+    return String(obj);
+  }
 
   const seen = new WeakSet();
 
   const replacer = (_key: string, value: any) => {
-    if (typeof value === 'object' && value !== null) {
-      // Handle Firestore Timestamp
-      if (typeof value.toDate === 'function') {
-        try {
-          return value.toDate().toISOString();
-        } catch (e) {
+    if (value === null || value === undefined) return value;
+    if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+
+    if (typeof value === 'object') {
+      // 1. Check circular reference FIRST before inspecting properties
+      if (seen.has(value)) {
+        return undefined;
+      }
+      seen.add(value);
+
+      // 2. DOM Node, Window, or Event check
+      try {
+        if (
+          value === window ||
+          value.nodeType !== undefined ||
+          (value.nativeEvent !== undefined)
+        ) {
           return undefined;
         }
-      }
-      // Handle Date
-      if (value instanceof Date) {
-        return value.toISOString();
-      }
-      // Handle DOM nodes, Window, Events, or non-serializable objects
-      if (
-        value.nodeType !== undefined ||
-        value === window ||
-        (value.constructor && value.constructor.name && (
-          value.constructor.name.startsWith('Y2') ||
-          value.constructor.name.startsWith('Ka') ||
-          value.constructor.name.includes('Firestore') ||
-          value.constructor.name.includes('Snapshot') ||
-          value.constructor.name.includes('Element') ||
-          value.constructor.name.includes('Event')
-        ))
-      ) {
+      } catch (_) {
         return undefined;
       }
 
-      // Circular reference check
-      if (seen.has(value)) {
-        return undefined; // Prune circular references completely
+      // 3. Handle Date
+      if (value instanceof Date) {
+        return value.toISOString();
       }
-      seen.add(value);
-    }
 
-    if (typeof value === 'function' || typeof value === 'symbol') {
-      return undefined;
+      // 4. Handle Firestore Timestamp
+      if (typeof value.toDate === 'function') {
+        try {
+          return value.toDate().toISOString();
+        } catch (_) {
+          return undefined;
+        }
+      }
+
+      // 5. Safely check constructor name
+      try {
+        const cName = value?.constructor?.name;
+        if (cName && (
+          cName.length <= 3 ||
+          cName.startsWith('Y2') ||
+          cName.startsWith('Ka') ||
+          cName.includes('Firestore') ||
+          cName.includes('Snapshot') ||
+          cName.includes('Element') ||
+          cName.includes('Event') ||
+          cName.includes('Auth') ||
+          cName.includes('Error')
+        )) {
+          // Keep plain Object and Array, omit minified SDK class instances
+          if (cName !== 'Object' && cName !== 'Array') {
+            return undefined;
+          }
+        }
+      } catch (_) {
+        return undefined;
+      }
     }
 
     return value;
@@ -85,15 +109,16 @@ export function safeStringify(obj: any): string {
   try {
     return JSON.stringify(obj, replacer);
   } catch (err) {
-    console.warn("[safeStringify] Fallback stringify triggered:", err);
+    console.warn("[safeStringify] Safe stringify error caught:", err);
     try {
-      // Secondary fallback if native replacer encountered an unhandled getter error
-      return JSON.stringify(obj, (_k, v) => {
-        if (typeof v === 'object' && v !== null) return '[Object]';
-        if (typeof v === 'function') return undefined;
-        return v;
-      });
-    } catch (e2) {
+      if (typeof obj === 'object') {
+        if (Array.isArray(obj)) return '[]';
+        if (obj.message) return String(obj.message);
+        if (obj.name) return String(obj.name);
+        return '{}';
+      }
+      return String(obj);
+    } catch (_) {
       return '{}';
     }
   }
@@ -1685,6 +1710,25 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudMaterials = snap.docs.map(d => d.data() as StudyMaterial);
+        
+        // Also check study_materials collection if materials was empty or to combine
+        try {
+          const snap2 = await promiseWithTimeout(
+            getDocs(collection(db, 'study_materials')),
+            4000,
+            { docs: [] } as any
+          );
+          const cloudMaterials2 = snap2.docs.map(d => ({ id: d.id, ...d.data() }) as StudyMaterial);
+          
+          // Merge unique by ID
+          const map = new Map<string, StudyMaterial>();
+          cloudMaterials.forEach(m => map.set(m.id, m));
+          cloudMaterials2.forEach(m => {
+            if (!map.has(m.id)) map.set(m.id, m);
+          });
+          cloudMaterials = Array.from(map.values());
+        } catch (e) {}
+
         if (cloudMaterials.length > 0) {
           saveFallback('local_materials', cloudMaterials);
           if (classId) return cloudMaterials.filter(m => m.classId === classId);
@@ -1707,6 +1751,7 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         await setDoc(doc(db, 'materials', id), item);
+        await setDoc(doc(db, 'study_materials', id), item);
       } catch (e) {}
     }
     const list = handleFallback<StudyMaterial>('local_materials', []);
@@ -1722,10 +1767,26 @@ const firestoreServiceRaw = {
     return item;
   },
 
+  async updateStudyMaterial(id: string, updates: Partial<StudyMaterial>): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'materials', id), updates, { merge: true });
+        await setDoc(doc(db, 'study_materials', id), updates, { merge: true });
+      } catch (e) {}
+    }
+    const list = handleFallback<StudyMaterial>('local_materials', []);
+    const idx = list.findIndex(m => m.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...updates };
+      saveFallback('local_materials', list);
+    }
+  },
+
   async deleteStudyMaterial(id: string): Promise<void> {
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'materials', id));
+        await deleteDoc(doc(db, 'study_materials', id));
       } catch (e) {}
     }
     const list = handleFallback<StudyMaterial>('local_materials', []);

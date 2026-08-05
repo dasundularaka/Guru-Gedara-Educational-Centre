@@ -324,287 +324,265 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
             </button>
 
-            {/* Notification Bell (Always accessible) */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setShowSettings(false);
-                }}
-                className="p-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40 transition-colors relative cursor-pointer"
-                id="notifications_bell_btn"
-                title="View Tuition Alerts & Notifications"
-              >
-                <Bell className="w-5.5 h-5.5" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-0.5 right-0.5 block h-4 w-4 rounded-full bg-red-500 text-[10px] font-bold text-white text-center leading-4 animate-bounce">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
+            {currentUser ? (
+              <>
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowNotifications(!showNotifications);
+                      setShowSettings(false);
+                    }}
+                    className="p-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40 transition-colors relative cursor-pointer"
+                    id="notifications_bell_btn"
+                    title="View Tuition Alerts & Notifications"
+                  >
+                    <Bell className="w-5.5 h-5.5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-0.5 right-0.5 block h-4 w-4 rounded-full bg-red-500 text-[10px] font-bold text-white text-center leading-4 animate-bounce">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
 
-              {/* Notifications Overlay Menu */}
-              <AnimatePresence>
-                {showNotifications && (
-                  <>
-                    {/* Mobile Backdrop */}
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      onClick={() => setShowNotifications(false)}
-                      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 md:hidden"
-                    />
+                  {/* Notifications Overlay Menu */}
+                  <AnimatePresence>
+                    {showNotifications && (
+                      <>
+                        {/* Mobile Backdrop */}
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          onClick={() => setShowNotifications(false)}
+                          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 md:hidden"
+                        />
 
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      className="fixed inset-x-3 top-16 max-w-sm mx-auto md:absolute md:top-auto md:right-0 md:left-auto md:mt-2 md:w-96 rounded-2xl shadow-2xl bg-white dark:bg-slate-900 ring-1 ring-black/5 z-50 text-left border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[85vh]"
-                    >
-                      {/* Panel Header */}
-                      <div className="p-3.5 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-blue-50/80 dark:from-slate-800 dark:to-slate-800/80 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-xs">
-                            <Bell className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
-                              Tuition Alerts & Notifications
-                            </h4>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                              {unreadCount > 0 ? `${unreadCount} unread update${unreadCount > 1 ? 's' : ''}` : 'All notifications read'}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {unreadCount > 0 && currentUser && (
-                            <button
-                              onClick={markAllNotificationsRead}
-                              className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100/60 dark:hover:bg-slate-700 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                              title="Mark all notifications as read"
-                            >
-                              <CheckCheck className="w-3.5 h-3.5" /> Read All
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setShowNotifications(false)}
-                            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Guest Notice Banner */}
-                      {!currentUser && (
-                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/90 p-3 border-b border-blue-100 dark:border-slate-700 flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                            <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-snug">
-                              Viewing Platform Announcements
-                            </p>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
-                            Sign in to sync your personal class booking reminders, tuition fee payment approvals, and direct tutor messages.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setShowNotifications(false);
-                              onChangeTab('auth');
-                            }}
-                            className="mt-0.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                          >
-                            <User className="w-3.5 h-3.5" /> Sign In / Enroll
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Filter Sub-Tabs */}
-                      <div className="flex items-center gap-1 p-2 bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-bold">
-                        <button
-                          onClick={() => setNotifFilter('all')}
-                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                            notifFilter === 'all'
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/50'
-                          }`}
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="fixed inset-x-3 top-16 max-w-sm mx-auto md:absolute md:top-auto md:right-0 md:left-auto md:mt-2 md:w-96 rounded-2xl shadow-2xl bg-white dark:bg-slate-900 ring-1 ring-black/5 z-50 text-left border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[85vh]"
                         >
-                          All ({notifications.length})
-                        </button>
-                        <button
-                          onClick={() => setNotifFilter('unread')}
-                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                            notifFilter === 'unread'
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/50'
-                          }`}
-                        >
-                          Unread ({notifications.filter(n => !n.isRead).length})
-                        </button>
-                        {upcomingClasses.length > 0 && (
-                          <button
-                            onClick={() => setNotifFilter('upcoming')}
-                            className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                              notifFilter === 'upcoming'
-                                ? 'bg-amber-500 text-white shadow-xs'
-                                : 'text-amber-700 dark:text-amber-400 hover:bg-amber-100/50'
-                            }`}
-                          >
-                            Upcoming ({upcomingClasses.length})
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Notification Items List */}
-                      <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[350px]">
-                        {/* Upcoming Booked Classes Banner inside list if filter is 'all' or 'upcoming' */}
-                        {(notifFilter === 'all' || notifFilter === 'upcoming') && upcomingClasses.length > 0 && (
-                          <div className="bg-amber-50/80 dark:bg-amber-950/30 p-3 border-b border-amber-200/60 dark:border-amber-900/40">
-                            <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1 font-mono mb-2">
-                              <Calendar className="w-3.5 h-3.5" /> Upcoming Tuition Class
-                            </span>
-                            <div className="space-y-2">
-                              {upcomingClasses.map(u => (
-                                <div key={u.id} className="text-xs bg-white dark:bg-slate-800 rounded-xl p-2.5 border border-amber-200/80 dark:border-amber-800/50 shadow-xs">
-                                  <p className="font-extrabold text-slate-900 dark:text-white leading-tight">{u.classTitle}</p>
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{u.dayOfWeek} at {u.timeSlot}</p>
-                                  <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-700 text-[9.5px]">
-                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">Tutor: {u.tutorName}</span>
-                                    <button 
-                                      onClick={() => {
-                                        setShowNotifications(false);
-                                        onChangeTab('dashboard');
-                                      }}
-                                      className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold text-[9px] uppercase tracking-wider cursor-pointer"
-                                    >
-                                      View Schedule
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Regular Notifications */}
-                        {notifFilter !== 'upcoming' && (() => {
-                          const filteredNotifs = notifications.filter(n => notifFilter === 'unread' ? !n.isRead : true);
-                          if (filteredNotifs.length === 0) {
-                            return (
-                              <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center gap-2">
-                                <Sparkles className="w-6 h-6 text-slate-300 dark:text-slate-600" />
-                                <p>
-                                  {notifFilter === 'unread' 
-                                    ? "No unread notifications!" 
-                                    : "No notifications logged yet."}
+                          {/* Panel Header */}
+                          <div className="p-3.5 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-blue-50/80 dark:from-slate-800 dark:to-slate-800/80 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-xs">
+                                <Bell className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                                  Tuition Alerts & Notifications
+                                </h4>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                                  {unreadCount > 0 ? `${unreadCount} unread update${unreadCount > 1 ? 's' : ''}` : 'All notifications read'}
                                 </p>
                               </div>
-                            );
-                          }
-                          return filteredNotifs.map((not) => (
-                            <div
-                              key={not.id}
-                              onClick={() => handleSelectNotification(not)}
-                              className={`p-3 relative cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors flex gap-2.5 items-start ${
-                                !not.isRead ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
-                              }`}
-                            >
-                              <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0">
-                                {not.type === 'payment' && <CreditCard className="w-4 h-4 text-emerald-500" />}
-                                {not.type === 'message' && <Mail className="w-4 h-4 text-blue-500" />}
-                                {not.type === 'announcement' && <Shield className="w-4 h-4 text-purple-500" />}
-                                {not.type === 'reminder' && <Bell className="w-4 h-4 text-amber-500" />}
-                              </div>
-                              <div className="flex-1 pr-6">
-                                <div className="flex items-center gap-1.5">
-                                  <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 leading-tight">{not.title}</p>
-                                  {!not.isRead && (
-                                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0"></span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug line-clamp-2">{not.message}</p>
-                                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 block font-mono">
-                                  {new Date(not.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                              {!not.isRead && (
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {unreadCount > 0 && currentUser && (
                                 <button
-                                  onClick={(e) => toggleNotificationRead(not.id, e)}
-                                  className="p-1 rounded-md hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 absolute top-2.5 right-2 cursor-pointer"
-                                  title="Mark as read"
+                                  onClick={markAllNotificationsRead}
+                                  className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100/60 dark:hover:bg-slate-700 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                                  title="Mark all notifications as read"
                                 >
-                                  <Check className="w-3.5 h-3.5" />
+                                  <CheckCheck className="w-3.5 h-3.5" /> Read All
                                 </button>
                               )}
+                              <button
+                                onClick={() => setShowNotifications(false)}
+                                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
                             </div>
-                          ));
-                        })()}
-                      </div>
+                          </div>
 
-                      {/* Panel Footer */}
-                      <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <button
-                          onClick={() => {
-                            setShowSettings(true);
-                            setShowNotifications(false);
-                          }}
-                          className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Settings className="w-3.5 h-3.5" /> Preferences
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowNotifications(false);
-                            if (currentUser) {
-                              onChangeTab('dashboard');
-                            } else {
-                              onChangeTab('auth');
-                            }
-                          }}
-                          className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          {currentUser ? 'Full Dashboard' : 'Sign In'} <ArrowRight className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
+                          {/* Filter Sub-Tabs */}
+                          <div className="flex items-center gap-1 p-2 bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-bold">
+                            <button
+                              onClick={() => setNotifFilter('all')}
+                              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                notifFilter === 'all'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/50'
+                              }`}
+                            >
+                              All ({notifications.length})
+                            </button>
+                            <button
+                              onClick={() => setNotifFilter('unread')}
+                              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                notifFilter === 'unread'
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/50'
+                              }`}
+                            >
+                              Unread ({notifications.filter(n => !n.isRead).length})
+                            </button>
+                            {upcomingClasses.length > 0 && (
+                              <button
+                                onClick={() => setNotifFilter('upcoming')}
+                                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                  notifFilter === 'upcoming'
+                                    ? 'bg-amber-500 text-white shadow-xs'
+                                    : 'text-amber-700 dark:text-amber-400 hover:bg-amber-100/50'
+                                }`}
+                              >
+                                Upcoming ({upcomingClasses.length})
+                              </button>
+                            )}
+                          </div>
 
-            {currentUser ? (
-              <div className="flex items-center gap-3 pl-2 border-l border-gray-100">
-                <div className="text-right">
-                  <span className="block text-sm font-bold text-gray-800 leading-tight">{currentUser.name}</span>
-                  <span className="block">{getRoleBadge(currentUser.role)}</span>
+                          {/* Notification Items List */}
+                          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[350px]">
+                            {/* Upcoming Booked Classes Banner inside list if filter is 'all' or 'upcoming' */}
+                            {(notifFilter === 'all' || notifFilter === 'upcoming') && upcomingClasses.length > 0 && (
+                              <div className="bg-amber-50/80 dark:bg-amber-950/30 p-3 border-b border-amber-200/60 dark:border-amber-900/40">
+                                <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1 font-mono mb-2">
+                                  <Calendar className="w-3.5 h-3.5" /> Upcoming Tuition Class
+                                </span>
+                                <div className="space-y-2">
+                                  {upcomingClasses.map(u => (
+                                    <div key={u.id} className="text-xs bg-white dark:bg-slate-800 rounded-xl p-2.5 border border-amber-200/80 dark:border-amber-800/50 shadow-xs">
+                                      <p className="font-extrabold text-slate-900 dark:text-white leading-tight">{u.classTitle}</p>
+                                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{u.dayOfWeek} at {u.timeSlot}</p>
+                                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-700 text-[9.5px]">
+                                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">Tutor: {u.tutorName}</span>
+                                        <button 
+                                          onClick={() => {
+                                            setShowNotifications(false);
+                                            onChangeTab('dashboard');
+                                          }}
+                                          className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold text-[9px] uppercase tracking-wider cursor-pointer"
+                                        >
+                                          View Schedule
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Regular Notifications */}
+                            {notifFilter !== 'upcoming' && (() => {
+                              const filteredNotifs = notifications.filter(n => notifFilter === 'unread' ? !n.isRead : true);
+                              if (filteredNotifs.length === 0) {
+                                return (
+                                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-xs flex flex-col items-center gap-2">
+                                    <Sparkles className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+                                    <p>
+                                      {notifFilter === 'unread' 
+                                        ? "No unread notifications!" 
+                                        : "No notifications logged yet."}
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return filteredNotifs.map((not) => (
+                                <div
+                                  key={not.id}
+                                  onClick={() => handleSelectNotification(not)}
+                                  className={`p-3 relative cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors flex gap-2.5 items-start ${
+                                    !not.isRead ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
+                                  }`}
+                                >
+                                  <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0">
+                                    {not.type === 'payment' && <CreditCard className="w-4 h-4 text-emerald-500" />}
+                                    {not.type === 'message' && <Mail className="w-4 h-4 text-blue-500" />}
+                                    {not.type === 'announcement' && <Shield className="w-4 h-4 text-purple-500" />}
+                                    {not.type === 'reminder' && <Bell className="w-4 h-4 text-amber-500" />}
+                                  </div>
+                                  <div className="flex-1 pr-6">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 leading-tight">{not.title}</p>
+                                      {!not.isRead && (
+                                        <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0"></span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug line-clamp-2">{not.message}</p>
+                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 block font-mono">
+                                      {new Date(not.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  {!not.isRead && (
+                                    <button
+                                      onClick={(e) => toggleNotificationRead(not.id, e)}
+                                      className="p-1 rounded-md hover:bg-blue-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 absolute top-2.5 right-2 cursor-pointer"
+                                      title="Mark as read"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              ));
+                            })()}
+                          </div>
+
+                          {/* Panel Footer */}
+                          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <button
+                              onClick={() => {
+                                setShowSettings(true);
+                                setShowNotifications(false);
+                              }}
+                              className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Settings className="w-3.5 h-3.5" /> Preferences
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowNotifications(false);
+                                if (currentUser) {
+                                  onChangeTab('dashboard');
+                                } else {
+                                  onChangeTab('auth');
+                                }
+                              }}
+                              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              {currentUser ? 'Full Dashboard' : 'Sign In'} <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
-                {currentUser.photoURL ? (
-                  <img 
-                    referrerPolicy="no-referrer"
-                    className="h-9 w-9 rounded-full object-cover ring-2 ring-blue-100 cursor-pointer hover:scale-105 transition-transform" 
-                    src={currentUser.photoURL} 
-                    alt={currentUser.name} 
-                    onClick={() => setShowProfileDetails(true)}
-                  />
-                ) : (
-                  <div 
-                    className="h-9 w-9 bg-blue-100 text-blue-700 flex items-center justify-center font-bold rounded-full border border-blue-200 cursor-pointer hover:bg-blue-250 transition-colors"
-                    onClick={() => setShowProfileDetails(true)}
-                  >
-                    <User className="w-5 h-5" />
+
+                <div className="flex items-center gap-3 pl-2 border-l border-gray-100">
+                  <div className="text-right">
+                    <span className="block text-sm font-bold text-gray-800 leading-tight">{currentUser.name}</span>
+                    <span className="block">{getRoleBadge(currentUser.role)}</span>
                   </div>
-                )}
-                <button
-                  onClick={() => setShowLogoutConfirm(true)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="Log Out"
-                  id="nav_logout_btn"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
+                  {currentUser.photoURL ? (
+                    <img 
+                      referrerPolicy="no-referrer"
+                      className="h-9 w-9 rounded-full object-cover ring-2 ring-blue-100 cursor-pointer hover:scale-105 transition-transform" 
+                      src={currentUser.photoURL} 
+                      alt={currentUser.name} 
+                      onClick={() => setShowProfileDetails(true)}
+                    />
+                  ) : (
+                    <div 
+                      className="h-9 w-9 bg-blue-100 text-blue-700 flex items-center justify-center font-bold rounded-full border border-blue-200 cursor-pointer hover:bg-blue-250 transition-colors"
+                      onClick={() => setShowProfileDetails(true)}
+                    >
+                      <User className="w-5 h-5" />
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowLogoutConfirm(true)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="Log Out"
+                    id="nav_logout_btn"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                </div>
+              </>
             ) : (
               <button
                 onClick={() => onChangeTab('auth')}
@@ -626,24 +604,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             >
               {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
             </button>
-            <div className="p-1 text-slate-500 dark:text-slate-400 relative">
-              <button
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setShowSettings(false);
-                }}
-                className="p-1 rounded-lg hover:text-indigo-600 cursor-pointer relative"
-                id="mobile_notifications_bell_btn"
-                title="View Tuition Alerts & Notifications"
-              >
-                <Bell className="w-5.5 h-5.5" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-0 right-0 block h-3.5 w-3.5 rounded-full bg-red-500 text-[9px] font-bold text-white text-center leading-3.5 animate-bounce">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            {currentUser && (
+              <div className="p-1 text-slate-500 dark:text-slate-400 relative">
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    setShowSettings(false);
+                  }}
+                  className="p-1 rounded-lg hover:text-indigo-600 cursor-pointer relative"
+                  id="mobile_notifications_bell_btn"
+                  title="View Tuition Alerts & Notifications"
+                >
+                  <Bell className="w-5.5 h-5.5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-0 right-0 block h-3.5 w-3.5 rounded-full bg-red-500 text-[9px] font-bold text-white text-center leading-3.5 animate-bounce">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-200/40"

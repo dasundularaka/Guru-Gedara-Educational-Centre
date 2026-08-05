@@ -5,7 +5,7 @@ import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
-import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem } from '../types';
+import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMaterial, ResourceType } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
@@ -35,7 +35,18 @@ import {
   CheckCheck,
   CheckCircle,
   Megaphone,
-  Info
+  Info,
+  FileText,
+  Link as LinkIcon,
+  ExternalLink,
+  Share2,
+  HelpCircle,
+  Video,
+  FileSpreadsheet,
+  Layers,
+  Filter,
+  Copy,
+  FolderOpen
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
@@ -57,11 +68,40 @@ export const TutorDashboard: React.FC = () => {
     executeWriteWithRetry
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'reminders'>('all');
   const [tutorNoticeTitle, setTutorNoticeTitle] = useState('');
   const [tutorNoticeMsg, setTutorNoticeMsg] = useState('');
   const [sendingTutorNotice, setSendingTutorNotice] = useState(false);
+  
+  // Study Materials / Course Resources State
+  const [tutorMaterials, setTutorMaterials] = useState<StudyMaterial[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [selectedResourceClassId, setSelectedResourceClassId] = useState<string>('all');
+  const [selectedResourceType, setSelectedResourceType] = useState<ResourceType | 'all'>('all');
+  const [resourceSearchQuery, setResourceSearchQuery] = useState('');
+
+  // Resource Upload & Edit Modal state
+  const [showResourceModal, setShowResourceModal] = useState(false);
+  const [editingResource, setEditingResource] = useState<StudyMaterial | null>(null);
+  const [resTitle, setResTitle] = useState('');
+  const [resDescription, setResDescription] = useState('');
+  const [resClassId, setResClassId] = useState('');
+  const [resSubject, setResSubject] = useState('Mathematics');
+  const [resType, setResType] = useState<ResourceType>('note');
+  const [resUrl, setResUrl] = useState('');
+  const [savingResource, setSavingResource] = useState(false);
+
+  // Resource Delete Modal state
+  const [deleteResourceConfirm, setDeleteResourceConfirm] = useState<{
+    isOpen: boolean;
+    id: string;
+    title: string;
+  }>({
+    isOpen: false,
+    id: '',
+    title: ''
+  });
   
   const [tutorClasses, setTutorClasses] = useState<ClassItem[]>([]);
   const [rosterBookings, setRosterBookings] = useState<Booking[]>([]);
@@ -221,6 +261,123 @@ export const TutorDashboard: React.FC = () => {
       loadAttendanceRecords();
     }
   }, [activeSubTab, currentUser?.uid]);
+
+  const fetchTutorMaterials = async () => {
+    if (!currentUser) return;
+    setLoadingMaterials(true);
+    try {
+      const list = await firestoreService.getStudyMaterials();
+      const tutorClassIds = classes.filter(c => c.tutorId === currentUser.uid).map(c => c.id);
+      const filtered = list.filter(m => m.tutorId === currentUser.uid || (m.classId && tutorClassIds.includes(m.classId)));
+      setTutorMaterials(filtered);
+    } catch (e) {
+      console.warn("Failed loading tutor study materials", e);
+    } finally {
+      setLoadingMaterials(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchTutorMaterials();
+    }
+  }, [currentUser?.uid, activeSubTab, classes.length]);
+
+  const handleOpenAddResourceModal = (preselectedClassId?: string) => {
+    setEditingResource(null);
+    setResTitle('');
+    setResDescription('');
+    setResUrl('');
+    setResType('note');
+    const targetClassId = preselectedClassId || (tutorClasses.length > 0 ? tutorClasses[0].id : '');
+    setResClassId(targetClassId);
+    const targetClass = tutorClasses.find(c => c.id === targetClassId) || tutorClasses[0];
+    setResSubject(targetClass?.subject || 'Mathematics');
+    setShowResourceModal(true);
+  };
+
+  const handleEditResourceModal = (mat: StudyMaterial) => {
+    setEditingResource(mat);
+    setResTitle(mat.title);
+    setResDescription(mat.description || '');
+    setResUrl(mat.referenceUrl);
+    setResType(mat.type || 'note');
+    setResClassId(mat.classId || '');
+    setResSubject(mat.subject || 'Mathematics');
+    setShowResourceModal(true);
+  };
+
+  const handleSaveResource = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (!resTitle.trim() || !resUrl.trim()) {
+      showToast("Please provide both a Title and Reference URL for the resource.", "error");
+      return;
+    }
+
+    let formattedUrl = resUrl.trim();
+    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
+      formattedUrl = "https://" + formattedUrl;
+    }
+
+    setSavingResource(true);
+    try {
+      const targetClass = tutorClasses.find(c => c.id === resClassId);
+      const subjectName = targetClass?.subject || resSubject || "General";
+
+      if (editingResource) {
+        await firestoreService.updateStudyMaterial(editingResource.id, {
+          title: resTitle.trim(),
+          description: resDescription.trim(),
+          subject: subjectName,
+          referenceUrl: formattedUrl,
+          type: resType,
+          classId: resClassId || undefined,
+          classTitle: targetClass?.title || undefined
+        });
+        showToast(`Resource '${resTitle.trim()}' updated successfully!`, "success");
+      } else {
+        await firestoreService.saveStudyMaterial({
+          title: resTitle.trim(),
+          description: resDescription.trim(),
+          subject: subjectName,
+          referenceUrl: formattedUrl,
+          type: resType,
+          tutorId: currentUser.uid,
+          tutorName: currentUser.name,
+          classId: resClassId || undefined,
+          classTitle: targetClass?.title || undefined
+        });
+        showToast(`Resource '${resTitle.trim()}' published to course!`, "success");
+      }
+
+      setShowResourceModal(false);
+      setEditingResource(null);
+      setResTitle('');
+      setResDescription('');
+      setResUrl('');
+      setResClassId('');
+
+      await fetchTutorMaterials();
+    } catch (err) {
+      showToast("Failed to save resource. Try again.", "error");
+    } finally {
+      setSavingResource(false);
+    }
+  };
+
+  const executeResourceDeletion = async () => {
+    const { id, title } = deleteResourceConfirm;
+    if (!id) return;
+    try {
+      await firestoreService.deleteStudyMaterial(id);
+      showToast(`Resource '${title}' deleted successfully.`, "success");
+      setDeleteResourceConfirm({ isOpen: false, id: '', title: '' });
+      await fetchTutorMaterials();
+    } catch (e) {
+      showToast("Failed deleting resource.", "error");
+    }
+  };
 
   // Set default widgetClassId to first tutor class if available
   useEffect(() => {
@@ -643,6 +800,13 @@ export const TutorDashboard: React.FC = () => {
                 <Users className="w-4 h-4" /> listed Scholars ({rosterBookings.length})
               </button>
               <button
+                id="tutor_tab_resources"
+                onClick={() => setActiveSubTab('resources')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'resources' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+              >
+                <BookOpen className="w-4 h-4" /> Course Resources ({tutorMaterials.length})
+              </button>
+              <button
                 id="tutor_tab_attendance"
                 onClick={() => setActiveSubTab('attendance')}
                 className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'attendance' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
@@ -958,6 +1122,417 @@ export const TutorDashboard: React.FC = () => {
                   )}
                 </div>
 
+              </motion.div>
+            )}
+
+            {/* Tab: Course Resources & Class Management */}
+            {activeSubTab === 'resources' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-8"
+              >
+                {/* Section 1: Assigned Classes Directory */}
+                <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-5">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-blue-600" />
+                        <h2 className="text-base font-extrabold text-gray-900 tracking-tight">Assigned Courses Directory</h2>
+                        <span className="bg-blue-50 text-blue-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-150 font-mono">
+                          {tutorClasses.length} Active Courses
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Directly manage study notes, quiz uploads, reference links, and assignment sheets for your specific courses.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenAddResourceModal()}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-colors cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" /> Add Course Resource
+                    </button>
+                  </div>
+
+                  {/* Grid of Assigned Classes */}
+                  {tutorClasses.length === 0 ? (
+                    <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-dashed border-gray-200 space-y-2">
+                      <BookOpen className="w-8 h-8 text-gray-300 mx-auto" />
+                      <p className="text-xs font-bold text-gray-700">No assigned courses programmed yet</p>
+                      <p className="text-[11px] text-gray-400">Click 'Launch Tuition Class' at the top of your workspace to create your first class.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {tutorClasses.map((cls) => {
+                        const classMaterials = tutorMaterials.filter(m => m.classId === cls.id);
+                        const classBookings = rosterBookings.filter(b => b.classId === cls.id);
+                        const notesCount = classMaterials.filter(m => m.type === 'note').length;
+                        const quizzesCount = classMaterials.filter(m => m.type === 'quiz').length;
+                        const linksCount = classMaterials.filter(m => m.type === 'link' || !m.type).length;
+                        const isSelected = selectedResourceClassId === cls.id;
+
+                        return (
+                          <div
+                            key={cls.id}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50/20 shadow-md ring-2 ring-blue-500/20'
+                                : 'border-gray-200 bg-gray-50/30 hover:border-blue-200 hover:bg-white shadow-2xs'
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-start gap-2">
+                                <span className="text-[9px] font-extrabold font-mono text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                  {cls.subject}
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
+                                  {classBookings.length}/{cls.maxSlots} Enrolled
+                                </span>
+                              </div>
+
+                              <h3 className="text-sm font-extrabold text-gray-900 line-clamp-1" title={cls.title}>
+                                {cls.title}
+                              </h3>
+
+                              <p className="text-[11px] text-gray-500 flex items-center gap-1 font-mono">
+                                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                {cls.dayOfWeek} • {cls.timeSlot}
+                              </p>
+
+                              {/* Resource count indicators */}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-200/60">
+                                <span className="text-[10px] font-bold text-slate-700 bg-white border border-gray-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                  <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
+                                  {classMaterials.length} Items
+                                </span>
+                                {notesCount > 0 && (
+                                  <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded">
+                                    {notesCount} Notes
+                                  </span>
+                                )}
+                                {quizzesCount > 0 && (
+                                  <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-150 px-1.5 py-0.5 rounded">
+                                    {quizzesCount} Quizzes
+                                  </span>
+                                )}
+                                {linksCount > 0 && (
+                                  <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-150 px-1.5 py-0.5 rounded">
+                                    {linksCount} Links
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Action Buttons */}
+                            <div className="flex items-center gap-2 pt-3 mt-1 border-t border-gray-100">
+                              <button
+                                onClick={() => {
+                                  if (selectedResourceClassId === cls.id) {
+                                    setSelectedResourceClassId('all');
+                                  } else {
+                                    setSelectedResourceClassId(cls.id);
+                                  }
+                                }}
+                                className={`flex-1 text-xs py-1.5 px-2 font-bold rounded-xl transition-colors cursor-pointer text-center ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                {isSelected ? 'Selected Course' : 'Filter Resources'}
+                              </button>
+                              <button
+                                onClick={() => handleOpenAddResourceModal(cls.id)}
+                                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-150 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Attach new note, quiz, or link to this course"
+                              >
+                                <Plus className="w-3.5 h-3.5" /> Resource
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Course Resources Hub */}
+                <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-6">
+                  
+                  {/* Search & Filter Toolbar */}
+                  <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 bg-gray-50/80 p-4 rounded-2xl border border-gray-200">
+                    
+                    {/* Left: Search input & Class Selector */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                      {/* Search bar */}
+                      <div className="relative flex-1 min-w-[200px]">
+                        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={resourceSearchQuery}
+                          onChange={(e) => setResourceSearchQuery(e.target.value)}
+                          placeholder="Search materials, notes, quizzes, links..."
+                          className="w-full text-xs pl-9 pr-8 py-2 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-2xs"
+                        />
+                        {resourceSearchQuery && (
+                          <button
+                            onClick={() => setResourceSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Class Filter Dropdown */}
+                      <div className="min-w-[190px]">
+                        <select
+                          value={selectedResourceClassId}
+                          onChange={(e) => setSelectedResourceClassId(e.target.value)}
+                          className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none text-gray-800 font-bold focus:border-blue-500 shadow-2xs cursor-pointer"
+                        >
+                          <option value="all">📚 All Assigned Courses ({tutorMaterials.length})</option>
+                          {tutorClasses.map(cls => (
+                            <option key={cls.id} value={cls.id}>
+                              {cls.title} ({tutorMaterials.filter(m => m.classId === cls.id).length})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Right: Resource Type Selector Pills */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 scrollbar-none text-xs font-bold">
+                      {[
+                        { id: 'all', label: 'All', icon: Layers },
+                        { id: 'note', label: 'Notes', icon: FileText },
+                        { id: 'quiz', label: 'Quizzes', icon: HelpCircle },
+                        { id: 'link', label: 'Links', icon: LinkIcon },
+                        { id: 'file', label: 'Files', icon: FileSpreadsheet },
+                        { id: 'video', label: 'Videos', icon: Video },
+                        { id: 'announcement', label: 'Notices', icon: Megaphone }
+                      ].map(typeTab => {
+                        const IconComponent = typeTab.icon;
+                        const count = typeTab.id === 'all'
+                          ? tutorMaterials.length
+                          : tutorMaterials.filter(m => (m.type || 'link') === typeTab.id).length;
+                        const isActive = selectedResourceType === typeTab.id;
+
+                        return (
+                          <button
+                            key={typeTab.id}
+                            onClick={() => setSelectedResourceType(typeTab.id as any)}
+                            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                              isActive
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                            }`}
+                          >
+                            <IconComponent className="w-3.5 h-3.5" />
+                            <span>{typeTab.label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Filtered Resource List Grid */}
+                  {(() => {
+                    let filtered = [...tutorMaterials];
+
+                    if (selectedResourceClassId !== 'all') {
+                      filtered = filtered.filter(m => m.classId === selectedResourceClassId);
+                    }
+
+                    if (selectedResourceType !== 'all') {
+                      filtered = filtered.filter(m => (m.type || 'link') === selectedResourceType);
+                    }
+
+                    if (resourceSearchQuery.trim()) {
+                      const q = resourceSearchQuery.toLowerCase();
+                      filtered = filtered.filter(m =>
+                        m.title.toLowerCase().includes(q) ||
+                        (m.description || '').toLowerCase().includes(q) ||
+                        (m.classTitle || '').toLowerCase().includes(q) ||
+                        (m.subject || '').toLowerCase().includes(q)
+                      );
+                    }
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-12 px-4 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 space-y-3">
+                          <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mx-auto">
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-800">No Course Resources Found</h4>
+                            <p className="text-xs text-gray-400 max-w-md mx-auto mt-1">
+                              {resourceSearchQuery || selectedResourceClassId !== 'all' || selectedResourceType !== 'all'
+                                ? 'No items match your active filters. Try clearing active filters or searching for another topic.'
+                                : 'You haven\'t uploaded any notes, quiz links, or references for your courses yet.'}
+                            </p>
+                          </div>
+                          <div className="flex justify-center gap-2 pt-2">
+                            {(resourceSearchQuery || selectedResourceClassId !== 'all' || selectedResourceType !== 'all') && (
+                              <button
+                                onClick={() => {
+                                  setResourceSearchQuery('');
+                                  setSelectedResourceClassId('all');
+                                  setSelectedResourceType('all');
+                                }}
+                                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-300 transition-colors cursor-pointer"
+                              >
+                                Clear Filters
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenAddResourceModal()}
+                              className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <Plus className="w-4 h-4" /> Add Resource Now
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {filtered.map((mat) => {
+                          const resType = mat.type || 'link';
+                          
+                          const typeConfig = {
+                            note: {
+                              badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                              icon: FileText,
+                              label: 'Lecture Note'
+                            },
+                            quiz: {
+                              badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
+                              icon: HelpCircle,
+                              label: 'Quiz / Exam'
+                            },
+                            link: {
+                              badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                              icon: LinkIcon,
+                              label: 'Reference Link'
+                            },
+                            file: {
+                              badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
+                              icon: FileSpreadsheet,
+                              label: 'Document File'
+                            },
+                            video: {
+                              badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
+                              icon: Video,
+                              label: 'Video Clip'
+                            },
+                            announcement: {
+                              badgeBg: 'bg-sky-50 text-sky-700 border-sky-200',
+                              icon: Megaphone,
+                              label: 'Announcement'
+                            }
+                          }[resType] || {
+                            badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
+                            icon: LinkIcon,
+                            label: 'Resource'
+                          };
+
+                          const IconComp = typeConfig.icon;
+
+                          return (
+                            <div
+                              key={mat.id}
+                              className="bg-white border border-gray-200 rounded-2xl p-5 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                            >
+                              <div className="space-y-3">
+                                {/* Header: Badge & Date */}
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${typeConfig.badgeBg}`}>
+                                    <IconComp className="w-3.5 h-3.5" />
+                                    {typeConfig.label}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 font-mono">
+                                    {new Date(mat.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </span>
+                                </div>
+
+                                {/* Title */}
+                                <h3 className="text-sm font-extrabold text-gray-900 leading-snug line-clamp-2" title={mat.title}>
+                                  {mat.title}
+                                </h3>
+
+                                {/* Course Badge */}
+                                {mat.classTitle && (
+                                  <div className="text-[11px] text-blue-800 font-bold bg-blue-50/80 border border-blue-150 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 max-w-full">
+                                    <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span className="truncate">{mat.classTitle}</span>
+                                  </div>
+                                )}
+
+                                {/* Description */}
+                                {mat.description && (
+                                  <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
+                                    {mat.description}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Card Footer Actions */}
+                              <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                                <a
+                                  href={mat.referenceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                                >
+                                  <span>Open Resource</span>
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(mat.referenceUrl);
+                                      showToast("Resource URL copied to clipboard!", "info");
+                                    }}
+                                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Copy resource URL"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleEditResourceModal(mat)}
+                                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Edit resource"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => setDeleteResourceConfirm({ isOpen: true, id: mat.id, title: mat.title })}
+                                    className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Delete resource"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                </div>
               </motion.div>
             )}
 
@@ -1806,6 +2381,186 @@ export const TutorDashboard: React.FC = () => {
                 className="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
               >
                 Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Adding or Editing Course Resource */}
+      {showResourceModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-100 shadow-2xl relative animate-fade-in font-sans space-y-5">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-gray-900">
+                    {editingResource ? 'Edit Course Resource' : 'Add New Course Resource'}
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    Publish notes, quizzes, links, or documents for your assigned students.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowResourceModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveResource} className="space-y-4">
+              {/* Course Selection */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Target Assigned Course:</label>
+                <select
+                  value={resClassId}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    setResClassId(selectedId);
+                    const selectedClass = tutorClasses.find(c => c.id === selectedId);
+                    if (selectedClass) {
+                      setResSubject(selectedClass.subject);
+                    }
+                  }}
+                  className="w-full text-xs px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold"
+                  required
+                >
+                  <option value="">-- Select Assigned Class --</option>
+                  {tutorClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} ({c.subject} - {c.dayOfWeek})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Resource Title */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Resource Title:</label>
+                <input
+                  type="text"
+                  required
+                  value={resTitle}
+                  onChange={(e) => setResTitle(e.target.value)}
+                  placeholder="e.g., Module 3 Calculus Practice Quiz or Lecture Notes PDF"
+                  className="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Resource Type & Category */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Resource Type:</label>
+                  <select
+                    value={resType}
+                    onChange={(e) => setResType(e.target.value as ResourceType)}
+                    className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold"
+                  >
+                    <option value="note">📝 Lecture Note / PDF</option>
+                    <option value="quiz">❓ Quiz / Exam Sheet</option>
+                    <option value="link">🔗 Reference Link / Web URL</option>
+                    <option value="file">📄 Document / Spreadsheet</option>
+                    <option value="video">🎥 Video Session Link</option>
+                    <option value="announcement">📢 Course Notice</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Subject Track:</label>
+                  <input
+                    type="text"
+                    value={resSubject}
+                    onChange={(e) => setResSubject(e.target.value)}
+                    placeholder="e.g. Mathematics"
+                    className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-gray-50"
+                  />
+                </div>
+              </div>
+
+              {/* URL / Link */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Access URL / Resource Link:</label>
+                <input
+                  type="text"
+                  required
+                  value={resUrl}
+                  onChange={(e) => setResUrl(e.target.value)}
+                  placeholder="e.g., https://drive.google.com/... or https://quiz.link/..."
+                  className="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Provide Google Drive, Dropbox, Quizlet, YouTube, or external LMS URL.
+                </p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Instructions / Description (Optional):</label>
+                <textarea
+                  rows={3}
+                  value={resDescription}
+                  onChange={(e) => setResDescription(e.target.value)}
+                  placeholder="Provide guidance on completing this quiz or reading notes before class..."
+                  className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                ></textarea>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowResourceModal(false)}
+                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingResource}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
+                >
+                  {savingResource ? 'Saving...' : editingResource ? 'Update Resource' : 'Publish Resource'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Modal for Resource Deletion */}
+      {deleteResourceConfirm.isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl text-center relative animate-fade-in font-sans space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto animate-bounce">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 mb-1">Delete Resource</h2>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Are you sure you want to delete <span className="font-extrabold text-slate-800">"{deleteResourceConfirm.title}"</span>? Enrolled students will no longer be able to access this item.
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteResourceConfirm({ isOpen: false, id: '', title: '' })}
+                className="w-1/2 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Keep Item
+              </button>
+              <button
+                type="button"
+                onClick={executeResourceDeletion}
+                className="w-1/2 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Delete Resource
               </button>
             </div>
           </div>
