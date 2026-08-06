@@ -1996,6 +1996,21 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   // REAL-TIME SUBSCRIPTIONS (CROSS-BROWSER SYNC)
   // -------------------------------------------------------------
+  subscribeUsers(callback: (users: UserProfile[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'users'), async () => {
+          const allUsers = await this.getAllUsers();
+          callback(allUsers);
+        }, (err) => console.warn("Users snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to users", e);
+      }
+    }
+    this.getAllUsers().then(callback);
+    return () => {};
+  },
+
   subscribeClasses(callback: (classes: ClassItem[]) => void): () => void {
     if (isUsingCloud) {
       try {

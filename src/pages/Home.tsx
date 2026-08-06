@@ -55,16 +55,26 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
     const loadHomeRecords = async () => {
       try {
         await refreshClasses();
-        // Load tutors
+        // Load all tutors
         const list = await firestoreService.getAllUsers();
         const tutorsList = list.filter(u => u.role === 'tutor');
-        const featuredTutors = tutorsList.filter(u => u.isFeatured === true);
-        setTopTutors(featuredTutors.length > 0 ? featuredTutors : tutorsList);
+        setTopTutors(tutorsList);
       } catch (e) {
         console.warn(e);
       }
     };
     loadHomeRecords();
+
+    // Subscribe to real-time users/tutors updates
+    const unsubscribeUsers = firestoreService.subscribeUsers((allUsers) => {
+      const tutorsList = allUsers.filter(u => u.role === 'tutor');
+      setTopTutors(tutorsList);
+    });
+
+    // Subscribe to real-time classes updates
+    const unsubscribeClasses = firestoreService.subscribeClasses((updatedClasses) => {
+      setHighlightedClasses(updatedClasses);
+    });
 
     // Real-time subscription for hero banners
     const unsubscribeBanners = firestoreService.subscribeBanners((bannerData) => {
@@ -72,6 +82,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
     });
 
     return () => {
+      unsubscribeUsers();
+      unsubscribeClasses();
       unsubscribeBanners();
     };
   }, []);
@@ -165,18 +177,20 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
   // Slice displayed items for carousels
   const displayedTutors = useMemo(() => {
-    if (topTutors.length <= visibleTutorsCount) return topTutors;
+    if (topTutors.length === 0) return [];
+    const count = Math.min(topTutors.length, visibleTutorsCount);
     const result = [];
-    for (let i = 0; i < visibleTutorsCount; i++) {
+    for (let i = 0; i < count; i++) {
       result.push(topTutors[(tutorSlideIdx + i) % topTutors.length]);
     }
     return result;
   }, [topTutors, tutorSlideIdx]);
 
   const displayedClasses = useMemo(() => {
-    if (highlightedClasses.length <= visibleClassesCount) return highlightedClasses;
+    if (highlightedClasses.length === 0) return [];
+    const count = Math.min(highlightedClasses.length, visibleClassesCount);
     const result = [];
-    for (let i = 0; i < visibleClassesCount; i++) {
+    for (let i = 0; i < count; i++) {
       result.push(highlightedClasses[(classSlideIdx + i) % highlightedClasses.length]);
     }
     return result;
@@ -391,25 +405,41 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={prevTutors}
-                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
-                title="Previous faculty"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={nextTutors}
-                className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
-                title="Next faculty"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {topTutors.length > 1 && (
+                <div className="flex items-center gap-1.5 mr-2">
+                  <button
+                    onClick={prevTutors}
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
+                    title="Previous faculty"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="flex gap-1 items-center px-1">
+                    {topTutors.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setTutorSlideIdx(i)}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          i === tutorSlideIdx ? 'w-5 bg-indigo-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                        }`}
+                        title={`Go to slide ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={nextTutors}
+                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
+                    title="Next faculty"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => onNavigateTab('tutors')}
-                className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer ml-2"
+                className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer"
               >
-                View All Faculty
+                View All Faculty ({topTutors.length})
               </button>
             </div>
           </div>
@@ -433,25 +463,41 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={prevClasses}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                title="Previous class"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={nextClasses}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                title="Next class"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {highlightedClasses.length > 1 && (
+                <div className="flex items-center gap-1.5 mr-2">
+                  <button
+                    onClick={prevClasses}
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                    title="Previous class"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="flex gap-1 items-center px-1">
+                    {highlightedClasses.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setClassSlideIdx(i)}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          i === classSlideIdx ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                        }`}
+                        title={`Go to slide ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={nextClasses}
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                    title="Next class"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => onNavigateTab('classes')}
-                className="px-4 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-950 transition-colors cursor-pointer ml-2"
+                className="px-4 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-950 transition-colors cursor-pointer"
               >
-                All Curriculums
+                All Curriculums ({highlightedClasses.length})
               </button>
             </div>
           </div>
