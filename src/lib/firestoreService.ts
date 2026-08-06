@@ -949,7 +949,7 @@ const firestoreServiceRaw = {
   // REAL MESSAGES (FEEDBACK/CHAT)
   // -------------------------------------------------------------
   async getDirectMessages(userId1: string, userId2: string): Promise<DirectMessage[]> {
-    let cloudMessages: DirectMessage[] = [];
+    let cloudMessages: DirectMessage[] | null = null;
     if (isUsingCloud) {
       try {
         const snap = await promiseWithTimeout(
@@ -958,27 +958,35 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
+        saveFallback('local_messages', cloudMessages);
       } catch (e) {
         console.warn("Fallback loader messages.", e);
       }
     }
 
-    const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
-    const messageMap = new Map<string, DirectMessage>();
-    localMsgs.forEach(m => messageMap.set(m.id, m));
-    cloudMessages.forEach(m => messageMap.set(m.id, m));
-    const mergedList = Array.from(messageMap.values());
+    const messagesList = cloudMessages !== null ? cloudMessages : handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
 
-    if (cloudMessages.length > 0) {
-      saveFallback('local_messages', mergedList);
-    }
-
-    return mergedList
+    return messagesList
       .filter(m => 
-        (m.senderId === userId1 && m.receiverId === userId2) || 
-        (m.senderId === userId2 && m.receiverId === userId1)
+        m && (
+          (m.senderId === userId1 && m.receiverId === userId2) || 
+          (m.senderId === userId2 && m.receiverId === userId1)
+        )
       )
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  },
+
+  async deleteDirectMessage(messageId: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'messages', messageId));
+      } catch (e) {
+        console.warn("Failed to delete message from Firestore.", e);
+      }
+    }
+    const list = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
+    const filtered = list.filter(m => m.id !== messageId);
+    saveFallback('local_messages', filtered);
   },
 
   async sendDirectMessage(senderId: string, senderName: string, receiverId: string, messageText: string): Promise<DirectMessage> {
@@ -1935,11 +1943,12 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'classes'), (snap) => {
-          const docs = snap.docs.map(doc => doc.data() as ClassItem);
-          if (docs.length > 0) {
-            saveFallback('local_classes', docs);
-            callback(docs);
-          }
+          const deletedIds = handleFallback<string>('local_deleted_class_ids', []);
+          const docs = snap.docs
+            .map(doc => doc.data() as ClassItem)
+            .filter(c => c && c.id && !deletedIds.includes(c.id));
+          saveFallback('local_classes', docs);
+          callback(docs);
         }, (err) => console.warn("Classes snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to classes", e);
@@ -1953,10 +1962,8 @@ const firestoreServiceRaw = {
       try {
         return onSnapshot(collection(db, 'bookings'), (snap) => {
           const docs = snap.docs.map(doc => doc.data() as Booking);
-          if (docs.length > 0) {
-            saveFallback('local_bookings', docs);
-            callback(docs);
-          }
+          saveFallback('local_bookings', docs);
+          callback(docs);
         }, (err) => console.warn("Bookings snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to bookings", e);
@@ -1969,11 +1976,12 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'payments'), (snap) => {
-          const docs = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Payment);
-          if (docs.length > 0) {
-            saveFallback('local_payments', docs);
-            callback(docs);
-          }
+          const deletedIds = handleFallback<string>('local_deleted_payment_ids', []);
+          const docs = snap.docs
+            .map(doc => ({ ...doc.data(), id: doc.id }) as Payment)
+            .filter(p => p && p.id && !deletedIds.includes(p.id));
+          saveFallback('local_payments', docs);
+          callback(docs);
         }, (err) => console.warn("Payments snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to payments", e);
@@ -1987,15 +1995,31 @@ const firestoreServiceRaw = {
       try {
         return onSnapshot(collection(db, 'reviews'), (snap) => {
           const docs = snap.docs.map(doc => doc.data() as Review);
-          if (docs.length > 0) {
-            saveFallback('local_reviews', docs);
-            callback(docs);
-          }
+          saveFallback('local_reviews', docs);
+          callback(docs);
         }, (err) => console.warn("Reviews snapshot error", err));
       } catch (e) {
         console.warn("Error subscribing to reviews", e);
       }
     }
+    return () => {};
+  },
+
+  subscribeStudyMaterials(classIdFilter?: string, callback?: (materials: StudyMaterial[]) => void): () => void {
+    const cb = callback || (() => {});
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'materials'), (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as StudyMaterial);
+          saveFallback('local_materials', docs);
+          const filtered = classIdFilter ? docs.filter(m => m.classId === classIdFilter) : docs;
+          cb(filtered);
+        }, (err) => console.warn("Study materials snapshot error", err));
+      } catch (e) {
+        console.warn("Error subscribing to study materials", e);
+      }
+    }
+    this.getStudyMaterials(classIdFilter).then(cb);
     return () => {};
   },
 
@@ -2010,20 +2034,14 @@ const firestoreServiceRaw = {
         );
         return onSnapshot(q, (snap) => {
           const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
-          const localMsgs = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
-          const messageMap = new Map<string, DirectMessage>();
-          localMsgs.forEach(m => messageMap.set(m.id, m));
-          cloudMessages.forEach(m => messageMap.set(m.id, m));
-          const mergedList = Array.from(messageMap.values());
+          saveFallback('local_messages', cloudMessages);
           
-          if (cloudMessages.length > 0) {
-            saveFallback('local_messages', mergedList);
-          }
-          
-          const filtered = mergedList
+          const filtered = cloudMessages
             .filter(m => 
-              (m.senderId === userId1 && m.receiverId === userId2) || 
-              (m.senderId === userId2 && m.receiverId === userId1)
+              m && (
+                (m.senderId === userId1 && m.receiverId === userId2) || 
+                (m.senderId === userId2 && m.receiverId === userId1)
+              )
             )
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
           
@@ -2032,11 +2050,10 @@ const firestoreServiceRaw = {
           console.error('Error on messages snapshot: ', error);
         });
       } catch (e) {
-        console.warn("Error subscribing to direct messages, falling back to one-time fetch", e);
+        console.warn("Error subscribing to direct messages", e);
       }
     }
     
-    // Offline fallback: one-time fetch
     this.getDirectMessages(userId1, userId2).then(callback);
     return () => {};
   }

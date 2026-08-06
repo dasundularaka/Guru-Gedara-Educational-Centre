@@ -509,27 +509,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Set up real-time database subscriptions so all browser instances stay in live sync
   useEffect(() => {
     const unsubClasses = firestoreService.subscribeClasses((updated) => {
-      if (updated && updated.length > 0) {
+      if (Array.isArray(updated)) {
         setClasses(updated);
+        localStorage.setItem('local_classes', safeStringify(updated));
       }
     });
 
     const unsubBookings = firestoreService.subscribeBookings((updated) => {
-      if (updated && updated.length > 0) {
+      if (Array.isArray(updated)) {
         setBookings(updated);
         localStorage.setItem('local_bookings', safeStringify(updated));
       }
     });
 
     const unsubPayments = firestoreService.subscribePayments((updated) => {
-      if (updated && updated.length > 0) {
+      if (Array.isArray(updated)) {
         setPayments(updated);
         localStorage.setItem('local_payments', safeStringify(updated));
       }
     });
 
     const unsubReviews = firestoreService.subscribeReviews((updated) => {
-      if (updated && updated.length > 0) {
+      if (Array.isArray(updated)) {
         setReviews(updated);
         localStorage.setItem('local_reviews', safeStringify(updated));
       }

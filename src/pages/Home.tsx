@@ -77,7 +77,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
   }, []);
 
   useEffect(() => {
-    if (classes && classes.length > 0) {
+    if (classes) {
       setHighlightedClasses(classes);
     }
   }, [classes]);
