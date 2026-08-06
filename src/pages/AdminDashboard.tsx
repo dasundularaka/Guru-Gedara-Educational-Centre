@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
-import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage } from '../types';
+import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
+import { StudentProgressTracker } from '../components/StudentProgressTracker';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -67,7 +68,12 @@ import {
   Shield,
   CheckCheck,
   Clock,
-  Filter
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  Award,
+  Percent
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -86,7 +92,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress'>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -96,6 +102,10 @@ export const AdminDashboard: React.FC = () => {
   const [pathwaysList, setPathwaysList] = useState<PathwayItem[]>([]);
   const [subjectsList, setSubjectsList] = useState<SubjectItem[]>([]);
   const [bannersList, setBannersList] = useState<BannerImage[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [selectedProgressStudentId, setSelectedProgressStudentId] = useState<string>('');
+  const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
+  const [progressGradeFilter, setProgressGradeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   // Pathway management modal states
@@ -577,18 +587,28 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchAttendanceRecords = async () => {
+    try {
+      const recs = await firestoreService.getAttendance();
+      setAttendanceRecords(recs || []);
+    } catch (e) {
+      console.warn("Failed reading attendance records", e);
+    }
+  };
+
   const fetchAdminDatasets = async () => {
     setLoading(true);
     try {
-      // Fetch users, classes, payments, bookings, pathways, subjects, and banners in parallel
-      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects, allBanners] = await Promise.all([
+      // Fetch users, classes, payments, bookings, pathways, subjects, banners, and attendance in parallel
+      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects, allBanners, allAttendance] = await Promise.all([
         firestoreService.getAllUsers(),
         firestoreService.getClasses(),
         firestoreService.getPayments(),
         firestoreService.getBookings(),
         firestoreService.getPathways(),
         firestoreService.getSubjects(),
-        firestoreService.getBanners()
+        firestoreService.getBanners(),
+        firestoreService.getAttendance()
       ]);
 
       setUsers(allUsers);
@@ -598,6 +618,7 @@ export const AdminDashboard: React.FC = () => {
       setPathwaysList(allPathways);
       setSubjectsList(allSubjects);
       setBannersList(allBanners);
+      setAttendanceRecords(allAttendance || []);
     } catch (e) {
       console.warn("Failed index mapping of site admin data pools", e);
     } finally {
@@ -1462,6 +1483,16 @@ export const AdminDashboard: React.FC = () => {
               <Users className="w-4 h-4" /> Scholars
             </button>
             <button
+              id="admin_tab_progress"
+              onClick={() => {
+                setActiveTab('progress');
+                fetchAttendanceRecords();
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'progress' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+            >
+              <GraduationCap className="w-4 h-4 text-indigo-300" /> Student Progress
+            </button>
+            <button
               id="admin_tab_tutors"
               onClick={() => setActiveTab('tutors')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'tutors' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
@@ -2239,7 +2270,19 @@ export const AdminDashboard: React.FC = () => {
                         </div>
 
                         {/* Card Action Controls */}
-                        <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
+                        <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
+                          <button
+                            id={`progress-student-btn-${stud.uid}`}
+                            onClick={() => {
+                              setSelectedProgressStudentId(stud.uid);
+                              setActiveTab('progress');
+                              fetchAttendanceRecords();
+                            }}
+                            className="p-1 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all"
+                            title="View student academic progress, quiz scores & attendance"
+                          >
+                            <GraduationCap className="w-3.5 h-3.5 text-indigo-600" /> View Progress
+                          </button>
                           <button 
                             id={`edit-student-btn-${stud.uid}`}
                             onClick={() => openEditModal('student', stud)}
@@ -2263,6 +2306,332 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </motion.div>
             )}
+
+            {/* Tab: Student Progress & Performance Analytics */}
+            {activeTab === 'progress' && (() => {
+              const studentList = users.filter(u => u.role === 'student');
+
+              const filteredStudents = studentList.filter(stud => {
+                const query = progressSearchTerm.trim().toLowerCase();
+                const nameMatch = !query || stud.name.toLowerCase().includes(query);
+                const usernameMatch = !query || (stud.username || '').toLowerCase().includes(query);
+                const emailMatch = !query || (stud.email || '').toLowerCase().includes(query);
+                const matchQuery = nameMatch || usernameMatch || emailMatch;
+
+                const studGrade = stud.studentDetails?.grade || (stud as any).grade || '';
+                const matchGrade = progressGradeFilter === 'all' || studGrade === progressGradeFilter;
+
+                return matchQuery && matchGrade;
+              });
+
+              const activeStudent = studentList.find(s => s.uid === selectedProgressStudentId) || filteredStudents[0] || studentList[0];
+              const activeStudentIndex = filteredStudents.findIndex(s => s?.uid === activeStudent?.uid);
+
+              const activeStudentBookings = activeStudent 
+                ? bookingsList.filter(b => b.studentId === activeStudent.uid || b.studentName === activeStudent.name)
+                : [];
+
+              const activeStudentAttendance = activeStudent
+                ? attendanceRecords.filter(a => a.studentId === activeStudent.uid || a.studentName === activeStudent.name)
+                : [];
+
+              const exportStudentProgressCSV = () => {
+                if (!activeStudent) return;
+                const rows = [
+                  ["Field", "Value"],
+                  ["Student Name", activeStudent.name],
+                  ["Username (Student ID)", activeStudent.username || 'N/A'],
+                  ["Email", activeStudent.email],
+                  ["Phone", activeStudent.phone || 'N/A'],
+                  ["Grade", activeStudent.studentDetails?.grade || (activeStudent as any).grade || 'Grade 11'],
+                  ["Status", activeStudent.status || 'active'],
+                  ["Enrolled Classes Count", activeStudentBookings.length.toString()],
+                  ["Attendance Records Count", activeStudentAttendance.length.toString()],
+                  ["Report Generated Date", new Date().toLocaleString()]
+                ];
+
+                const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `student_progress_${(activeStudent.username || activeStudent.name).replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast(`Progress summary report downloaded for ${activeStudent.name}`, "success");
+              };
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="space-y-6"
+                >
+                  {/* Top Banner & Filtering Controls */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b pb-4 border-gray-100">
+                      <div>
+                        <h3 className="text-lg font-black text-blue-950 flex items-center gap-2">
+                          <GraduationCap className="w-6 h-6 text-indigo-600" /> Scholar Performance & Attendance Intelligence
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Comprehensive student progress tracker with real-time quiz performance curves, attendance scan logs, and course mastery scores.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          <span>{studentList.length} Total Scholars</span>
+                        </div>
+                        <button
+                          onClick={fetchAttendanceRecords}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-extrabold transition-all cursor-pointer"
+                        >
+                          🔄 Refresh Attendance Logs
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Live Filter Controls */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/80 p-4 rounded-xl border border-slate-100">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase">Filter by Username or Name:</label>
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5" />
+                          <input
+                            type="text"
+                            placeholder="Search name or ID (e.g. GB00000000)..."
+                            value={progressSearchTerm}
+                            onChange={(e) => setProgressSearchTerm(e.target.value)}
+                            className="w-full text-xs pl-8 pr-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase">Filter by Grade Level:</label>
+                        <select
+                          value={progressGradeFilter}
+                          onChange={(e) => setProgressGradeFilter(e.target.value)}
+                          className="w-full text-xs px-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-500 outline-none font-medium cursor-pointer"
+                        >
+                          <option value="all">All Academic Grades</option>
+                          <option value="Grade 6">Grade 6</option>
+                          <option value="Grade 7">Grade 7</option>
+                          <option value="Grade 8">Grade 8</option>
+                          <option value="Grade 9">Grade 9</option>
+                          <option value="Grade 10">Grade 10</option>
+                          <option value="Grade 11">Grade 11</option>
+                          <option value="Grade 12">Grade 12</option>
+                          <option value="Grade 13">Grade 13</option>
+                        </select>
+                      </div>
+
+                      {/* Direct One-by-One Student Dropdown Selector */}
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="block text-[10px] font-mono font-bold text-indigo-700 uppercase">Select Individual Student (One-by-One View):</label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={activeStudent?.uid || ''}
+                            onChange={(e) => setSelectedProgressStudentId(e.target.value)}
+                            className="w-full text-xs px-3 py-2 bg-white border-2 border-indigo-200 text-indigo-950 font-extrabold rounded-lg focus:border-indigo-600 outline-none cursor-pointer"
+                          >
+                            {filteredStudents.length === 0 ? (
+                              <option value="">No matching students found</option>
+                            ) : (
+                              filteredStudents.map(s => (
+                                <option key={s.uid} value={s.uid}>
+                                  {s.name} ({s.username || s.email}) - {s.studentDetails?.grade || (s as any).grade || 'Grade 11'}
+                                </option>
+                              ))
+                            )}
+                          </select>
+
+                          {/* Prev / Next buttons for one-by-one stepping */}
+                          <button
+                            disabled={activeStudentIndex <= 0}
+                            onClick={() => {
+                              if (activeStudentIndex > 0) {
+                                setSelectedProgressStudentId(filteredStudents[activeStudentIndex - 1].uid);
+                              }
+                            }}
+                            className="p-2 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg text-slate-700 cursor-pointer"
+                            title="Previous Student"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <button
+                            disabled={activeStudentIndex >= filteredStudents.length - 1}
+                            onClick={() => {
+                              if (activeStudentIndex < filteredStudents.length - 1) {
+                                setSelectedProgressStudentId(filteredStudents[activeStudentIndex + 1].uid);
+                              }
+                            }}
+                            className="p-2 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg text-slate-700 cursor-pointer"
+                            title="Next Student"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Main Grid: Student Directory List + Active Progress Dashboard */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left Directory List (4 cols) */}
+                    <div className="lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3 max-h-[850px] overflow-y-auto">
+                      <div className="flex justify-between items-center px-1 pb-2 border-b border-gray-100">
+                        <span className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">
+                          Searchable Directory ({filteredStudents.length})
+                        </span>
+                        <span className="text-[10px] text-gray-400">Click to select</span>
+                      </div>
+
+                      {filteredStudents.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 space-y-2">
+                          <Search className="w-8 h-8 mx-auto text-gray-300" />
+                          <p className="text-xs font-semibold">No student records match search parameters.</p>
+                        </div>
+                      ) : (
+                        filteredStudents.map((stud) => {
+                          const isSelected = activeStudent?.uid === stud.uid;
+                          const studBookingsCount = bookingsList.filter(b => b.studentId === stud.uid || b.studentName === stud.name).length;
+
+                          return (
+                            <div
+                              key={stud.uid}
+                              onClick={() => setSelectedProgressStudentId(stud.uid)}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                isSelected
+                                  ? 'bg-indigo-50/80 border-indigo-300 shadow-xs ring-1 ring-indigo-200'
+                                  : 'bg-slate-50/50 border-slate-100 hover:border-slate-200 hover:bg-slate-100/50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                {stud.photoURL ? (
+                                  <img className="h-9 w-9 rounded-full object-cover border border-slate-200 flex-shrink-0" src={stud.photoURL} alt="" />
+                                ) : (
+                                  <div className="h-9 w-9 bg-indigo-600 text-white flex items-center justify-center font-bold text-xs rounded-full flex-shrink-0">
+                                    {stud.name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <h5 className="text-xs font-extrabold text-slate-900 truncate">{stud.name}</h5>
+                                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    {stud.username && (
+                                      <span className="px-1.5 py-0.2 bg-white text-indigo-900 border border-indigo-150 rounded font-mono text-[9px] font-extrabold">
+                                        ID: {stud.username}
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      {stud.studentDetails?.grade || (stud as any).grade || 'Grade 11'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right flex-shrink-0">
+                                <span className="block text-[10px] font-black text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100">
+                                  {studBookingsCount} Classes
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Right Active Student Inspector View (8 cols) */}
+                    <div className="lg:col-span-8 space-y-6">
+                      {!activeStudent ? (
+                        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
+                          <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+                          <p className="text-sm font-bold">Please select a student scholar to inspect their performance metrics.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-6">
+                          {/* Selected Student Executive Profile Summary */}
+                          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-md space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                              <div className="flex items-center gap-4">
+                                {activeStudent.photoURL ? (
+                                  <img src={activeStudent.photoURL} className="w-14 h-14 rounded-full object-cover border-2 border-indigo-400/50 shadow-sm" alt="" />
+                                ) : (
+                                  <div className="w-14 h-14 rounded-full bg-indigo-600 text-white font-extrabold text-xl flex items-center justify-center border-2 border-indigo-400/50">
+                                    {activeStudent.name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h2 className="text-xl font-extrabold tracking-tight">{activeStudent.name}</h2>
+                                    {activeStudent.username && (
+                                      <span className="px-2 py-0.5 bg-indigo-500/30 border border-indigo-400/40 text-indigo-200 font-mono text-xs font-black rounded-lg">
+                                        ID: {activeStudent.username}
+                                      </span>
+                                    )}
+                                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold rounded-full uppercase">
+                                      {activeStudent.status || 'Active'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-indigo-200/80 mt-1">
+                                    <span>📧 {activeStudent.email}</span>
+                                    <span>📱 {activeStudent.phone || 'N/A'}</span>
+                                    <span>🎓 {activeStudent.studentDetails?.grade || (activeStudent as any).grade || 'Grade 11'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={exportStudentProgressCSV}
+                                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                >
+                                  <Download className="w-3.5 h-3.5" /> Export Report
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-indigo-800/50 text-xs">
+                              <div>
+                                <span className="text-[10px] uppercase font-mono text-indigo-300 font-bold block">Guardian Name:</span>
+                                <span className="font-semibold">{activeStudent.guardianName || 'N/A'}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-mono text-indigo-300 font-bold block">Guardian Phone:</span>
+                                <span className="font-semibold">{activeStudent.guardianPhone || 'N/A'}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-mono text-indigo-300 font-bold block">Enrolled Classes:</span>
+                                <span className="font-semibold">{activeStudentBookings.length} Active Courses</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-mono text-indigo-300 font-bold block">Scan Attendance Logs:</span>
+                                <span className="font-semibold">{activeStudentAttendance.length} Total Sessions</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Render Full StudentProgressTracker for Selected Student */}
+                          <StudentProgressTracker
+                            currentUser={activeStudent}
+                            userBookings={activeStudentBookings}
+                            classes={classesList}
+                            attendanceRecords={activeStudentAttendance}
+                            onAttendanceMarked={fetchAttendanceRecords}
+                            showToast={showToast}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })()}
 
             {/* Tab 3: Verified Tutors */}
             {activeTab === 'tutors' && (
