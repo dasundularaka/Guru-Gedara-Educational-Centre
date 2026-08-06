@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { safeStringify } from '../lib/firestoreService';
 import { 
   BookOpen, 
   Bell, 
@@ -125,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           });
           
           if (updated) {
-            localStorage.setItem(notifiedKey, JSON.stringify(alreadyNotified));
+            localStorage.setItem(notifiedKey, safeStringify(alreadyNotified));
           }
         }
       }

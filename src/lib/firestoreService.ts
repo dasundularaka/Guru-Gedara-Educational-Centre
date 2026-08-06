@@ -32,57 +32,43 @@ let isUsingCloud = true;
 let isOriginalCloud = true;
 
 // Helper to stringify objects with circular reference protection and custom type exclusions
-export function safeStringify(obj: any): string {
-  if (obj === undefined) return 'undefined';
-  if (obj === null) return 'null';
-  if (typeof obj !== 'object' && typeof obj !== 'function') {
-    return String(obj);
-  }
+function cleanObjectForSerialization(val: any, seen = new WeakSet()): any {
+  if (val === null || val === undefined) return val;
+  const type = typeof val;
+  if (type === 'number' || type === 'string' || type === 'boolean') return val;
+  if (type === 'function' || type === 'symbol') return undefined;
 
-  const seen = new WeakSet();
+  if (type === 'object') {
+    if (seen.has(val)) return undefined;
+    seen.add(val);
 
-  const replacer = (_key: string, value: any) => {
-    if (value === null || value === undefined) return value;
-    if (typeof value === 'function' || typeof value === 'symbol') return undefined;
-
-    if (typeof value === 'object') {
-      // 1. Check circular reference FIRST before inspecting properties
-      if (seen.has(value)) {
+    // Window, DOM node, or Event
+    try {
+      if (
+        (typeof window !== 'undefined' && val === window) ||
+        val.nodeType !== undefined ||
+        val.nativeEvent !== undefined
+      ) {
         return undefined;
       }
-      seen.add(value);
+    } catch (_) {
+      return undefined;
+    }
 
-      // 2. DOM Node, Window, or Event check
+    if (val instanceof Date) return val.toISOString();
+    if (typeof val.toDate === 'function') {
       try {
-        if (
-          value === window ||
-          value.nodeType !== undefined ||
-          (value.nativeEvent !== undefined)
-        ) {
-          return undefined;
-        }
+        return val.toDate().toISOString();
       } catch (_) {
         return undefined;
       }
+    }
 
-      // 3. Handle Date
-      if (value instanceof Date) {
-        return value.toISOString();
-      }
-
-      // 4. Handle Firestore Timestamp
-      if (typeof value.toDate === 'function') {
-        try {
-          return value.toDate().toISOString();
-        } catch (_) {
-          return undefined;
-        }
-      }
-
-      // 5. Safely check constructor name
-      try {
-        const cName = value?.constructor?.name;
-        if (cName && (
+    // Check constructor name to exclude SDK internal instances (e.g. Y2, Ka, Firestore, Auth, etc.)
+    try {
+      const cName = val?.constructor?.name;
+      if (cName && cName !== 'Object' && cName !== 'Array') {
+        if (
           cName.length <= 3 ||
           cName.startsWith('Y2') ||
           cName.startsWith('Ka') ||
@@ -91,23 +77,56 @@ export function safeStringify(obj: any): string {
           cName.includes('Element') ||
           cName.includes('Event') ||
           cName.includes('Auth') ||
-          cName.includes('Error')
-        )) {
-          // Keep plain Object and Array, omit minified SDK class instances
-          if (cName !== 'Object' && cName !== 'Array') {
-            return undefined;
-          }
+          cName.includes('Error') ||
+          cName.includes('Reference') ||
+          cName.includes('Query')
+        ) {
+          if (val.message && typeof val.message === 'string') return val.message;
+          if (val.code && typeof val.code === 'string') return val.code;
+          return undefined;
         }
-      } catch (_) {
-        return undefined;
       }
+    } catch (_) {
+      return undefined;
     }
 
-    return value;
-  };
+    if (Array.isArray(val)) {
+      const cleanArr: any[] = [];
+      for (let i = 0; i < val.length; i++) {
+        try {
+          const item = cleanObjectForSerialization(val[i], seen);
+          if (item !== undefined) cleanArr.push(item);
+        } catch (_) {}
+      }
+      return cleanArr;
+    }
+
+    const cleanObj: Record<string, any> = {};
+    for (const key of Object.keys(val)) {
+      if (key.startsWith('$$') || key.startsWith('_v')) continue;
+      try {
+        const item = cleanObjectForSerialization(val[key], seen);
+        if (item !== undefined) {
+          cleanObj[key] = item;
+        }
+      } catch (_) {}
+    }
+    return cleanObj;
+  }
+
+  return undefined;
+}
+
+export function safeStringify(obj: any): string {
+  if (obj === undefined) return 'undefined';
+  if (obj === null) return 'null';
+  if (typeof obj !== 'object' && typeof obj !== 'function') {
+    return String(obj);
+  }
 
   try {
-    return JSON.stringify(obj, replacer);
+    const cleaned = cleanObjectForSerialization(obj);
+    return JSON.stringify(cleaned);
   } catch (err) {
     console.warn("[safeStringify] Safe stringify error caught:", err);
     try {
@@ -476,7 +495,7 @@ const firestoreServiceRaw = {
     }
 
     // Requirement 1: In database, username and uid must be equal (username = uid)
-    const effectiveUsername = uid;
+    const effectiveUsername = profile.username || uid;
 
     const baseProfile: Record<string, any> = {
       uid,
@@ -632,18 +651,56 @@ const firestoreServiceRaw = {
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     const deletedUids = handleFallback<string>('local_deleted_uids', []);
     
-    const userMap = new Map<string, UserProfile>();
-    // If cloud returned users, add them first
-    cloudUsers.forEach(u => userMap.set(u.uid, u));
-    // If cloud didn't have certain fallback tutors or registered users, add if not deleted
-    tutors.forEach(u => {
-      if (!userMap.has(u.uid)) userMap.set(u.uid, u);
+    const rawList: UserProfile[] = [...cloudUsers, ...registered, ...tutors]
+      .filter(u => u && u.uid && !deletedUids.includes(u.uid));
+
+    // Deduplicate users by clean email and UID
+    const emailToUserMap = new Map<string, UserProfile>();
+    const uidToUserMap = new Map<string, UserProfile>();
+    const orphanedUidsToDelete: string[] = [];
+
+    for (const u of rawList) {
+      const emailKey = u.email ? u.email.trim().toLowerCase() : '';
+      
+      if (emailKey) {
+        if (!emailToUserMap.has(emailKey)) {
+          emailToUserMap.set(emailKey, u);
+        } else {
+          const existing = emailToUserMap.get(emailKey)!;
+          const uHasSystemId = u.username && (/^(GT|GB|GG)\d{8}$/.test(u.username) || u.uid.startsWith('GT') || u.uid.startsWith('GB') || u.uid.startsWith('GG'));
+          const existingHasSystemId = existing.username && (/^(GT|GB|GG)\d{8}$/.test(existing.username) || existing.uid.startsWith('GT') || existing.uid.startsWith('GB') || existing.uid.startsWith('GG'));
+
+          if (uHasSystemId && !existingHasSystemId) {
+            orphanedUidsToDelete.push(existing.uid);
+            emailToUserMap.set(emailKey, { ...existing, ...u, uid: u.uid, username: u.username });
+          } else if (!uHasSystemId && existingHasSystemId) {
+            orphanedUidsToDelete.push(u.uid);
+          } else if (u.uid !== existing.uid) {
+            orphanedUidsToDelete.push(u.uid);
+          }
+        }
+      } else {
+        if (!uidToUserMap.has(u.uid)) {
+          uidToUserMap.set(u.uid, u);
+        }
+      }
+    }
+
+    // Clean up orphaned duplicates in background
+    if (orphanedUidsToDelete.length > 0) {
+      setTimeout(() => {
+        orphanedUidsToDelete.forEach(id => {
+          this.deleteUserProfile(id).catch(() => {});
+        });
+      }, 500);
+    }
+
+    const uniqueMap = new Map<string, UserProfile>();
+    [...Array.from(emailToUserMap.values()), ...Array.from(uidToUserMap.values())].forEach(u => {
+      uniqueMap.set(u.uid, u);
     });
-    registered.forEach(u => {
-      if (!userMap.has(u.uid)) userMap.set(u.uid, u);
-    });
-    
-    return Array.from(userMap.values()).filter(u => !deletedUids.includes(u.uid));
+
+    return Array.from(uniqueMap.values());
   },
 
   // -------------------------------------------------------------

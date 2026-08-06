@@ -1116,12 +1116,14 @@ export const AdminDashboard: React.FC = () => {
   const handleAssignTutorUsername = async (tutorId: string) => {
     try {
       const allUsers = await firestoreService.getAllUsers();
+      const currentTut = allUsers.find(u => u.uid === tutorId || u.username === tutorId);
+
       let uniqueUsername = "";
       let attempts = 0;
       while (attempts < 100) {
         const num = Math.floor(10000000 + Math.random() * 90000000).toString();
         const candidate = "GT" + num;
-        if (!allUsers.some(u => u.username === candidate)) {
+        if (!allUsers.some(u => u.username === candidate || u.uid === candidate)) {
           uniqueUsername = candidate;
           break;
         }
@@ -1129,9 +1131,36 @@ export const AdminDashboard: React.FC = () => {
       }
       if (!uniqueUsername) uniqueUsername = "GT" + Math.floor(10000000 + Math.random() * 90000000).toString();
 
-      await firestoreService.updateTutorProfile(tutorId, {
-        username: uniqueUsername
-      });
+      if (currentTut) {
+        const oldUid = currentTut.uid;
+        
+        // Prepare new profile where both username and uid equal GT...
+        const updatedProfile: UserProfile = {
+          ...currentTut,
+          uid: uniqueUsername,
+          username: uniqueUsername,
+          role: 'tutor'
+        };
+
+        // Create new profile under uniqueUsername (GT...)
+        await firestoreService.createUserProfile(uniqueUsername, updatedProfile);
+
+        // Delete old profile if its UID was different
+        if (oldUid !== uniqueUsername) {
+          await firestoreService.deleteUserProfile(oldUid);
+          
+          // Update any classes that referenced the old UID
+          const currentClasses = classesList.filter(c => c.tutorId === oldUid);
+          for (const cls of currentClasses) {
+            await firestoreService.updateClass(cls.id, { tutorId: uniqueUsername, tutorName: currentTut.name });
+          }
+        }
+      } else {
+        await firestoreService.updateTutorProfile(tutorId, {
+          username: uniqueUsername,
+          uid: uniqueUsername
+        });
+      }
 
       showToast(`Tutor system identifier GT allocated: ${uniqueUsername}`, "success");
       await fetchAdminDatasets();
@@ -1248,14 +1277,35 @@ export const AdminDashboard: React.FC = () => {
           }
           uProfile.password = finalPassword;
 
-          let realUid = "stud_" + Math.random().toString(36).substr(2, 9);
-          // Try to enroll them into firebase authentication
+          // Set registration status to approved since it was explicitly added by Admin
+          uProfile.status = 'approved';
+          
+          // Generate system generated immutable username format and use it as database UID
+          const allUsers = await firestoreService.getAllUsers();
+          const prefix = studentGender === 'male' ? 'GB' : 'GG';
+          let uniqueUsername = "";
+          let attempts = 0;
+          while (attempts < 100) {
+            const num = Math.floor(10000000 + Math.random() * 90000000).toString();
+            const candidate = prefix + num;
+            if (!allUsers.some(u => u.username === candidate || u.uid === candidate)) {
+              uniqueUsername = candidate;
+              break;
+            }
+            attempts++;
+          }
+          if (!uniqueUsername) uniqueUsername = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
+          
+          uProfile.username = uniqueUsername;
+          uProfile.uid = uniqueUsername;
+          let realUid = uniqueUsername;
+
+          // Enroll into Firebase Auth if required
           let tempApp: any = null;
           try {
             tempApp = initializeApp(firebaseConfig, "TempAppStudentAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
-            const userCredentials = await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
-            realUid = userCredentials.user.uid;
+            await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
           } catch (firebaseErr: any) {
             console.warn("Firebase Auth auto-creation failed, using custom local UID. Reason: ", firebaseErr.message);
           } finally {
@@ -1264,25 +1314,11 @@ export const AdminDashboard: React.FC = () => {
             }
           }
 
-          // Set registration status to approved since it was explicitly added by Admin
-          uProfile.status = 'approved';
-          
-          // Generate a system generated immutable username format based on gender biography set as well
-          const allUsers = await firestoreService.getAllUsers();
-          const prefix = studentGender === 'male' ? 'GB' : 'GG';
-          let uniqueUsername = "";
-          let attempts = 0;
-          while (attempts < 100) {
-            const num = Math.floor(10000000 + Math.random() * 90000000).toString();
-            const candidate = prefix + num;
-            if (!allUsers.some(u => u.username === candidate)) {
-              uniqueUsername = candidate;
-              break;
-            }
-            attempts++;
+          // Clean up any orphan user document with same email
+          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== realUid);
+          if (existingSameEmail) {
+            await firestoreService.deleteUserProfile(existingSameEmail.uid);
           }
-          if (!uniqueUsername) uniqueUsername = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
-          uProfile.username = uniqueUsername;
 
           await firestoreService.createUserProfile(realUid, uProfile);
           showToast(`Student profile '${userName}' enrolled with system identifier: ${uniqueUsername}. Password: ${finalPassword}`, "success");
@@ -1318,13 +1354,30 @@ export const AdminDashboard: React.FC = () => {
           }
           uProfile.password = finalPassword;
 
-          let realUid = "tut_" + Math.random().toString(36).substr(2, 9);
+          // Generate GT + 8 digits username and use it directly as database UID
+          const allUsers = await firestoreService.getAllUsers();
+          let uniqueUsername = "";
+          let attempts = 0;
+          while (attempts < 100) {
+            const num = Math.floor(10000000 + Math.random() * 90000000).toString();
+            const candidate = "GT" + num;
+            if (!allUsers.some(u => u.username === candidate || u.uid === candidate)) {
+              uniqueUsername = candidate;
+              break;
+            }
+            attempts++;
+          }
+          if (!uniqueUsername) uniqueUsername = "GT" + Math.floor(10000000 + Math.random() * 90000000).toString();
+
+          uProfile.username = uniqueUsername;
+          uProfile.uid = uniqueUsername;
+          let realUid = uniqueUsername;
+
           let tempApp: any = null;
           try {
             tempApp = initializeApp(firebaseConfig, "TempAppTutorAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
-            const userCredentials = await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
-            realUid = userCredentials.user.uid;
+            await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
           } catch (firebaseErr: any) {
             console.warn("Firebase Auth auto-creation failed for tutor. Reason: ", firebaseErr.message);
           } finally {
@@ -1333,8 +1386,14 @@ export const AdminDashboard: React.FC = () => {
             }
           }
 
+          // Clean up any orphan user document with same email
+          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== realUid);
+          if (existingSameEmail) {
+            await firestoreService.deleteUserProfile(existingSameEmail.uid);
+          }
+
           await firestoreService.createUserProfile(realUid, uProfile);
-          showToast(`Tutor profile '${userName}' created successfully. Password: ${finalPassword}`, "success");
+          showToast(`Tutor profile '${userName}' created with system ID: ${uniqueUsername}. Password: ${finalPassword}`, "success");
         } else {
           await firestoreService.updateUserProfile(editingId!, uProfile);
           showToast(`Tutor profile updated.`, "success");
@@ -2710,15 +2769,16 @@ export const AdminDashboard: React.FC = () => {
                           
                           <div className="flex gap-1.5 flex-wrap pt-1">
                             <span className="font-extrabold text-emerald-850 font-mono text-[11px] bg-emerald-50 px-2 py-0.5 border border-emerald-150 rounded">${tut.tutorDetails?.hourlyRate || (tut as any).hourlyRate || 35}/Hr</span>
-                            {tut.username ? (
+                            {tut.username && (tut.username.startsWith('GT') || tut.uid.startsWith('GT')) ? (
                               <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-800 border border-slate-205 rounded font-mono text-[9px] font-bold">
-                                ID: {tut.username}
+                                ID: {tut.username.startsWith('GT') ? tut.username : tut.uid}
                               </span>
                             ) : (
                               <button
                                 id={`allocate-id-btn-${tut.uid}`}
                                 onClick={() => handleAssignTutorUsername(tut.uid)}
-                                className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-700 hover:bg-indigo-100 rounded text-[9px] font-black transition-colors cursor-pointer"
+                                className="px-2 py-0.5 bg-indigo-50 border border-indigo-150 text-indigo-700 hover:bg-indigo-100 rounded text-[9px] font-black transition-colors cursor-pointer flex items-center gap-1"
+                                title="Generate system identifier (GT00000000) for tutor"
                               >
                                 Allocate ID
                               </button>

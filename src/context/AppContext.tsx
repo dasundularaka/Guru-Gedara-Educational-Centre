@@ -196,7 +196,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSyncLogs(prev => {
       const next = [newEntry, ...prev].slice(0, 50);
       try {
-        localStorage.setItem('local_sync_logs', JSON.stringify(next));
+        localStorage.setItem('local_sync_logs', safeStringify(next));
       } catch (e) {}
       return next;
     });
@@ -556,9 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!profile && email) {
             const matchedProfile = await firestoreService.getUserProfileByEmail(email);
             if (matchedProfile) {
-              const mergedProfile = { ...matchedProfile, uid: firebaseUser.uid };
-              await firestoreService.createUserProfile(firebaseUser.uid, mergedProfile);
-              profile = mergedProfile;
+              profile = matchedProfile;
             }
           }
           
@@ -660,9 +658,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!profile && email) {
         const matchedProfile = await firestoreService.getUserProfileByEmail(email);
         if (matchedProfile) {
-          const mergedProfile = { ...matchedProfile, uid: result.user.uid };
-          await firestoreService.createUserProfile(result.user.uid, mergedProfile);
-          profile = mergedProfile;
+          profile = matchedProfile;
         }
       }
       
