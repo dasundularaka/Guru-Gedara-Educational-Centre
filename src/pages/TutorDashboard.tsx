@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
@@ -9,9 +10,11 @@ import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMateria
 import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
+import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { 
   Users, 
   Calendar, 
+  QrCode, 
   MessageSquare, 
   BookOpen, 
   Plus, 
@@ -114,6 +117,7 @@ export const TutorDashboard: React.FC = () => {
   const [selectedAttendanceClassId, setSelectedAttendanceClassId] = useState<string>('');
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   // Quick Attendance Widget state
   const [widgetClassId, setWidgetClassId] = useState<string>('');
@@ -766,22 +770,32 @@ export const TutorDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Class Creator trigger */}
-            <button
-              id="tutor_btn_launch_class"
-              onClick={() => {
-                setClassFormMode('create');
-                setEditingClassId(null);
-                setNewTitle("");
-                setNewDesc("");
-                setNewPrice("80");
-                setNewLimit("15");
-                setShowAddClass(true);
-              }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Launch Tuition Class
-            </button>
+            {/* Class Creator trigger & QR Pass Trigger */}
+            <div className="flex items-center gap-2">
+              <button
+                id="tutor_btn_launch_class"
+                onClick={() => {
+                  setClassFormMode('create');
+                  setEditingClassId(null);
+                  setNewTitle("");
+                  setNewDesc("");
+                  setNewPrice("80");
+                  setNewLimit("15");
+                  setShowAddClass(true);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Launch Tuition Class
+              </button>
+              <button
+                id="tutor_btn_launch_qr_pass"
+                onClick={() => setShowQrModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer"
+                title="Display live QR Code for class attendance check-ins"
+              >
+                <QrCode className="w-4 h-4" /> Live Session QR Code
+              </button>
+            </div>
 
             {/* Tab switchers */}
             <div className="flex bg-white border border-gray-100 p-1 rounded-xl text-xs font-bold text-gray-500 shadow-sm flex-wrap gap-1">
@@ -882,7 +896,7 @@ export const TutorDashboard: React.FC = () => {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-5 font-sans space-y-5" id="attendance_quick_widget">
                     
                     {/* Widget Header */}
-                    <div>
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 bg-indigo-50 text-indigo-650 rounded-lg dark:bg-slate-200/10">
                           <ClipboardList className="w-5 h-5" />
@@ -893,6 +907,15 @@ export const TutorDashboard: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* QR Session Launch Button */}
+                    <button
+                      id="tutor_quick_widget_qr_btn"
+                      onClick={() => setShowQrModal(true)}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" /> Display Class QR Code
+                    </button>
 
                     {/* Widget Parameters Form */}
                     <div className="space-y-3.5 border-t border-slate-50 pt-4">
@@ -2356,36 +2379,23 @@ export const TutorDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Custom state-driven deletion confirmation modal */}
-      {deleteConfirm.isOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl text-center relative animate-fade-in font-sans">
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto mb-4 animate-bounce">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h2 className="text-base font-bold text-slate-900 mb-2">Delete Course</h2>
-            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              Are you sure you want to permanently delete <span className="font-extrabold text-blue-950">"{deleteConfirm.classTitle}"</span> from your curriculum? All current registrations and slots will be permanently affected.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm({ isOpen: false, classId: '', classTitle: '' })}
-                className="w-1/2 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-750 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-              >
-                Keep Class
-              </button>
-              <button
-                type="button"
-                onClick={executeClassDeletion}
-                className="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
-              >
-                Yes, Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Course Deletion Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        title="Delete Course Curriculum"
+        message={
+          <>
+            Are you sure you want to permanently delete <span className="font-extrabold text-slate-900">"{deleteConfirm.classTitle}"</span> from your curriculum? All current registrations and slots will be permanently affected.
+          </>
+        }
+        confirmText="Yes, Delete Course"
+        cancelText="Keep Course"
+        isLoading={loading}
+        onConfirm={executeClassDeletion}
+        onClose={() => setDeleteConfirm({ isOpen: false, classId: '', classTitle: '' })}
+        confirmBtnId="tutor_confirm_delete_class_btn"
+        cancelBtnId="tutor_cancel_delete_class_btn"
+      />
 
       {/* Modal for Adding or Editing Course Resource */}
       {showResourceModal && (
@@ -2534,38 +2544,34 @@ export const TutorDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Custom Modal for Resource Deletion */}
-      {deleteResourceConfirm.isOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl text-center relative animate-fade-in font-sans space-y-4">
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto animate-bounce">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 mb-1">Delete Resource</h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Are you sure you want to delete <span className="font-extrabold text-slate-800">"{deleteResourceConfirm.title}"</span>? Enrolled students will no longer be able to access this item.
-              </p>
-            </div>
-            <div className="flex gap-3 justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteResourceConfirm({ isOpen: false, id: '', title: '' })}
-                className="w-1/2 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-              >
-                Keep Item
-              </button>
-              <button
-                type="button"
-                onClick={executeResourceDeletion}
-                className="w-1/2 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
-              >
-                Delete Resource
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Resource Deletion Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteResourceConfirm.isOpen}
+        title="Delete Resource"
+        message={
+          <>
+            Are you sure you want to delete <span className="font-extrabold text-slate-900">"{deleteResourceConfirm.title}"</span>? Enrolled students will no longer be able to access this item.
+          </>
+        }
+        confirmText="Delete Resource"
+        cancelText="Keep Item"
+        onConfirm={executeResourceDeletion}
+        onClose={() => setDeleteResourceConfirm({ isOpen: false, id: '', title: '' })}
+        confirmBtnId="tutor_confirm_delete_resource_btn"
+        cancelBtnId="tutor_cancel_delete_resource_btn"
+      />
+
+      {/* Tutor QR Code Display & Attendance Modal */}
+      <ClassQRCodeAttendanceModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        currentUser={currentUser}
+        tutorClasses={tutorClasses}
+        bookings={rosterBookings.length > 0 ? rosterBookings : bookings}
+        attendanceRecords={attendanceRecords}
+        onAttendanceMarked={loadAttendanceRecords}
+        showToast={showToast}
+      />
     </motion.div>
   );
 };

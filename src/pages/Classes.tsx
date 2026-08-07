@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { ClassCard } from '../components/ClassCard';
 import { firestoreService } from '../lib/firestoreService';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { 
   Search, 
   SlidersHorizontal, 
@@ -240,16 +241,39 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
   };
 
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    id: string;
+    title: string;
+    isDeleting: boolean;
+  }>({
+    isOpen: false,
+    id: '',
+    title: '',
+    isDeleting: false
+  });
+
   // Handle study material deletion
-  const handleDeleteResource = async (id: string, title: string) => {
-    if (window.confirm(`Are you sure you want to delete the study material: "${title}"?`)) {
-      try {
-        await genericFirestoreService.deleteDocument('study_materials', id);
-        showToast("Study material removed successfully.", "success");
-        await fetchStudyMaterials();
-      } catch (err) {
-        showToast("Failed to delete study material.", "error");
-      }
+  const handleDeleteResource = (id: string, title: string) => {
+    setDeleteConfirmModal({
+      isOpen: true,
+      id,
+      title,
+      isDeleting: false
+    });
+  };
+
+  const confirmDeleteResource = async () => {
+    if (!deleteConfirmModal.id) return;
+    setDeleteConfirmModal(prev => ({ ...prev, isDeleting: true }));
+    try {
+      await genericFirestoreService.deleteDocument('study_materials', deleteConfirmModal.id);
+      showToast("Study material removed successfully.", "success");
+      await fetchStudyMaterials();
+      setDeleteConfirmModal({ isOpen: false, id: '', title: '', isDeleting: false });
+    } catch (err) {
+      showToast("Failed to delete study material.", "error");
+      setDeleteConfirmModal(prev => ({ ...prev, isDeleting: false }));
     }
   };
 
@@ -671,6 +695,23 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
         )}
 
       </div>
+
+      <ConfirmModal
+        isOpen={deleteConfirmModal.isOpen}
+        title="Delete Study Material"
+        message={
+          <>
+            Are you sure you want to delete <span className="font-extrabold text-slate-900">"{deleteConfirmModal.title}"</span>? Enrolled students will no longer be able to view or download this file.
+          </>
+        }
+        confirmText="Delete Material"
+        cancelText="Cancel"
+        isLoading={deleteConfirmModal.isDeleting}
+        onConfirm={confirmDeleteResource}
+        onClose={() => setDeleteConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        confirmBtnId="delete_material_confirm_btn"
+        cancelBtnId="delete_material_cancel_btn"
+      />
     </div>
   );
 };

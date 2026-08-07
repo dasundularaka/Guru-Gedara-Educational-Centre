@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
@@ -451,14 +452,16 @@ export const AdminDashboard: React.FC = () => {
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
-    type: 'student' | 'tutor' | 'class' | 'payment' | 'user' | 'review';
+    type: 'student' | 'tutor' | 'class' | 'payment' | 'user' | 'review' | 'banner' | 'pathway' | 'subject';
     id: string;
     title: string;
+    isDeleting?: boolean;
   }>({
     isOpen: false,
     type: 'student',
     id: '',
-    title: ''
+    title: '',
+    isDeleting: false
   });
 
   // Announcement fields
@@ -675,14 +678,13 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteBannerItem = async (id: string) => {
-    try {
-      await firestoreService.deleteBanner(id);
-      showToast("Hero banner image deleted successfully.", "success");
-      setBannersList(prev => prev.filter(b => b.id !== id));
-    } catch (err: any) {
-      showToast("Failed to delete banner image.", "error");
-    }
+  const handleDeleteBannerItem = (id: string, title?: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'banner',
+      id,
+      title: title || 'Hero Banner'
+    });
   };
 
   const handleToggleBannerActive = async (banner: BannerImage) => {
@@ -786,14 +788,13 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleDeletePathwayItem = async (id: string) => {
-    try {
-      await firestoreService.deletePathway(id);
-      showToast("Course pathway deleted successfully.", "success");
-      setPathwaysList(prev => prev.filter(p => p.id !== id));
-    } catch (err: any) {
-      showToast("Failed to delete pathway.", "error");
-    }
+  const handleDeletePathwayItem = (id: string, title?: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'pathway',
+      id,
+      title: title || 'Course Pathway'
+    });
   };
 
   // Subjects Handlers
@@ -817,14 +818,13 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteSubjectCategory = async (id: string, name: string) => {
-    try {
-      await firestoreService.deleteSubject(id);
-      showToast(`Subject "${name}" removed from database.`, "info");
-      setSubjectsList(prev => prev.filter(s => s.id !== id));
-    } catch (err: any) {
-      showToast("Failed to remove subject.", "error");
-    }
+  const handleDeleteSubjectCategory = (id: string, name: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      type: 'subject',
+      id,
+      title: name
+    });
   };
 
   // Helper to render icon for Pathways
@@ -1209,6 +1209,7 @@ export const AdminDashboard: React.FC = () => {
   const executeDeletion = async () => {
     const { type, id } = deleteConfirm;
     if (!id) return;
+    setDeleteConfirm(prev => ({ ...prev, isDeleting: true }));
     try {
       if (type === 'student') {
         await firestoreService.deleteUserProfile(id);
@@ -1230,11 +1231,24 @@ export const AdminDashboard: React.FC = () => {
       } else if (type === 'review') {
         await deleteReview(id);
         showToast("Review deleted successfully.", "success");
+      } else if (type === 'banner') {
+        await firestoreService.deleteBanner(id);
+        setBannersList(prev => prev.filter(b => b.id !== id));
+        showToast("Hero banner image deleted successfully.", "success");
+      } else if (type === 'pathway') {
+        await firestoreService.deletePathway(id);
+        setPathwaysList(prev => prev.filter(p => p.id !== id));
+        showToast("Course pathway deleted successfully.", "success");
+      } else if (type === 'subject') {
+        await firestoreService.deleteSubject(id);
+        setSubjectsList(prev => prev.filter(s => s.id !== id));
+        showToast("Subject category removed from database.", "info");
       }
-      setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
+      setDeleteConfirm({ isOpen: false, type: 'student', id: '', title: '', isDeleting: false });
       await fetchAdminDatasets();
     } catch {
       showToast(`Failed to delete selected ${type} record.`, "error");
+      setDeleteConfirm(prev => ({ ...prev, isDeleting: false }));
     }
   };
 
@@ -3865,37 +3879,22 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Reusable state-driven delete confirmation modal */}
-      {deleteConfirm.isOpen && (
-        <div className="fixed inset-0 z-[60] overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 border border-slate-100 shadow-2xl text-center relative animate-fade-in font-sans">
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mx-auto mb-4">
-              <Trash2 className="w-6 h-6 animate-pulse" />
-            </div>
-            <h2 className="text-base font-bold text-slate-900 mb-2">Confirm Delete</h2>
-            <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-              Are you sure you want to permanently delete the <span className="font-extrabold text-red-600">{deleteConfirm.type}</span> record <span className="font-extrabold text-blue-950">"{deleteConfirm.title}"</span>? This operation is irreversible and will purge it from Guru Gedara Educational Centre databases.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                type="button"
-                id="admin_cancel_delete_btn"
-                onClick={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
-                className="w-1/2 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-705 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                id="admin_confirm_delete_btn"
-                onClick={executeDeletion}
-                className="w-1/2 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer shadow-sm"
-              >
-                Delete permanently
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        title={`Delete ${deleteConfirm.type.charAt(0).toUpperCase() + deleteConfirm.type.slice(1)} Record`}
+        message={
+          <>
+            Are you sure you want to permanently delete the <span className="font-extrabold text-red-600">{deleteConfirm.type}</span> record <span className="font-extrabold text-slate-900">"{deleteConfirm.title}"</span>? This operation is irreversible and will purge it from Guru Gedara Educational Centre databases.
+          </>
+        }
+        confirmText="Delete permanently"
+        cancelText="Cancel"
+        isLoading={deleteConfirm.isDeleting}
+        onConfirm={executeDeletion}
+        onClose={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
+        confirmBtnId="admin_confirm_delete_btn"
+        cancelBtnId="admin_cancel_delete_btn"
+      />
 
       {/* Editing / Addition Overlay Modal Container */}
       {modalType && (

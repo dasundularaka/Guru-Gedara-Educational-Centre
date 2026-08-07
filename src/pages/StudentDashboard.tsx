@@ -14,6 +14,7 @@ import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { UpcomingDeadlines } from '../components/UpcomingDeadlines';
 import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
+import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -64,6 +65,7 @@ export const StudentDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showScannerModal, setShowScannerModal] = useState(false);
 
   // Review states
   const [showSubmitReviewModal, setShowSubmitReviewModal] = useState(false);
@@ -291,6 +293,13 @@ export const StudentDashboard: React.FC = () => {
                   id="btn_student_view_my_qr"
                 >
                   <QrCode className="w-3.5 h-3.5 text-indigo-600" /> View My QR Code
+                </button>
+                <button 
+                  onClick={() => setShowScannerModal(true)}
+                  className="text-xs text-white font-bold flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
+                  id="btn_student_scan_class_qr_header"
+                >
+                  <QrCode className="w-3.5 h-3.5" /> Scan Class QR Code
                 </button>
               </div>
             </div>
@@ -995,6 +1004,17 @@ export const StudentDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Class Attendance QR Scanner Modal */}
+      <ClassQRCodeAttendanceModal
+        isOpen={showScannerModal}
+        onClose={() => setShowScannerModal(false)}
+        currentUser={currentUser}
+        bookings={studentBookings}
+        attendanceRecords={attendanceRecords}
+        onAttendanceMarked={fetchDashboardData}
+        showToast={showToast}
+      />
     </motion.div>
   );
 };

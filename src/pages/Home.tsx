@@ -149,10 +149,48 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
     }
   };
 
+  // Screen size detection for responsive carousel items
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Carousel helpers
-  const visibleTutorsCount = 3;
-  const visibleClassesCount = 3;
-  const visibleReviewsCount = 3;
+  const visibleTutorsCount = isMobile ? 1 : 3;
+  const visibleClassesCount = isMobile ? 1 : 3;
+  const visibleReviewsCount = isMobile ? 1 : 3;
+
+  // Auto rotate tutors carousel
+  useEffect(() => {
+    if (topTutors.length <= visibleTutorsCount) return;
+    const interval = setInterval(() => {
+      setTutorSlideIdx(prev => (prev + 1) % topTutors.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [topTutors.length, visibleTutorsCount]);
+
+  // Auto rotate classes carousel
+  useEffect(() => {
+    if (highlightedClasses.length <= visibleClassesCount) return;
+    const interval = setInterval(() => {
+      setClassSlideIdx(prev => (prev + 1) % highlightedClasses.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [highlightedClasses.length, visibleClassesCount]);
+
+  // Auto rotate reviews carousel
+  useEffect(() => {
+    if (approvedReviews.length <= visibleReviewsCount) return;
+    const interval = setInterval(() => {
+      setReviewSlideIdx(prev => (prev + 1) % approvedReviews.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [approvedReviews.length, visibleReviewsCount]);
 
   const nextTutors = () => {
     setTutorSlideIdx(prev => (prev + 1) % Math.max(1, topTutors.length));
@@ -184,7 +222,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       result.push(topTutors[(tutorSlideIdx + i) % topTutors.length]);
     }
     return result;
-  }, [topTutors, tutorSlideIdx]);
+  }, [topTutors, tutorSlideIdx, visibleTutorsCount]);
 
   const displayedClasses = useMemo(() => {
     if (highlightedClasses.length === 0) return [];
@@ -194,16 +232,17 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       result.push(highlightedClasses[(classSlideIdx + i) % highlightedClasses.length]);
     }
     return result;
-  }, [highlightedClasses, classSlideIdx]);
+  }, [highlightedClasses, classSlideIdx, visibleClassesCount]);
 
   const displayedReviews = useMemo(() => {
-    if (approvedReviews.length <= visibleReviewsCount) return approvedReviews;
+    if (approvedReviews.length === 0) return [];
+    const count = Math.min(approvedReviews.length, visibleReviewsCount);
     const result = [];
-    for (let i = 0; i < visibleReviewsCount; i++) {
+    for (let i = 0; i < count; i++) {
       result.push(approvedReviews[(reviewSlideIdx + i) % approvedReviews.length]);
     }
     return result;
-  }, [approvedReviews, reviewSlideIdx]);
+  }, [approvedReviews, reviewSlideIdx, visibleReviewsCount]);
 
   return (
     <div className="bg-slate-50/20" id="homepage_container">
@@ -414,13 +453,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <div className="flex gap-1 items-center px-1">
+                  <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
                     {topTutors.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setTutorSlideIdx(i)}
                         className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                          i === tutorSlideIdx ? 'w-5 bg-indigo-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                          i === (tutorSlideIdx % topTutors.length) ? 'w-5 bg-indigo-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
                         }`}
                         title={`Go to slide ${i + 1}`}
                       />
@@ -472,13 +511,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <div className="flex gap-1 items-center px-1">
+                  <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
                     {highlightedClasses.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setClassSlideIdx(i)}
                         className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                          i === classSlideIdx ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                          i === (classSlideIdx % highlightedClasses.length) ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
                         }`}
                         title={`Go to slide ${i + 1}`}
                       />
