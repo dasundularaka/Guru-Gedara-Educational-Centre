@@ -10,6 +10,7 @@
   "dependencies": {
     "firebase": "^10.14.1",
     "framer-motion": "^11.18.2",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.395.0",
     "motion": "^11.18.2",
     "qrcode.react": "^4.2.0",

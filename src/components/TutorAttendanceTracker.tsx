@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { ClassItem, Booking, AttendanceRecord, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 import { triggerManualAttendanceWarning } from '../lib/attendanceNotificationTrigger';
+import { sendAttendanceNotifications } from '../lib/attendanceNotification';
 import { AttendanceCalendarHeatmap } from './AttendanceCalendarHeatmap';
 import { ClassQRCodeAttendanceModal } from './ClassQRCodeAttendanceModal';
 import { AttendanceScanHistory } from './AttendanceScanHistory';
@@ -157,6 +158,23 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
       } else {
         await firestoreService.markAttendance(record);
       }
+
+      const targetCls: ClassItem = tutorClasses.find(c => c.id === booking.classId) || {
+        id: booking.classId,
+        title: booking.classTitle,
+        subject: 'General',
+        tutorId: booking.tutorId,
+        tutorName: currentUser.name,
+        price: 0,
+        dayOfWeek: 'Monday',
+        timeSlot: 'Morning',
+        schedule: '09:00 AM - 11:00 AM',
+        description: 'Class session',
+        maxSlots: 50,
+        bookedSlots: 0
+      };
+
+      await sendAttendanceNotifications(record, targetCls, null, currentUser);
 
       showToast(`Marked ${booking.studentName} as ${status} for ${selectedDate}`, 'success');
       onAttendanceUpdated();

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ClassItem, Booking, AttendanceRecord, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { sendAttendanceNotifications } from '../lib/attendanceNotification';
 import { AttendanceScanHistory } from './AttendanceScanHistory';
 
 interface ClassQRCodeAttendanceModalProps {
@@ -289,6 +290,9 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
         };
 
         await firestoreService.markAttendance(record);
+        if (activeClass) {
+          await sendAttendanceNotifications(record, activeClass, null, currentUser);
+        }
 
         setScanResult({
           success: true,
