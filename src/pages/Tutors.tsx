@@ -3,23 +3,28 @@ import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { UserProfile } from '../types';
 import { TutorCard } from '../components/TutorCard';
-import { Search, GraduationCap, Users } from 'lucide-react';
+import { Search, GraduationCap } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const Tutors: React.FC = () => {
   const { showToast } = useApp();
   const [tutorsList, setTutorsList] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredTutors, setFilteredTutors] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTutors = async () => {
+      setLoading(true);
       try {
         const users = await firestoreService.getAllUsers();
-        const tutors = users.filter(u => u.role === 'tutor');
+        const tutors = users.filter(u => u.role === 'tutor' || u.username?.startsWith('GT') || !!u.tutorDetails);
         setTutorsList(tutors);
         setFilteredTutors(tutors);
       } catch (e) {
-        showToast("Error retrieving tutors from Firestore database.", "error");
+        showToast("Error retrieving tutors from database.", "error");
+      } finally {
+        setLoading(false);
       }
     };
     fetchTutors();
@@ -30,10 +35,11 @@ export const Tutors: React.FC = () => {
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
       result = result.filter(t => 
-        t.name.toLowerCase().includes(q) || 
-        t.tutorDetails?.bio.toLowerCase().includes(q) ||
-        t.tutorDetails?.qualification.toLowerCase().includes(q) ||
-        t.tutorDetails?.subjects.some(sub => sub.toLowerCase().includes(q))
+        (t.name || '').toLowerCase().includes(q) || 
+        (t.username || '').toLowerCase().includes(q) ||
+        (t.tutorDetails?.bio || '').toLowerCase().includes(q) ||
+        (t.tutorDetails?.qualification || '').toLowerCase().includes(q) ||
+        (t.tutorDetails?.subjects || []).some(sub => sub.toLowerCase().includes(q))
       );
     }
     setFilteredTutors(result);
@@ -44,14 +50,24 @@ export const Tutors: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header Title */}
-        <div className="mb-8">
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-8"
+        >
           <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Tuition Faculty</span>
           <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Verified Academic Instructors</h1>
           <p className="text-xs text-gray-500 mt-1">Directly chat with Ivy league scholars and full stack programming tutors to align custom study goals.</p>
-        </div>
+        </motion.div>
 
         {/* Search controls */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-8 max-w-2xl">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 mb-8 max-w-2xl"
+        >
           <div className="relative">
             <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
               <Search className="w-4 h-4" />
@@ -61,26 +77,61 @@ export const Tutors: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search faculty by name, qualification credentials or subjects (e.g. Physics)..."
-              className="w-full text-xs pl-9.5 pr-4 py-2.5 bg-gray-50/60 rounded-xl border border-gray-150 outline-none focus:border-blue-500 font-sans leading-none"
+              className="w-full text-xs pl-9.5 pr-4 py-2.5 bg-gray-50/60 rounded-xl border border-gray-150 outline-none focus:border-blue-500 font-sans leading-none transition-colors"
             />
           </div>
-        </div>
+        </motion.div>
 
         {/* Content list */}
-        {filteredTutors.length === 0 ? (
-          <div className="text-center py-12 max-w-sm mx-auto bg-white border border-gray-100 rounded-2xl shadow-sm">
-            <GraduationCap className="w-12 h-12 text-blue-200 mx-auto mb-3 animate-bounce" />
-            <h3 className="text-sm font-bold text-blue-950">No verified Tutors active</h3>
-            <p className="text-xs text-gray-400 mt-1">We couldn't spot any registered educators matching "{searchTerm}".</p>
-          </div>
-        ) : (
+        {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTutors.map((tutor) => (
-              <div key={tutor.uid}>
-                <TutorCard tutor={tutor} />
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-64 bg-white rounded-2xl border border-gray-100 p-6 animate-pulse flex flex-col justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 bg-gray-200 rounded-full"></div>
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-gray-100 rounded w-full"></div>
+                  <div className="h-3 bg-gray-100 rounded w-4/5"></div>
+                </div>
+                <div className="h-8 bg-gray-100 rounded-xl w-full"></div>
               </div>
             ))}
           </div>
+        ) : filteredTutors.length === 0 ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-12 max-w-sm mx-auto bg-white border border-gray-100 rounded-2xl shadow-sm"
+          >
+            <GraduationCap className="w-12 h-12 text-blue-200 mx-auto mb-3 animate-bounce" />
+            <h3 className="text-sm font-bold text-blue-950">No verified Tutors active</h3>
+            <p className="text-xs text-gray-400 mt-1">We couldn't spot any registered educators matching "{searchTerm}".</p>
+          </motion.div>
+        ) : (
+          <motion.div 
+            layout
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            <AnimatePresence>
+              {filteredTutors.map((tutor, idx) => (
+                <motion.div 
+                  key={tutor.uid}
+                  layout
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3, delay: idx * 0.05 }}
+                >
+                  <TutorCard tutor={tutor} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
         )}
 
       </div>

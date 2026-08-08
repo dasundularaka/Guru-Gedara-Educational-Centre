@@ -5,6 +5,7 @@ import {
   QrCode, 
   UserCheck, 
   UserX, 
+  UserMinus,
   BookOpen, 
   Plus, 
   Eye, 
@@ -23,7 +24,10 @@ import {
   Sparkles,
   ShieldAlert,
   CreditCard,
-  History
+  History,
+  CheckSquare,
+  Square,
+  Lock
 } from 'lucide-react';
 import { ClassItem, Booking, UserProfile, Payment, StudyMaterial, AttendanceRecord, ResourceType } from '../types';
 import { firestoreService } from '../lib/firestoreService';
@@ -58,8 +62,10 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const isTutorOrAdmin = currentUser.role === 'tutor' || currentUser.role === 'admin';
   const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'attendance'>('roster');
 
-  // Roster Filter State
+  // Roster Filter & Bulk Selection State
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [isBulkUpdating, setIsBulkUpdating] = useState<boolean>(false);
 
   // Materials State
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -70,6 +76,11 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const [newUrl, setNewUrl] = useState('');
   const [newType, setNewType] = useState<ResourceType>('link');
   const [savingMaterial, setSavingMaterial] = useState(false);
+
+  // Clear bulk selections whenever class or search changes
+  useEffect(() => {
+    setSelectedStudentIds([]);
+  }, [classItem?.id, searchQuery, activeTab]);
 
   // Load study materials when class changes
   useEffect(() => {
@@ -89,6 +100,12 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   }, [classItem]);
 
   if (!isOpen || !classItem) return null;
+
+  // Check if current user is a student and suspended for this class
+  const isCurrentStudentSuspended = currentUser.role === 'student' && (
+    currentUser.classEnrollmentStatus?.[classItem.id] === 'suspended' || 
+    currentUser.status === 'suspended'
+  );
 
   // Filter enrolled bookings for this class
   const classBookings = bookings.filter(b => b.classId === classItem.id && b.status === 'active');
@@ -137,6 +154,98 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
     s.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Bulk Selection Helpers
+  const filteredStudentIds = filteredStudents.map(s => s.studentId);
+  const isAllFilteredSelected = filteredStudentIds.length > 0 && filteredStudentIds.every(id => selectedStudentIds.includes(id));
+
+  const handleToggleSelectAll = () => {
+    if (isAllFilteredSelected) {
+      setSelectedStudentIds(prev => prev.filter(id => !filteredStudentIds.includes(id)));
+    } else {
+      const combined = Array.from(new Set([...selectedStudentIds, ...filteredStudentIds]));
+      setSelectedStudentIds(combined);
+    }
+  };
+
+  const handleToggleSelectStudent = (studentId: string) => {
+    setSelectedStudentIds(prev => 
+      prev.includes(studentId) 
+        ? prev.filter(id => id !== studentId) 
+        : [...prev, studentId]
+    );
+  };
+
+  // Bulk Status Change Handler (Active <-> Suspended)
+  const handleBulkStatusChange = async (newStatus: 'active' | 'suspended') => {
+    if (selectedStudentIds.length === 0 || !classItem) return;
+    setIsBulkUpdating(true);
+
+    try {
+      let count = 0;
+      for (const studentId of selectedStudentIds) {
+        const user = allUsers.find(u => u.uid === studentId);
+        const currentMap = user?.classEnrollmentStatus || {};
+        const updatedMap = { ...currentMap, [classItem.id]: newStatus };
+
+        await firestoreService.updateUserProfile(studentId, {
+          classEnrollmentStatus: updatedMap
+        });
+        count++;
+      }
+
+      showToast(
+        `Successfully updated status to ${newStatus.toUpperCase()} for ${count} student(s) in '${classItem.title}'!`,
+        'success'
+      );
+
+      await firestoreService.addAuditLog({
+        username: currentUser.name || currentUser.username || 'Tutor',
+        action: 'BULK_CLASS_ENROLLMENT_STATUS_CHANGE',
+        details: `Bulk updated ${count} student(s) to ${newStatus.toUpperCase()} for class ${classItem.title} (${classItem.id})`
+      });
+
+      setSelectedStudentIds([]);
+      if (onUpdateData) onUpdateData();
+    } catch (err) {
+      showToast('Failed to perform bulk status update.', 'error');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // Bulk Unenroll Handler (Remove from Class Roster)
+  const handleBulkUnenroll = async () => {
+    if (selectedStudentIds.length === 0 || !classItem) return;
+    if (!window.confirm(`Are you sure you want to UNENROLL / REMOVE ${selectedStudentIds.length} student(s) from '${classItem.title}'? This will unenroll them from the class roster.`)) return;
+
+    setIsBulkUpdating(true);
+    try {
+      let count = 0;
+      for (const studentId of selectedStudentIds) {
+        const booking = classBookings.find(b => b.studentId === studentId);
+        if (booking) {
+          await firestoreService.cancelBooking(booking.id, classItem.id);
+          count++;
+        }
+      }
+
+      showToast(`Successfully unenrolled ${count} student(s) from '${classItem.title}'.`, 'info');
+
+      await firestoreService.addAuditLog({
+        username: currentUser.name || currentUser.username || 'Tutor',
+        action: 'BULK_STUDENT_UNENROLLMENT',
+        details: `Bulk unenrolled ${count} student(s) from class ${classItem.title} (${classItem.id})`
+      });
+
+      setSelectedStudentIds([]);
+      if (onUpdateData) onUpdateData();
+    } catch (err) {
+      showToast('Failed to unenroll selected students.', 'error');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
 
   // Toggle Student Class Status (Active <-> Suspended)
   const handleToggleStudentStatus = async (studentId: string, currentStatus: string, studentName: string) => {
@@ -345,9 +454,73 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             {/* TAB 1: ENROLLED STUDENT ROSTER */}
             {activeTab === 'roster' && (
               <div className="space-y-4">
-                {/* Search Bar */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="relative flex-1">
+                {/* Suspended Warning Banner for Student */}
+                {isCurrentStudentSuspended && (
+                  <div className="p-4 bg-red-50 border-2 border-red-200 rounded-2xl flex items-start gap-3">
+                    <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-extrabold text-red-900">Class Enrollment Suspended</h4>
+                      <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">
+                        You remain enrolled on this class roster, but your access to class details, study materials, external links, and video recordings is currently suspended by tutor/admin. Please contact administration or your tutor to reactivate access.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bulk Actions Control Bar for Tutor / Admin */}
+                {isTutorOrAdmin && selectedStudentIds.length > 0 && (
+                  <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-lg flex flex-wrap items-center justify-between gap-3 border border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <CheckSquare className="w-4.5 h-4.5 text-emerald-400" />
+                      <span className="text-xs font-bold font-mono">
+                        {selectedStudentIds.length} student(s) selected
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkStatusChange('active')}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Set status to ACTIVE for selected students"
+                        id="btn_bulk_activate"
+                      >
+                        <UserCheck className="w-3.5 h-3.5" /> Bulk Activate
+                      </button>
+
+                      <button
+                        disabled={isBulkUpdating}
+                        onClick={() => handleBulkStatusChange('suspended')}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Suspend access to details & materials for selected students"
+                        id="btn_bulk_suspend"
+                      >
+                        <UserX className="w-3.5 h-3.5" /> Bulk Suspend
+                      </button>
+
+                      <button
+                        disabled={isBulkUpdating}
+                        onClick={handleBulkUnenroll}
+                        className="px-3 py-1.5 bg-red-600/90 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Unenroll/remove selected students from class"
+                        id="btn_bulk_unenroll"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" /> Bulk Unenroll
+                      </button>
+
+                      <button
+                        onClick={() => setSelectedStudentIds([])}
+                        className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Deselect
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Search Bar & Select All Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="relative flex-1 min-w-[200px]">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       type="text"
@@ -357,9 +530,30 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                       className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium"
                     />
                   </div>
-                  <span className="text-xs font-mono text-slate-500 font-semibold">
-                    Showing {filteredStudents.length} of {enrolledStudentProfiles.length}
-                  </span>
+
+                  <div className="flex items-center gap-3">
+                    {isTutorOrAdmin && filteredStudents.length > 0 && (
+                      <button
+                        onClick={handleToggleSelectAll}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border border-slate-200"
+                        id="btn_select_all_students"
+                      >
+                        {isAllFilteredSelected ? (
+                          <>
+                            <CheckSquare className="w-4 h-4 text-indigo-600" /> Deselect All ({filteredStudents.length})
+                          </>
+                        ) : (
+                          <>
+                            <Square className="w-4 h-4 text-slate-400" /> Select All ({filteredStudents.length})
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    <span className="text-xs font-mono text-slate-500 font-semibold">
+                      Showing {filteredStudents.length} of {enrolledStudentProfiles.length}
+                    </span>
+                  </div>
                 </div>
 
                 {filteredStudents.length === 0 ? (
@@ -372,18 +566,36 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {filteredStudents.map(({ studentId, studentName, photoURL, email, classStatus, paymentCategory, lastPaymentMonth }) => {
                       const isSuspended = classStatus === 'suspended';
+                      const isSelected = selectedStudentIds.includes(studentId);
 
                       return (
                         <div 
                           key={studentId}
                           className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
-                            isSuspended 
+                            isSelected
+                              ? 'bg-indigo-50/50 border-indigo-400 shadow-xs ring-1 ring-indigo-400/30'
+                              : isSuspended 
                               ? 'bg-red-50/40 border-red-200' 
                               : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
+                              {/* Selection Checkbox for Tutors/Admins */}
+                              {isTutorOrAdmin && (
+                                <button
+                                  onClick={() => handleToggleSelectStudent(studentId)}
+                                  className="p-1 text-slate-400 hover:text-indigo-600 cursor-pointer shrink-0"
+                                  title={isSelected ? "Deselect student" : "Select student"}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare className="w-5 h-5 text-indigo-600" />
+                                  ) : (
+                                    <Square className="w-5 h-5 text-slate-300 hover:text-slate-400" />
+                                  )}
+                                </button>
+                              )}
+
                               {photoURL ? (
                                 <img 
                                   referrerPolicy="no-referrer"
@@ -431,7 +643,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Admin / Tutor Status Toggle Control */}
+                          {/* Admin / Tutor Single Status Toggle Control */}
                           {isTutorOrAdmin && (
                             <button
                               onClick={() => handleToggleStudentStatus(studentId, classStatus, studentName)}
@@ -463,21 +675,38 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             {/* TAB 2: COURSE MATERIALS */}
             {activeTab === 'materials' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-indigo-600" /> Study Resources & Course Notes
-                  </h3>
+                {isCurrentStudentSuspended ? (
+                  <div className="text-center py-12 px-6 bg-red-50/50 rounded-2xl border-2 border-dashed border-red-200 space-y-3">
+                    <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-black text-slate-900">Resource Access Locked (Suspended)</h4>
+                    <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                      Your enrollment status for <strong className="text-slate-900">{classItem.title}</strong> is currently <span className="text-red-700 font-bold uppercase font-mono">Suspended</span>. You are listed on the class roster, but access to study notes, reference links, PDFs, and video recordings is disabled.
+                    </p>
+                    <div className="pt-2">
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-red-100 text-red-800 text-[11px] font-mono font-bold rounded-full border border-red-200">
+                        <ShieldAlert className="w-3.5 h-3.5 text-red-600" /> Contact your Tutor or Admin to restore access
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-indigo-600" /> Study Resources & Course Notes
+                      </h3>
 
-                  {isTutorOrAdmin && (
-                    <button
-                      onClick={() => setShowAddMaterial(!showAddMaterial)}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                      id="btn_add_course_material"
-                    >
-                      <Plus className="w-4 h-4" /> {showAddMaterial ? 'Cancel' : 'Upload Material'}
-                    </button>
-                  )}
-                </div>
+                      {isTutorOrAdmin && (
+                        <button
+                          onClick={() => setShowAddMaterial(!showAddMaterial)}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                          id="btn_add_course_material"
+                        >
+                          <Plus className="w-4 h-4" /> {showAddMaterial ? 'Cancel' : 'Upload Material'}
+                        </button>
+                      )}
+                    </div>
 
                 {/* Add Material Form */}
                 {showAddMaterial && (
@@ -639,6 +868,8 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                       );
                     })}
                   </div>
+                )}
+                  </>
                 )}
               </div>
             )}

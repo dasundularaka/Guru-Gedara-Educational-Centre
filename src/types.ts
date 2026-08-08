@@ -73,6 +73,7 @@ export interface Booking {
   id: string;
   studentId: string;
   studentName: string;
+  studentEmail?: string;
   classId: string;
   classTitle: string;
   tutorId: string;

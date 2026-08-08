@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
-import { Booking, Payment, NotificationItem, AttendanceRecord } from '../types';
+import { Booking, Payment, NotificationItem, AttendanceRecord, ClassItem } from '../types';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
@@ -13,6 +13,7 @@ import { StudentModuleRoadmap } from '../components/StudentModuleRoadmap';
 import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { UpcomingDeadlines } from '../components/UpcomingDeadlines';
 import { CameraProfileCapture } from '../components/CameraProfileCapture';
+import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -66,6 +67,7 @@ export const StudentDashboard: React.FC = () => {
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false);
+  const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
 
   // Review states
   const [showSubmitReviewModal, setShowSubmitReviewModal] = useState(false);
@@ -134,31 +136,80 @@ export const StudentDashboard: React.FC = () => {
   const loadAttendanceRecords = async () => {
     if (!currentUser) return;
     try {
-      const records = await firestoreService.getStudentAttendance(currentUser.uid);
-      setAttendanceRecords(records);
+      const records = await firestoreService.getAttendance();
+      const matched = records.filter(r => 
+        isStudentMatch(r.studentId, (r as any).studentEmail) ||
+        (r.studentName && currentUser.name && r.studentName.toLowerCase() === currentUser.name.toLowerCase())
+      );
+      setAttendanceRecords(matched);
     } catch (e) {
       console.warn("Failed loading student attendance records", e);
     }
+  };
+
+  const isStudentMatch = (studentId?: string, studentEmail?: string) => {
+    if (!currentUser) return false;
+    if (studentId && (studentId === currentUser.uid || studentId === currentUser.username)) return true;
+    if (studentEmail && currentUser.email && studentEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    return false;
+  };
+
+  const getMatchedStudentBookings = (): Booking[] => {
+    if (!currentUser) return [];
+    const matched = bookings.filter(b => isStudentMatch(b.studentId, (b as any).studentEmail) && b.status !== 'cancelled');
+    
+    // Synthesize enrollment records from selectedClasses
+    const enrolledClassIds = currentUser.selectedClasses || [];
+    const existingClassIds = new Set(matched.map(b => b.classId));
+
+    enrolledClassIds.forEach(cId => {
+      if (!existingClassIds.has(cId)) {
+        const cls = classes.find(c => c.id === cId);
+        if (cls) {
+          matched.push({
+            id: `enrolled_${currentUser.uid}_${cls.id}`,
+            studentId: currentUser.uid,
+            studentName: currentUser.name || currentUser.username || 'Student',
+            studentEmail: currentUser.email,
+            classId: cls.id,
+            classTitle: cls.title,
+            tutorId: cls.tutorId,
+            tutorName: cls.tutorName,
+            dayOfWeek: cls.dayOfWeek || 'Monday',
+            timeSlot: cls.timeSlot || '09:00 AM',
+            bookingDate: new Date().toISOString(),
+            status: 'active'
+          });
+          existingClassIds.add(cls.id);
+        }
+      }
+    });
+
+    return matched;
   };
 
   const fetchDashboardData = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // 1. Sync immediately with the prefetched datasets from our context
-      const matchedBookings = bookings.filter(b => b.studentId === currentUser.uid);
-      setStudentBookings(matchedBookings);
+      // 1. Sync immediately with matched bookings and payments
+      const matchedB = getMatchedStudentBookings();
+      setStudentBookings(matchedB);
 
-      const matchedPayments = payments.filter(p => p.studentId === currentUser.uid);
-      setPaymentsList(matchedPayments);
+      const matchedP = payments.filter(p => 
+        isStudentMatch(p.studentId, (p as any).studentEmail) ||
+        matchedB.some(b => b.classId === p.classId)
+      );
+      setPaymentsList(matchedP);
 
       await loadAttendanceRecords();
 
-      // 2. If the context is empty, execute a safe background refresh of bookings and payments
-      if (bookings.length === 0 || payments.length === 0) {
+      // 2. If the context is empty, execute a safe background refresh
+      if (bookings.length === 0 || payments.length === 0 || classes.length === 0) {
         await Promise.all([
           refreshBookings(),
-          refreshPayments()
+          refreshPayments(),
+          refreshClasses()
         ]);
       }
     } catch (e) {
@@ -171,13 +222,16 @@ export const StudentDashboard: React.FC = () => {
   // Keep student dashboard state in sync with prefetched/updated context values
   useEffect(() => {
     if (currentUser) {
-      const matchedBookings = bookings.filter(b => b.studentId === currentUser.uid);
-      setStudentBookings(matchedBookings);
+      const matchedB = getMatchedStudentBookings();
+      setStudentBookings(matchedB);
 
-      const matchedPayments = payments.filter(p => p.studentId === currentUser.uid);
-      setPaymentsList(matchedPayments);
+      const matchedP = payments.filter(p => 
+        isStudentMatch(p.studentId, (p as any).studentEmail) ||
+        matchedB.some(b => b.classId === p.classId)
+      );
+      setPaymentsList(matchedP);
     }
-  }, [bookings, payments, currentUser?.uid]);
+  }, [bookings, payments, classes, currentUser?.uid, currentUser?.selectedClasses?.length]);
 
   useEffect(() => {
     if (refreshUserProfile && currentUser) {
@@ -452,7 +506,28 @@ export const StudentDashboard: React.FC = () => {
                             <p className="text-[11px] text-blue-600 font-medium mt-1 font-mono">Sessions: {b.dayOfWeek}s at {b.timeSlot}</p>
                           </div>
                           
-                          <div className="flex gap-2 w-full sm:w-auto">
+                          <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+                            <button
+                              onClick={() => {
+                                const matchedClass = classes.find(c => c.id === b.classId);
+                                const targetClass: ClassItem = matchedClass || {
+                                  id: b.classId,
+                                  title: b.classTitle,
+                                  subject: (b as any).subject || 'General',
+                                  tutorId: b.tutorId,
+                                  tutorName: b.tutorName,
+                                  price: (b as any).price || 0,
+                                  schedule: `${b.dayOfWeek}s ${b.timeSlot}`,
+                                  dayOfWeek: b.dayOfWeek,
+                                  timeSlot: b.timeSlot
+                                };
+                                setSelectedClassForProfile(targetClass);
+                              }}
+                              className="flex-1 sm:flex-initial px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 border border-indigo-100"
+                              id={`btn_view_class_notes_${b.classId}`}
+                            >
+                              <BookOpen className="w-3.5 h-3.5 text-indigo-600" /> View Notes & Details
+                            </button>
                             <button
                               onClick={() => {
                                 setReviewTargetBooking(b);
@@ -996,6 +1071,22 @@ export const StudentDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Class Profile Modal for Students */}
+      {selectedClassForProfile && (
+        <ClassProfileModal
+          isOpen={!!selectedClassForProfile}
+          onClose={() => setSelectedClassForProfile(null)}
+          classItem={selectedClassForProfile}
+          currentUser={currentUser}
+          bookings={bookings}
+          allUsers={[]}
+          payments={payments}
+          attendanceRecords={attendanceRecords}
+          showToast={showToast}
+          onUpdateData={fetchDashboardData}
+        />
       )}
     </motion.div>
   );

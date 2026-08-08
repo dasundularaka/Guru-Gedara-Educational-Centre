@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
@@ -203,25 +203,77 @@ export const TutorDashboard: React.FC = () => {
     }
   }, [currentUser]);
 
+  const isTutorMatch = (tId?: string, tName?: string, tEmail?: string) => {
+    if (!currentUser) return false;
+    if (tId && (tId === currentUser.uid || tId === currentUser.username)) return true;
+    if (tEmail && currentUser.email && tEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+    if (tName && currentUser.name && tName.toLowerCase() === currentUser.name.toLowerCase()) return true;
+    return false;
+  };
+
+  const computeTutorData = (usersList: UserProfile[] = allStudents) => {
+    if (!currentUser) return { matchedClasses: [], matchedBookings: [] };
+
+    const matchedClasses = classes.filter(c => 
+      isTutorMatch(c.tutorId, c.tutorName, (c as any).tutorEmail)
+    );
+
+    const tutorClassIds = new Set(matchedClasses.map(c => c.id));
+
+    const matchedBookings = bookings.filter(b => 
+      (isTutorMatch(b.tutorId, b.tutorName) || tutorClassIds.has(b.classId)) && 
+      b.status === "active"
+    );
+
+    // Synthesize roster entries for students enrolled in tutor's classes
+    const studentUsers = usersList.filter(u => u.role === 'student' || (!u.role && u.username?.startsWith('GB')));
+    studentUsers.forEach(stu => {
+      (stu.selectedClasses || []).forEach(cId => {
+        if (tutorClassIds.has(cId)) {
+          const alreadyInRoster = matchedBookings.some(b => b.studentId === stu.uid && b.classId === cId);
+          if (!alreadyInRoster) {
+            const cls = matchedClasses.find(c => c.id === cId);
+            if (cls) {
+              matchedBookings.push({
+                id: `roster_stu_${stu.uid}_${cls.id}`,
+                studentId: stu.uid,
+                studentName: stu.name || stu.username || 'Enrolled Student',
+                studentEmail: stu.email,
+                classId: cls.id,
+                classTitle: cls.title,
+                tutorId: cls.tutorId,
+                tutorName: cls.tutorName,
+                dayOfWeek: cls.dayOfWeek || 'Monday',
+                timeSlot: cls.timeSlot || '09:00 AM',
+                bookingDate: new Date().toISOString(),
+                status: 'active'
+              });
+            }
+          }
+        }
+      });
+    });
+
+    return { matchedClasses, matchedBookings };
+  };
+
   const fetchTutorData = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
-      // 1. Instantly pull from prefetched datasets in context
-      const matchedClasses = classes.filter(c => c.tutorId === currentUser.uid);
-      setTutorClasses(matchedClasses);
-
-      const matchedBookings = bookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
-      setRosterBookings(matchedBookings);
-
-      // Fetch all users for roster profile pictures
+      // 1. Fetch all users for roster profile pictures first
       const usersList = await firestoreService.getAllUsers();
       setAllStudents(usersList);
+
+      // 2. Compute matched classes and roster bookings
+      const { matchedClasses, matchedBookings } = computeTutorData(usersList);
+      setTutorClasses(matchedClasses);
+      setRosterBookings(matchedBookings);
 
       // Load availability
       setTutorAvailability(currentUser.tutorDetails?.availability || []);
 
-      // 2. Fallback or sync in the background if lists are empty
+      // 3. Fallback or sync in the background if lists are empty
       if (classes.length === 0 || bookings.length === 0) {
         await Promise.all([
           refreshClasses(),
@@ -238,13 +290,11 @@ export const TutorDashboard: React.FC = () => {
   // Sync state whenever the cached prefetch lists change
   useEffect(() => {
     if (currentUser) {
-      const matchedClasses = classes.filter(c => c.tutorId === currentUser.uid);
+      const { matchedClasses, matchedBookings } = computeTutorData(allStudents);
       setTutorClasses(matchedClasses);
-
-      const matchedBookings = bookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
       setRosterBookings(matchedBookings);
     }
-  }, [classes, bookings, currentUser?.uid]);
+  }, [classes, bookings, currentUser?.uid, allStudents.length]);
 
   useEffect(() => {
     if (refreshUserProfile && currentUser) {

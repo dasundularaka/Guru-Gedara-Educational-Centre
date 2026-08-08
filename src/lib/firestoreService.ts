@@ -650,57 +650,36 @@ const firestoreServiceRaw = {
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     const deletedUids = handleFallback<string>('local_deleted_uids', []);
-    
-    const rawList: UserProfile[] = [...cloudUsers, ...registered, ...tutors]
-      .filter(u => u && u.uid && !deletedUids.includes(u.uid));
 
-    // Deduplicate users by clean email and UID
-    const emailToUserMap = new Map<string, UserProfile>();
-    const uidToUserMap = new Map<string, UserProfile>();
-    const orphanedUidsToDelete: string[] = [];
+    // Build map starting with cloud users (highest priority)
+    const userMap = new Map<string, UserProfile>();
+    const emailToUidMap = new Map<string, string>();
 
-    for (const u of rawList) {
-      const emailKey = u.email ? u.email.trim().toLowerCase() : '';
-      
-      if (emailKey) {
-        if (!emailToUserMap.has(emailKey)) {
-          emailToUserMap.set(emailKey, u);
-        } else {
-          const existing = emailToUserMap.get(emailKey)!;
-          const uHasSystemId = u.username && (/^(GT|GB|GG)\d{8}$/.test(u.username) || u.uid.startsWith('GT') || u.uid.startsWith('GB') || u.uid.startsWith('GG'));
-          const existingHasSystemId = existing.username && (/^(GT|GB|GG)\d{8}$/.test(existing.username) || existing.uid.startsWith('GT') || existing.uid.startsWith('GB') || existing.uid.startsWith('GG'));
-
-          if (uHasSystemId && !existingHasSystemId) {
-            orphanedUidsToDelete.push(existing.uid);
-            emailToUserMap.set(emailKey, { ...existing, ...u, uid: u.uid, username: u.username });
-          } else if (!uHasSystemId && existingHasSystemId) {
-            orphanedUidsToDelete.push(u.uid);
-          } else if (u.uid !== existing.uid) {
-            orphanedUidsToDelete.push(u.uid);
-          }
-        }
-      } else {
-        if (!uidToUserMap.has(u.uid)) {
-          uidToUserMap.set(u.uid, u);
+    cloudUsers.forEach(u => {
+      if (u && u.uid && !deletedUids.includes(u.uid)) {
+        userMap.set(u.uid, u);
+        if (u.email) {
+          emailToUidMap.set(u.email.trim().toLowerCase(), u.uid);
         }
       }
-    }
-
-    // Clean up orphaned duplicates in background
-    if (orphanedUidsToDelete.length > 0) {
-      setTimeout(() => {
-        orphanedUidsToDelete.forEach(id => {
-          this.deleteUserProfile(id).catch(() => {});
-        });
-      }, 500);
-    }
-
-    const uniqueMap = new Map<string, UserProfile>();
-    [...Array.from(emailToUserMap.values()), ...Array.from(uidToUserMap.values())].forEach(u => {
-      uniqueMap.set(u.uid, u);
     });
 
-    return Array.from(uniqueMap.values());
+    // Merge registered & tutors fallback users if not already present
+    [...registered, ...tutors].forEach(u => {
+      if (!u || !u.uid || deletedUids.includes(u.uid)) return;
+      const emailKey = u.email ? u.email.trim().toLowerCase() : '';
+
+      // If user ID or email already exists in cloud users, cloud user wins
+      if (userMap.has(u.uid)) return;
+      if (emailKey && emailToUidMap.has(emailKey)) return;
+
+      userMap.set(u.uid, u);
+      if (emailKey) {
+        emailToUidMap.set(emailKey, u.uid);
+      }
+    });
+
+    return Array.from(userMap.values());
   },
 
   // -------------------------------------------------------------
@@ -717,16 +696,20 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudClasses = snap.docs.map(doc => doc.data() as ClassItem);
-        if (cloudClasses.length > 0) {
-          saveFallback('local_classes', cloudClasses);
-          return cloudClasses.filter(c => !deletedIds.includes(c.id));
-        }
       } catch (e) {
         console.warn("Fallback classes loading.", e);
       }
     }
     const fallbackClasses = handleFallback<ClassItem>('local_classes', INITIAL_CLASSES);
-    return fallbackClasses.filter(c => !deletedIds.includes(c.id));
+    const classMap = new Map<string, ClassItem>();
+    fallbackClasses.forEach(c => classMap.set(c.id, c));
+    cloudClasses.forEach(c => classMap.set(c.id, c));
+
+    const combined = Array.from(classMap.values()).filter(c => !deletedIds.includes(c.id));
+    if (combined.length > 0) {
+      saveFallback('local_classes', combined);
+    }
+    return combined;
   },
 
   async createNewClass(classData: Omit<ClassItem, 'id'>): Promise<ClassItem> {
@@ -783,15 +766,20 @@ const firestoreServiceRaw = {
            { docs: [] } as any
          );
          cloudBookings = snap.docs.map(doc => doc.data() as Booking);
-         if (cloudBookings.length > 0) {
-           saveFallback('local_bookings', cloudBookings);
-           return cloudBookings;
-         }
        } catch (e) {
          console.warn("Fallback reading bookings.", e);
        }
     }
-    return handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    const fallbackBookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    const bookingMap = new Map<string, Booking>();
+    fallbackBookings.forEach(b => bookingMap.set(b.id, b));
+    cloudBookings.forEach(b => bookingMap.set(b.id, b));
+
+    const combined = Array.from(bookingMap.values());
+    if (combined.length > 0) {
+      saveFallback('local_bookings', combined);
+    }
+    return combined;
   },
 
   async bookClass(studentId: string, studentName: string, classItem: ClassItem): Promise<Booking> {
@@ -860,16 +848,20 @@ const firestoreServiceRaw = {
              id: doc.id
            } as Payment;
          });
-         if (cloudPayments.length > 0) {
-           saveFallback('local_payments', cloudPayments);
-           return cloudPayments.filter(p => !deletedIds.includes(p.id));
-         }
        } catch (e) {
          console.warn("Fallback read payments.", e);
        }
     }
     const fallbackPayments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
-    return fallbackPayments.filter(p => !deletedIds.includes(p.id));
+    const payMap = new Map<string, Payment>();
+    fallbackPayments.forEach(p => payMap.set(p.id, p));
+    cloudPayments.forEach(p => payMap.set(p.id, p));
+
+    const combined = Array.from(payMap.values()).filter(p => !deletedIds.includes(p.id));
+    if (combined.length > 0) {
+      saveFallback('local_payments', combined);
+    }
+    return combined;
   },
 
   async createPayment(studentId: string, studentName: string, classId: string, classTitle: string, amount: number, paymentMethod: string, status: 'paid' | 'pending' | 'failed' = 'paid'): Promise<Payment> {
@@ -1293,15 +1285,25 @@ const firestoreServiceRaw = {
           { docs: [] } as any
         );
         cloudAttendance = snap.docs.map(doc => doc.data() as AttendanceRecord);
-        if (cloudAttendance.length > 0) {
-          saveFallback('local_attendance', cloudAttendance);
-          return cloudAttendance;
-        }
       } catch (e) {
         console.warn("Fallback reading attendance.", e);
       }
     }
-    return handleFallback<AttendanceRecord>('local_attendance', []);
+    const fallbackAttendance = handleFallback<AttendanceRecord>('local_attendance', []);
+    const attMap = new Map<string, AttendanceRecord>();
+    fallbackAttendance.forEach(a => attMap.set(a.id, a));
+    cloudAttendance.forEach(a => attMap.set(a.id, a));
+
+    const combined = Array.from(attMap.values());
+    if (combined.length > 0) {
+      saveFallback('local_attendance', combined);
+    }
+    return combined;
+  },
+
+  async getStudentAttendance(studentId: string): Promise<AttendanceRecord[]> {
+    const all = await this.getAttendance();
+    return all.filter(a => a.studentId === studentId);
   },
 
   async markAttendance(record: AttendanceRecord): Promise<AttendanceRecord> {

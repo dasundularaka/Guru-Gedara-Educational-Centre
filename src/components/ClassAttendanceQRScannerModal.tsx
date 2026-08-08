@@ -70,11 +70,11 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
   // Scan Result Error/Notice
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
-  // Verification 3-Second Undo Window
+  // Verification 5-Second Undo Window & Auto-Disappear Timer
   const [lastScannedRecord, setLastScannedRecord] = useState<AttendanceRecord | null>(null);
   const [lastScannedStudent, setLastScannedStudent] = useState<UserProfile | null>(null);
   const [lastPunctualityStatus, setLastPunctualityStatus] = useState<string>('On Time');
-  const [undoCountdown, setUndoCountdown] = useState<number>(3);
+  const [undoCountdown, setUndoCountdown] = useState<number>(5);
   const [isReverting, setIsReverting] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -83,15 +83,17 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
   const scanAnimFrameRef = useRef<number | null>(null);
   const isProcessingRef = useRef<boolean>(false);
 
-  // 3-second countdown timer for attendance verification undo window
+  // 5-second countdown timer for attendance verification undo window & auto-disappear
   useEffect(() => {
     if (!lastScannedRecord) return;
 
-    setUndoCountdown(3);
+    setUndoCountdown(5);
     const interval = setInterval(() => {
       setUndoCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          setLastScannedRecord(null);
+          setLastScannedStudent(null);
           return 0;
         }
         return prev - 1;
@@ -452,72 +454,88 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
               </div>
             )}
 
-            {/* --- 3-SECOND VERIFICATION OVERLAY & UNDO WINDOW --- */}
-            {lastScannedRecord && (
-              <div className="bg-emerald-50 border-2 border-emerald-400 p-5 rounded-3xl space-y-4 shadow-lg animate-fade-in relative overflow-hidden">
-                
-                {/* 3-Second Animated Progress Bar */}
-                <div className="w-full bg-emerald-200 h-1.5 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: '100%' }}
-                    animate={{ width: '0%' }}
-                    transition={{ duration: 3, ease: 'linear' }}
-                    className="bg-emerald-600 h-full"
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 text-left">
-                    {lastScannedStudent?.photoURL ? (
-                      <img 
-                        referrerPolicy="no-referrer"
-                        src={lastScannedStudent.photoURL} 
-                        alt={lastScannedRecord.studentName} 
-                        className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-md shrink-0"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white font-black text-xl flex items-center justify-center border-2 border-emerald-500 shadow-md shrink-0">
-                        {lastScannedRecord.studentName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 bg-emerald-600 text-white font-mono font-bold text-[9px] uppercase rounded-full tracking-wider">
-                          ✓ Attendance Verified
-                        </span>
-                        <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 font-mono font-bold text-[9px] rounded-full">
-                          {lastPunctualityStatus}
-                        </span>
-                        <span className="text-[10px] font-mono font-semibold text-emerald-800">
-                          {undoCountdown > 0 ? `Verify Window: ${undoCountdown}s` : 'Saved'}
-                        </span>
-                      </div>
-                      <h4 className="text-base font-black text-emerald-950 mt-1 leading-tight">
-                        {lastScannedRecord.studentName}
-                        <span className="text-xs font-mono font-normal text-emerald-700 ml-1.5">
-                          ({lastScannedStudent?.username || lastScannedRecord.studentId})
-                        </span>
-                      </h4>
-                      <p className="text-[11px] text-emerald-800 font-mono mt-0.5 flex items-center gap-1">
-                        <Send className="w-3 h-3 text-emerald-600" /> Auto Email & Messaging dispatched
-                      </p>
-                    </div>
+            {/* --- 5-SECOND VERIFICATION OVERLAY & UNDO WINDOW --- */}
+            <AnimatePresence>
+              {lastScannedRecord && (
+                <motion.div 
+                  key={`student_verification_${lastScannedRecord.id}`}
+                  initial={{ opacity: 0, scale: 0.85, y: 15 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: -10 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+                  className="bg-emerald-50 border-2 border-emerald-400 p-5 rounded-3xl space-y-4 shadow-xl relative overflow-hidden"
+                  id="student_verification_popup"
+                >
+                  
+                  {/* 5-Second Success Animated Progress Indicator Bar */}
+                  <div className="w-full bg-emerald-200/80 h-2 rounded-full overflow-hidden shadow-inner relative">
+                    <motion.div 
+                      key={`progress_bar_${lastScannedRecord.id}`}
+                      initial={{ width: '100%' }}
+                      animate={{ width: '0%' }}
+                      transition={{ duration: 5, ease: 'linear' }}
+                      className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 h-full rounded-full shadow-sm"
+                    />
                   </div>
 
-                  {/* REVERSE / UNDO BUTTON */}
-                  <button
-                    onClick={handleReverseAttendance}
-                    disabled={isReverting}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer border border-red-400"
-                    id="btn_reverse_attendance"
-                  >
-                    <Undo2 className="w-4 h-4" />
-                    {isReverting ? 'Reverting...' : 'REVERSE / UNDO'}
-                  </button>
-                </div>
-              </div>
-            )}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5 text-left">
+                      <div className="relative shrink-0">
+                        {lastScannedStudent?.photoURL ? (
+                          <img 
+                            referrerPolicy="no-referrer"
+                            src={lastScannedStudent.photoURL} 
+                            alt={lastScannedRecord.studentName} 
+                            className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-md"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-black text-xl flex items-center justify-center border-2 border-emerald-500 shadow-md">
+                            {lastScannedRecord.studentName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="absolute -bottom-1 -right-1 p-1 bg-emerald-600 text-white rounded-full shadow-sm border border-white">
+                          <CheckCircle2 className="w-3.5 h-3.5 animate-pulse" />
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 bg-emerald-600 text-white font-mono font-bold text-[9px] uppercase rounded-full tracking-wider flex items-center gap-1 shadow-xs">
+                            <CheckCircle2 className="w-3 h-3" /> Attendance Verified
+                          </span>
+                          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 font-mono font-bold text-[9px] rounded-full">
+                            {lastPunctualityStatus}
+                          </span>
+                          <span className="text-[10px] font-mono font-extrabold text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-300/60 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-emerald-600 animate-spin" /> Disappears in {undoCountdown}s
+                          </span>
+                        </div>
+                        <h4 className="text-base font-black text-emerald-950 mt-1 leading-tight">
+                          {lastScannedRecord.studentName}
+                          <span className="text-xs font-mono font-normal text-emerald-700 ml-1.5">
+                            ({lastScannedStudent?.username || lastScannedRecord.studentId})
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-emerald-800 font-mono mt-0.5 flex items-center gap-1">
+                          <Send className="w-3 h-3 text-emerald-600" /> Auto Email & Messaging dispatched
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* REVERSE / UNDO BUTTON (View time: 5s, then disappears with profile) */}
+                    <button
+                      onClick={handleReverseAttendance}
+                      disabled={isReverting}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer border border-red-400 shrink-0"
+                      id="btn_reverse_attendance"
+                    >
+                      <Undo2 className="w-4 h-4" />
+                      {isReverting ? 'Reverting...' : 'REVERSE / UNDO'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* SCANNER CAMERA & MANUAL USERNAME ENTRY */}
             <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4">
