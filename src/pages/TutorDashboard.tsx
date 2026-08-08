@@ -10,7 +10,8 @@ import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMateria
 import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
-import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
+import { ClassProfileModal } from '../components/ClassProfileModal';
+import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { 
   Users, 
   Calendar, 
@@ -108,6 +109,7 @@ export const TutorDashboard: React.FC = () => {
   
   const [tutorClasses, setTutorClasses] = useState<ClassItem[]>([]);
   const [rosterBookings, setRosterBookings] = useState<Booking[]>([]);
+  const [allStudents, setAllStudents] = useState<UserProfile[]>([]);
   const [tutorAvailability, setTutorAvailability] = useState<{ day: string; slots: string[] }[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -118,6 +120,9 @@ export const TutorDashboard: React.FC = () => {
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
+  const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
+  const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
 
   // Quick Attendance Widget state
   const [widgetClassId, setWidgetClassId] = useState<string>('');
@@ -208,6 +213,10 @@ export const TutorDashboard: React.FC = () => {
 
       const matchedBookings = bookings.filter(b => b.tutorId === currentUser.uid && b.status === "active");
       setRosterBookings(matchedBookings);
+
+      // Fetch all users for roster profile pictures
+      const usersList = await firestoreService.getAllUsers();
+      setAllStudents(usersList);
 
       // Load availability
       setTutorAvailability(currentUser.tutorDetails?.availability || []);
@@ -1079,11 +1088,27 @@ export const TutorDashboard: React.FC = () => {
                       {tutorClasses.map((item) => (
                         <div 
                           key={item.id} 
-                          className="p-3.5 border border-gray-100 hover:border-blue-100 rounded-xl bg-gray-50/30 text-xs space-y-1.5 flex justify-between gap-2"
+                          onClick={() => setSelectedClassForProfile(item)}
+                          className="p-3.5 border border-gray-100 hover:border-blue-200 rounded-xl bg-gray-50/30 text-xs space-y-1.5 flex justify-between gap-2 cursor-pointer transition-all hover:shadow-xs group"
                         >
                           <div className="flex-1 space-y-1.5">
-                            <span className="text-[9px] font-bold font-mono text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded uppercase">{item.subject}</span>
-                            <h4 className="font-bold text-gray-900 leading-tight block pt-0.5">{item.title}</h4>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[9px] font-bold font-mono text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded uppercase">{item.subject}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedClassForScanner(item);
+                                  setShowClassScannerModal(true);
+                                }}
+                                className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-indigo-400/30 flex items-center gap-1 text-[10px] font-bold"
+                                title="Scan QR Code Attendance for this class"
+                                id={`btn_scan_qr_tutor_item_${item.id}`}
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Scan QR</span>
+                              </button>
+                            </div>
+                            <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors leading-tight block pt-0.5">{item.title}</h4>
                             <div className="flex justify-between items-center text-[10px] text-gray-500 mt-2 font-mono">
                               <span>Seats: {item.bookedSlots}/{item.maxSlots}</span>
                               <span>Cost: LKR {item.price}/Mo</span>
@@ -1093,16 +1118,22 @@ export const TutorDashboard: React.FC = () => {
                           <div className="flex flex-col gap-1.5 shrink-0 justify-center">
                             <button
                               id={`edit-class-btn-${item.id}`}
-                              onClick={() => startEditClass(item)}
-                              className="p-1 rounded bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditClass(item);
+                              }}
+                              className="p-1.5 rounded bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer"
                               title="Edit class details"
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button
                               id={`delete-class-btn-${item.id}`}
-                              onClick={() => handleDeleteClass(item.id, item.title)}
-                              className="p-1 rounded bg-red-50 hover:bg-red-100 border border-red-100 text-red-601 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClass(item.id, item.title);
+                              }}
+                              className="p-1.5 rounded bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 cursor-pointer"
                               title="Delete class curriculum"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2561,15 +2592,45 @@ export const TutorDashboard: React.FC = () => {
         cancelBtnId="tutor_cancel_delete_resource_btn"
       />
 
-      {/* Tutor QR Code Display & Attendance Modal */}
-      <ClassQRCodeAttendanceModal
-        isOpen={showQrModal}
-        onClose={() => setShowQrModal(false)}
+      {/* Class Profile Modal */}
+      <ClassProfileModal
+        isOpen={!!selectedClassForProfile}
+        onClose={() => setSelectedClassForProfile(null)}
+        classItem={selectedClassForProfile}
         currentUser={currentUser}
+        bookings={bookings}
+        allUsers={allStudents}
+        payments={[]}
+        attendanceRecords={attendanceRecords}
+        onOpenScanner={(cls) => {
+          setSelectedClassForScanner(cls);
+          setShowClassScannerModal(true);
+        }}
+        onUpdateData={() => {
+          refreshClasses();
+          refreshBookings();
+        }}
+        showToast={showToast}
+      />
+
+      {/* Class Attendance QR Scanner Modal */}
+      <ClassAttendanceQRScannerModal
+        isOpen={showClassScannerModal || showQrModal}
+        onClose={() => {
+          setShowClassScannerModal(false);
+          setShowQrModal(false);
+          setSelectedClassForScanner(null);
+        }}
+        currentUser={currentUser}
+        initialClass={selectedClassForScanner}
         tutorClasses={tutorClasses}
         bookings={rosterBookings.length > 0 ? rosterBookings : bookings}
+        allUsers={allStudents}
         attendanceRecords={attendanceRecords}
-        onAttendanceMarked={loadAttendanceRecords}
+        onAttendanceMarked={() => {
+          loadAttendanceRecords();
+          refreshBookings();
+        }}
         showToast={showToast}
       />
     </motion.div>

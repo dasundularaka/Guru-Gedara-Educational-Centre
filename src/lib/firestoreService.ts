@@ -1328,6 +1328,25 @@ const firestoreServiceRaw = {
     return record;
   },
 
+  async deleteAttendance(id: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'attendance', id));
+      } catch (e) {
+        console.warn("Fallback deleting attendance", e);
+      }
+    }
+    const list = handleFallback<AttendanceRecord>('local_attendance', []);
+    const filtered = list.filter(a => a.id !== id);
+    saveFallback('local_attendance', filtered);
+
+    await this.addAuditLog({
+      username: 'system',
+      action: 'ATTENDANCE_REVERTED',
+      details: `Reverted/deleted attendance record ID: ${id}`
+    });
+  },
+
   async autoMarkAbsencesForClass(classId: string, classTitle: string, tutorId: string): Promise<number> {
     const today = new Date().toISOString().split('T')[0];
     const allUsers = await this.getAllUsers();

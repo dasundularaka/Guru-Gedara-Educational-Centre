@@ -156,6 +156,7 @@ export interface AttendanceRecord {
   markedAt: string;
   tutorId: string;
   type: 'qrcode' | 'manual';
+  scannedByName?: string;
 }
 
 export type ResourceType = 'announcement' | 'link' | 'image' | 'video' | 'file' | 'note' | 'quiz';
@@ -172,6 +173,7 @@ export interface StudyMaterial {
   classId?: string;
   classTitle?: string;
   createdAt: string;
+  isVisible?: boolean;
 }
 
 export interface AuditLog {

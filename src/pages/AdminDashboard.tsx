@@ -7,6 +7,8 @@ import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, Ban
 import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
+import { ClassProfileModal } from '../components/ClassProfileModal';
+import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -74,7 +76,8 @@ import {
   ChevronRight,
   User,
   Award,
-  Percent
+  Percent,
+  QrCode
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -82,6 +85,7 @@ export const AdminDashboard: React.FC = () => {
     currentUser, 
     showToast, 
     refreshClasses, 
+    refreshBookings,
     reviews, 
     updateReviewStatus, 
     deleteReview, 
@@ -105,6 +109,9 @@ export const AdminDashboard: React.FC = () => {
   const [bannersList, setBannersList] = useState<BannerImage[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedProgressStudentId, setSelectedProgressStudentId] = useState<string>('');
+  const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
+  const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
+  const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
   const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
   const [progressGradeFilter, setProgressGradeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -2879,15 +2886,31 @@ export const AdminDashboard: React.FC = () => {
                     return (
                       <div 
                         key={c.id} 
-                        className="p-4 border border-gray-100 rounded-xl bg-gray-50/20 text-xs space-y-2.5 transition-all hover:border-blue-105 flex justify-between gap-3 items-start"
+                        onClick={() => setSelectedClassForProfile(c)}
+                        className="p-4 border border-gray-100 rounded-xl bg-gray-50/20 text-xs space-y-2.5 transition-all hover:border-blue-300 hover:shadow-xs flex justify-between gap-3 items-start cursor-pointer group relative"
                       >
                         <div className="flex-1 space-y-1.5">
-                          <div className="flex justify-between items-start">
+                          <div className="flex justify-between items-start gap-2">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase font-mono tracking-wider">{c.subject}</span>
-                            <span className="font-mono text-blue-700 font-extrabold text-sm">${c.price}/Mo</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedClassForScanner(c);
+                                  setShowClassScannerModal(true);
+                                }}
+                                className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-indigo-400/30 flex items-center gap-1 text-[10px] font-bold"
+                                title="Open QR Attendance Scanner for this class"
+                                id={`btn_scan_qr_admin_item_${c.id}`}
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>Scan QR</span>
+                              </button>
+                              <span className="font-mono text-blue-700 font-extrabold text-sm">LKR {c.price}/Mo</span>
+                            </div>
                           </div>
 
-                          <h4 className="font-extrabold text-gray-950 text-xs leading-snug pt-1">{c.title}</h4>
+                          <h4 className="font-extrabold text-gray-950 text-xs leading-snug pt-1 group-hover:text-indigo-600 transition-colors">{c.title}</h4>
                           <p className="text-gray-500 leading-relaxed text-[11px] line-clamp-2">{c.description}</p>
                           <p className="text-gray-400 font-mono text-[10px]">Schedule: <span className="font-bold text-gray-800">{c.schedule}</span></p>
                           
@@ -2900,10 +2923,11 @@ export const AdminDashboard: React.FC = () => {
                         </div>
 
                         {/* Card Action Controls */}
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5 shrink-0">
                           <button 
                             id={`feature-class-btn-${c.id}`}
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               try {
                                 const updatedFeatured = !c.isFeatured;
                                 await firestoreService.updateClass(c.id, { isFeatured: updatedFeatured });
@@ -4852,6 +4876,47 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Class Profile Modal for Admin */}
+      <ClassProfileModal
+        isOpen={!!selectedClassForProfile}
+        onClose={() => setSelectedClassForProfile(null)}
+        classItem={selectedClassForProfile}
+        currentUser={currentUser}
+        bookings={bookingsList}
+        allUsers={users || []}
+        payments={paymentsList}
+        attendanceRecords={attendanceRecords}
+        onOpenScanner={(cls) => {
+          setSelectedClassForScanner(cls);
+          setShowClassScannerModal(true);
+        }}
+        onUpdateData={() => {
+          if (refreshClasses) refreshClasses();
+          if (refreshBookings) refreshBookings();
+        }}
+        showToast={showToast}
+      />
+
+      {/* Class Attendance QR Scanner Modal for Admin */}
+      <ClassAttendanceQRScannerModal
+        isOpen={showClassScannerModal}
+        onClose={() => {
+          setShowClassScannerModal(false);
+          setSelectedClassForScanner(null);
+        }}
+        currentUser={currentUser}
+        initialClass={selectedClassForScanner}
+        tutorClasses={classesList}
+        bookings={bookingsList}
+        allUsers={users || []}
+        attendanceRecords={attendanceRecords}
+        onAttendanceMarked={async () => {
+          const updatedAtt = await firestoreService.getAttendance();
+          setAttendanceRecords(updatedAtt);
+        }}
+        showToast={showToast}
+      />
     </motion.div>
   );
 };

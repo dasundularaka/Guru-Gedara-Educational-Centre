@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem } from '../types';
-import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star } from 'lucide-react';
+import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ReviewsModal } from './ReviewsModal';
 
@@ -11,9 +11,17 @@ interface ClassCardProps {
   onBookSuccess?: () => void;
   onRedirectToLogin?: () => void;
   onBookClick?: () => void;
+  onOpenClassProfile?: (classItem: ClassItem) => void;
+  onOpenScanner?: (classItem: ClassItem) => void;
 }
 
-export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRedirectToLogin }) => {
+export const ClassCard: React.FC<ClassCardProps> = ({ 
+  item, 
+  onBookSuccess, 
+  onRedirectToLogin,
+  onOpenClassProfile,
+  onOpenScanner
+}) => {
   const { currentUser, showToast, refreshClasses, reviews } = useApp();
   const [loading, setLoading] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
@@ -151,7 +159,10 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
       id={`class_card_${item.id}`}
     >
       {item.imageUrl ? (
-        <div className="h-40 w-full relative overflow-hidden bg-slate-900">
+        <div 
+          onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
+          className="h-40 w-full relative overflow-hidden bg-slate-900 cursor-pointer group"
+        >
           <img 
             referrerPolicy="no-referrer"
             src={item.imageUrl} 
@@ -161,7 +172,23 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
           <span className={`absolute top-3 left-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border shadow-sm backdrop-blur-md bg-white/90 ${getSubjectColor(item.subject)}`}>
             {item.subject}
           </span>
-          {item.isFeatured && (
+          
+          {/* Top-Right Small QR Scanner Button for Tutors & Admins */}
+          {(currentUser?.role === 'tutor' || currentUser?.role === 'admin') && onOpenScanner && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenScanner(item);
+              }}
+              className="absolute top-3 right-3 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition-all cursor-pointer z-10 border border-indigo-400/40"
+              title="Open QR Scanner for this class"
+              id={`btn_card_qr_scanner_${item.id}`}
+            >
+              <QrCode className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {item.isFeatured && !((currentUser?.role === 'tutor' || currentUser?.role === 'admin') && onOpenScanner) && (
             <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase bg-amber-500 text-white shadow-sm font-mono border border-amber-400">
               <Star className="w-2.5 h-2.5 fill-white" /> Featured
             </span>
@@ -186,11 +213,30 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
         </div>
       ) : (
         /* Decorative Subject Cover Fallback */
-        <div className="p-6 bg-linear-to-br from-slate-50 to-slate-100/45 border-b border-slate-100 relative">
+        <div 
+          onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
+          className="p-6 bg-linear-to-br from-slate-50 to-slate-100/45 border-b border-slate-100 relative cursor-pointer"
+        >
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getSubjectColor(item.subject)}`}>
             {item.subject}
           </span>
-          <h4 className="mt-3 text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer">
+
+          {/* Top-Right Small QR Scanner Button for Tutors & Admins */}
+          {(currentUser?.role === 'tutor' || currentUser?.role === 'admin') && onOpenScanner && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenScanner(item);
+              }}
+              className="absolute top-3 right-3 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition-all cursor-pointer z-10 border border-indigo-400/40"
+              title="Open QR Scanner for this class"
+              id={`btn_card_qr_scanner_${item.id}`}
+            >
+              <QrCode className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <h4 className="mt-3 text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors">
             {item.title}
           </h4>
           
@@ -216,7 +262,10 @@ export const ClassCard: React.FC<ClassCardProps> = ({ item, onBookSuccess, onRed
       {/* Conditionally render Title outside the cover if we have a layout with imageUrl */}
       {item.imageUrl && (
         <div className="px-6 pt-5 pb-1">
-          <h4 className="text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer">
+          <h4 
+            onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
+            className="text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer"
+          >
             {item.title}
           </h4>
         </div>

@@ -289,17 +289,10 @@ export const StudentDashboard: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}
-                  className="text-xs text-slate-700 hover:text-slate-900 font-bold flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-3 py-1.5 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                  className="text-xs text-white font-bold flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
                   id="btn_student_view_my_qr"
                 >
-                  <QrCode className="w-3.5 h-3.5 text-indigo-600" /> View My QR Code
-                </button>
-                <button 
-                  onClick={() => setShowScannerModal(true)}
-                  className="text-xs text-white font-bold flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
-                  id="btn_student_scan_class_qr_header"
-                >
-                  <QrCode className="w-3.5 h-3.5" /> Scan Class QR Code
+                  <QrCode className="w-3.5 h-3.5" /> View My Student Unique QR Code
                 </button>
               </div>
             </div>
@@ -1004,17 +997,6 @@ export const StudentDashboard: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Class Attendance QR Scanner Modal */}
-      <ClassQRCodeAttendanceModal
-        isOpen={showScannerModal}
-        onClose={() => setShowScannerModal(false)}
-        currentUser={currentUser}
-        bookings={studentBookings}
-        attendanceRecords={attendanceRecords}
-        onAttendanceMarked={fetchDashboardData}
-        showToast={showToast}
-      />
     </motion.div>
   );
 };
