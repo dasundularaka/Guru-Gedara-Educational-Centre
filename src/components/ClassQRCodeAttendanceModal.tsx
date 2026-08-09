@@ -22,6 +22,7 @@ import {
 import { ClassItem, Booking, AttendanceRecord, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 import { sendAttendanceNotifications } from '../lib/attendanceNotification';
+import { validateQRAttendanceWindow, getActiveExtraClassSession } from '../lib/classScheduleUtils';
 import { AttendanceScanHistory } from './AttendanceScanHistory';
 
 interface ClassQRCodeAttendanceModalProps {
@@ -262,8 +263,23 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
         }
 
         const targetClassId = selectedClassId || tutorClasses[0]?.id;
-        const targetClass = tutorClasses.find(c => c.id === targetClassId);
+        const targetClass = tutorClasses.find(c => c.id === targetClassId) || activeClass;
         const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+
+        // Check schedule window restriction
+        if (targetClass) {
+          const scheduleVal = validateQRAttendanceWindow(targetClass);
+          if (!scheduleVal.allowed) {
+            setScanResult({
+              success: false,
+              message: scheduleVal.reason
+            });
+            showToast(`❌ Attendance Restricted: ${scheduleVal.reason}`, 'error');
+            return;
+          }
+        }
+
+        const activeExtra = targetClass ? getActiveExtraClassSession(targetClass.id) : null;
 
         const matchedBooking = bookings.find(b => 
           (b.classId === targetClassId || !targetClassId) &&
@@ -286,7 +302,10 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
           status: 'Present',
           markedAt: new Date().toISOString(),
           tutorId: currentUser.uid,
-          type: 'qrcode'
+          type: 'qrcode',
+          isExtraClass: !!activeExtra,
+          extraClassTimeSlot: activeExtra ? activeExtra.timeSlotStr : undefined,
+          notes: activeExtra ? `Extra Class Session (${activeExtra.timeSlotStr})` : undefined
         };
 
         await firestoreService.markAttendance(record);
@@ -319,6 +338,21 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
         const targetClassTitle = parsed.classTitle || 'Class Session';
         const targetDate = parsed.date || new Date().toISOString().split('T')[0];
 
+        const targetClass = activeClass || tutorClasses.find(c => c.id === targetClassId);
+        if (targetClass) {
+          const scheduleVal = validateQRAttendanceWindow(targetClass);
+          if (!scheduleVal.allowed) {
+            setScanResult({
+              success: false,
+              message: scheduleVal.reason
+            });
+            showToast(`❌ Attendance Restricted: ${scheduleVal.reason}`, 'error');
+            return;
+          }
+        }
+
+        const activeExtra = targetClass ? getActiveExtraClassSession(targetClass.id) : null;
+
         const recordId = `${targetClassId}_${currentUser.uid}_${targetDate}`;
         const record: AttendanceRecord = {
           id: recordId,
@@ -330,7 +364,10 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
           status: 'Present',
           markedAt: new Date().toISOString(),
           tutorId: parsed.tutorId || 'tutor',
-          type: 'qrcode'
+          type: 'qrcode',
+          isExtraClass: !!activeExtra,
+          extraClassTimeSlot: activeExtra ? activeExtra.timeSlotStr : undefined,
+          notes: activeExtra ? `Extra Class Session (${activeExtra.timeSlotStr})` : undefined
         };
 
         await firestoreService.markAttendance(record);

@@ -10,6 +10,7 @@ import {
 import { auth, db } from '../lib/firebase';
 import { firestoreService, safeStringify } from '../lib/firestoreService';
 import { genericFirestoreService } from '../lib/genericFirestore';
+import { checkAndMarkAutoAbsentStudents } from '../lib/classScheduleUtils';
 import { UserProfile, NotificationSettings, NotificationItem, Review, Booking, Payment, SyncLogEntry } from '../types';
 import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
@@ -543,6 +544,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (unsubReviews) unsubReviews();
     };
   }, []);
+
+  // Periodic Auto-Absent Checker: Marks students absent after class session time elapses
+  useEffect(() => {
+    const runAutoAbsentWorker = async () => {
+      try {
+        if (classes.length > 0 && bookings.length > 0) {
+          const allUsers = await firestoreService.getAllUsers();
+          const existingAttendance = await firestoreService.getAttendanceRecords();
+          await checkAndMarkAutoAbsentStudents(classes, bookings, allUsers, existingAttendance);
+        }
+      } catch (e) {
+        console.warn("Auto-absent background check failed:", e);
+      }
+    };
+
+    runAutoAbsentWorker();
+    const interval = setInterval(runAutoAbsentWorker, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [classes, bookings]);
 
   // Sync Firebase authentication with custom Firestore profiles
   useEffect(() => {

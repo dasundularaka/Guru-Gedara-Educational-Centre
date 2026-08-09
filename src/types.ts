@@ -158,6 +158,9 @@ export interface AttendanceRecord {
   tutorId: string;
   type: 'qrcode' | 'manual';
   scannedByName?: string;
+  isExtraClass?: boolean;
+  extraClassTimeSlot?: string;
+  notes?: string;
 }
 
 export type ResourceType = 'announcement' | 'link' | 'image' | 'video' | 'file' | 'note' | 'quiz';

@@ -20,6 +20,17 @@ import jsQR from 'jsqr';
 import { ClassItem, Booking, UserProfile, AttendanceRecord } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 import { sendAttendanceNotifications, parseClassScheduleTimes } from '../lib/attendanceNotification';
+import { 
+  validateQRAttendanceWindow, 
+  getActiveExtraClassSession, 
+  saveExtraClassSession, 
+  removeExtraClassSession, 
+  isTodayClassDay, 
+  isCurrentTimeInClassWindow, 
+  parseScheduleTimes, 
+  parseTimeToTodayDate,
+  ExtraClassSession 
+} from '../lib/classScheduleUtils';
 
 interface ClassAttendanceQRScannerModalProps {
   isOpen: boolean;
@@ -69,6 +80,40 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
 
   // Scan Result Error/Notice
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+
+  // Extra Class Prompt & Temporary Schedule Configurator States
+  const [showExtraClassPrompt, setShowExtraClassPrompt] = useState<boolean>(false);
+  const [showTimeSlotConfigurator, setShowTimeSlotConfigurator] = useState<boolean>(false);
+  const [extraClassSession, setExtraClassSession] = useState<ExtraClassSession | null>(null);
+  const [tempTimeSlotInput, setTempTimeSlotInput] = useState<string>('02:00 PM - 04:00 PM');
+
+  // Check extra class session when targetClass changes or modal opens
+  useEffect(() => {
+    if (isOpen && targetClass) {
+      const activeExtra = getActiveExtraClassSession(targetClass.id);
+      setExtraClassSession(activeExtra);
+
+      const isToday = isTodayClassDay(targetClass.dayOfWeek, targetClass.schedule);
+      const { isInWindow } = isCurrentTimeInClassWindow(targetClass.timeSlot, targetClass.schedule);
+
+      // Prompt if outside regular schedule AND no active extra class session exists
+      if ((!isToday || !isInWindow) && !activeExtra) {
+        setShowExtraClassPrompt(true);
+      } else {
+        setShowExtraClassPrompt(false);
+      }
+    }
+  }, [isOpen, targetClass]);
+
+  // Periodic check to auto-remove expired extra class session
+  useEffect(() => {
+    if (!targetClass) return;
+    const interval = setInterval(() => {
+      const activeExtra = getActiveExtraClassSession(targetClass.id);
+      setExtraClassSession(activeExtra);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [targetClass]);
 
   // Verification 5-Second Undo Window & Auto-Disappear Timer
   const [lastScannedRecord, setLastScannedRecord] = useState<AttendanceRecord | null>(null);
@@ -192,6 +237,36 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
 
   if (!isOpen || !isTutorOrAdmin) return null;
 
+  // Save temporary Extra Class session with expiration
+  const handleSaveExtraClassSession = () => {
+    if (!targetClass) return;
+    const timeSlotStr = tempTimeSlotInput.trim() || '02:00 PM - 04:00 PM';
+    const { startTimeStr, endTimeStr } = parseScheduleTimes(timeSlotStr);
+
+    const now = new Date();
+    const endD = parseTimeToTodayDate(endTimeStr, now);
+    if (endD.getTime() <= now.getTime()) {
+      endD.setHours(now.getHours() + 2);
+    }
+
+    const session: ExtraClassSession = {
+      classId: targetClass.id,
+      classTitle: targetClass.title,
+      date: selectedDate,
+      startTime: startTimeStr,
+      endTime: endTimeStr,
+      timeSlotStr: timeSlotStr,
+      expiresAt: endD.getTime(),
+      createdAt: new Date().toISOString()
+    };
+
+    saveExtraClassSession(session);
+    setExtraClassSession(session);
+    setShowTimeSlotConfigurator(false);
+    setErrorNotice(null);
+    showToast(`🎉 Extra Class session activated for ${targetClass.title} (${timeSlotStr})!`, 'success');
+  };
+
   // Process QR / Student Identity Payload
   const handleProcessScan = async (rawInputStr: string, scanType: 'qrcode' | 'manual' = 'qrcode') => {
     setErrorNotice(null);
@@ -203,6 +278,15 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
 
     if (!targetClass) {
       showToast('No class selected for attendance.', 'error');
+      return;
+    }
+
+    // --- CONDITION 0: CLASS DATE AND CLASS TIME WINDOW VALIDATION ---
+    const scheduleValidation = validateQRAttendanceWindow(targetClass);
+    if (!scheduleValidation.allowed) {
+      const msg = `❌ Attendance Restricted: ${scheduleValidation.reason}`;
+      setErrorNotice(msg);
+      showToast(msg, 'error');
       return;
     }
 
@@ -301,6 +385,8 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
       const recordId = `att_${targetClass.id}_${studentUid}_${selectedDate}`;
       const markedAtIso = new Date().toISOString();
 
+      const activeExtra = getActiveExtraClassSession(targetClass.id);
+
       const record: AttendanceRecord = {
         id: recordId,
         classId: targetClass.id,
@@ -312,7 +398,10 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
         markedAt: markedAtIso,
         tutorId: currentUser.uid,
         type: type,
-        scannedByName: currentUser.name || currentUser.username || 'Tutor'
+        scannedByName: currentUser.name || currentUser.username || 'Tutor',
+        isExtraClass: !!activeExtra,
+        extraClassTimeSlot: activeExtra ? activeExtra.timeSlotStr : undefined,
+        notes: activeExtra ? `Extra Class Session (${activeExtra.timeSlotStr})` : undefined
       };
 
       await firestoreService.markAttendance(record);
@@ -415,28 +504,77 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
           {/* Body */}
           <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
 
-            {/* Locked Fixed Class & Date Banner (No dropdowns) */}
+            {/* Locked Fixed Class & Date Banner */}
             {targetClass && (
               <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-md">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-mono font-bold text-[9px] rounded uppercase border border-blue-400/30">
                       {targetClass.subject}
                     </span>
-                    <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
-                      <Clock className="w-3 h-3" /> Schedule: {scheduleTimes.startTimeStr} - {scheduleTimes.endTimeStr}
-                    </span>
+                    {extraClassSession ? (
+                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 font-mono font-bold text-[9px] rounded uppercase border border-amber-400/40 flex items-center gap-1 animate-pulse">
+                        <Sparkles className="w-3 h-3 text-amber-300" /> Extra Class Session
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
+                        <Clock className="w-3 h-3" /> Schedule: {scheduleTimes.startTimeStr} - {scheduleTimes.endTimeStr} ({targetClass.dayOfWeek})
+                      </span>
+                    )}
                   </div>
                   <h4 className="text-sm font-extrabold text-white leading-tight">
                     {targetClass.title}
                   </h4>
+                  {extraClassSession && (
+                    <p className="text-[11px] text-amber-300 font-mono font-semibold flex items-center gap-1.5 mt-0.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" /> Temporary Slot: {extraClassSession.timeSlotStr}
+                      <span className="text-[9px] bg-amber-950 text-amber-200 px-2 py-0.5 rounded-full border border-amber-800/60">
+                        Disappears at end
+                      </span>
+                    </p>
+                  )}
                 </div>
 
-                <div className="text-right border-t sm:border-t-0 sm:border-l border-slate-800 pt-2 sm:pt-0 sm:pl-4 shrink-0 font-mono">
-                  <span className="text-[9px] text-slate-400 uppercase block font-bold">Session Date</span>
-                  <span className="text-xs font-bold text-indigo-300 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 block mt-0.5">
-                    {formattedToday}
-                  </span>
+                <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-slate-800 pt-2 sm:pt-0 sm:pl-4 shrink-0 font-mono">
+                  {extraClassSession ? (
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempTimeSlotInput(extraClassSession.timeSlotStr);
+                          setShowTimeSlotConfigurator(true);
+                        }}
+                        className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[10px] font-mono rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                        id="btn_edit_extra_class_slot"
+                      >
+                        <Clock className="w-3 h-3" /> Change Slot
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeExtraClassSession(targetClass.id);
+                          setExtraClassSession(null);
+                          showToast('Extra class session ended.', 'info');
+                        }}
+                        className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] font-mono rounded-xl transition-all cursor-pointer"
+                        id="btn_end_extra_class_session"
+                      >
+                        End
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempTimeSlotInput("02:00 PM - 04:00 PM");
+                        setShowTimeSlotConfigurator(true);
+                      }}
+                      className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-extrabold text-[10px] font-mono rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                      id="btn_open_extra_class_config"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-300" /> Extra Class
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -702,6 +840,182 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
               >
                 <ShieldCheck className="w-4 h-4" />
                 Confirm & Send Alert
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* EXTRA CLASS PROMPT MODAL (YES / NO POPUP) */}
+      {showExtraClassPrompt && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs font-sans animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md p-6 space-y-5 relative"
+            id="modal_extra_class_prompt"
+          >
+            <div className="flex items-center gap-3 border-b border-slate-150 pb-4">
+              <div className="p-3 bg-amber-500/10 text-amber-600 rounded-2xl border border-amber-500/20">
+                <Sparkles className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">Is this an Extra Class?</h3>
+                <p className="text-[10px] font-mono text-slate-500">
+                  Schedule Verification Prompt
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+              <p className="text-slate-800 font-semibold leading-relaxed">
+                The regular schedule for <strong className="text-indigo-600">{targetClass?.title}</strong> is <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-mono font-bold">{targetClass?.dayOfWeek || 'Scheduled Day'} @ {targetClass?.timeSlot || 'Scheduled Time'}</span>.
+              </p>
+              <p className="text-slate-600 font-medium">
+                Would you like to launch an <strong>Extra Class session</strong> for today and configure a temporary time slot?
+              </p>
+            </div>
+
+            <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 text-[11px] text-indigo-900 font-mono leading-tight flex items-start gap-2">
+              <Clock className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Temporary Schedule:</strong> Extra class time slots are temporary and will automatically expire and disappear once the session time is over.
+              </span>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExtraClassPrompt(false);
+                  showToast('Standard schedule active. Attendance marking restricted to scheduled time slot.', 'info');
+                }}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                id="btn_extra_class_no"
+              >
+                No, Standard Class
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExtraClassPrompt(false);
+                  setShowTimeSlotConfigurator(true);
+                }}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                id="btn_extra_class_yes"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                Yes, Start Extra Class
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* TEMPORARY EXTRA CLASS TIME SLOT CONFIGURATOR MODAL */}
+      {showTimeSlotConfigurator && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs font-sans animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md p-6 space-y-5"
+            id="modal_extra_class_time_configurator"
+          >
+            <div className="flex items-center justify-between border-b border-slate-150 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-md">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Set Extra Class Time Slot</h3>
+                  <p className="text-[10px] font-mono text-indigo-600 font-bold">
+                    Temporary Schedule (Disappears when finished)
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowTimeSlotConfigurator(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase font-mono mb-1">
+                  Class Title:
+                </label>
+                <p className="text-sm font-black text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {targetClass?.title}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 uppercase font-mono mb-1">
+                  Extra Class Temporary Time Slot:
+                </label>
+                <input
+                  type="text"
+                  value={tempTimeSlotInput}
+                  onChange={(e) => setTempTimeSlotInput(e.target.value)}
+                  placeholder="e.g. 02:00 PM - 04:00 PM or 04:30 PM - 06:30 PM"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-indigo-600 outline-none shadow-xs"
+                  id="input_extra_class_time_slot"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase font-mono mb-1.5">
+                  Quick Time Slot Presets:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "02:00 PM - 04:00 PM",
+                    "04:00 PM - 06:00 PM",
+                    "06:00 PM - 08:00 PM",
+                    "08:00 AM - 10:00 AM",
+                    "10:00 AM - 12:00 PM"
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setTempTimeSlotInput(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all border cursor-pointer ${
+                        tempTimeSlotInput === preset 
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 font-medium">
+                ⏳ <strong>Temporary Active Duration:</strong> Once saved, this extra class session will remain open for attendance check-ins until the end time of the specified time slot. After the time is over, this extra class configuration will automatically disappear.
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowTimeSlotConfigurator(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                id="btn_cancel_extra_class_config"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveExtraClassSession}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                id="btn_save_extra_class_config"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Save & Launch Session
               </button>
             </div>
           </motion.div>
