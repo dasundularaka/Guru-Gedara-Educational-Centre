@@ -945,18 +945,30 @@ const firestoreServiceRaw = {
     return newPay;
   },
 
-  async updatePaymentStatus(id: string, status: 'paid' | 'pending' | 'failed'): Promise<void> {
+  async updatePaymentStatus(id: string, status: 'paid' | 'pending' | 'failed', fullPaymentObj?: Payment): Promise<void> {
+    const updatedPay = fullPaymentObj ? { ...fullPaymentObj, status } : undefined;
     if (isUsingCloud) {
       try {
-        await updateDoc(doc(db, 'payments', id), { status });
+        const payRef = doc(db, 'payments', id);
+        const snap = await promiseWithTimeout(getDoc(payRef), 5000, null as any);
+        if (snap && snap.exists()) {
+          await updateDoc(payRef, { status });
+        } else if (updatedPay) {
+          await setDoc(payRef, updatedPay);
+        }
       } catch (e) {
         console.warn("Failed online payment state change", e);
       }
     }
 
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
-    const updated = payments.map(p => p.id === id ? { ...p, status } : p);
-    saveFallback('local_payments', updated);
+    const existingIdx = payments.findIndex(p => p.id === id);
+    if (existingIdx !== -1) {
+      payments[existingIdx].status = status;
+    } else if (updatedPay) {
+      payments.push(updatedPay);
+    }
+    saveFallback('local_payments', payments);
   },
 
   // -------------------------------------------------------------

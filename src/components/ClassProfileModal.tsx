@@ -127,7 +127,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
 
     // Find last payment month
     const studentPayments = payments
-      .filter(p => p.studentId === booking.studentId && p.classId === classItem.id && p.status === 'paid')
+      .filter(p => (p.studentId === booking.studentId || (p.studentName && booking.studentName && p.studentName.toLowerCase() === booking.studentName.toLowerCase())) && p.classId === classItem.id && p.status === 'paid')
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     const lastPayment = studentPayments[0];
