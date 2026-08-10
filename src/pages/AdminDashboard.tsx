@@ -8,6 +8,7 @@ import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
 import { ClassProfileModal } from '../components/ClassProfileModal';
+import { TutorProfileModal } from '../components/TutorProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -74,6 +75,7 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   User,
   Award,
   Percent,
@@ -110,11 +112,13 @@ export const AdminDashboard: React.FC = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedProgressStudentId, setSelectedProgressStudentId] = useState<string>('');
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
+  const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
   const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
   const [progressGradeFilter, setProgressGradeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
 
   // Pathway management modal states
   const [pathwayModalOpen, setPathwayModalOpen] = useState(false);
@@ -1539,181 +1543,185 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Sub menu controls */}
-          <div className="flex flex-wrap gap-1.5 bg-white border border-gray-100 p-1.5 rounded-xl text-xs font-bold text-gray-500 shadow-sm">
+          {/* Sub menu controls - Modern Dropdown Navigation */}
+          <div className="relative">
             <button
-              id="admin_tab_analytics"
-              onClick={() => setActiveTab('analytics')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+              id="admin_dashboard_nav_dropdown_trigger"
+              onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
+              className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
             >
-              <BarChart3 className="w-4 h-4" /> Insights & Analytics
-            </button>
-            <button
-              id="admin_tab_payments"
-              onClick={() => setActiveTab('payments')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'payments' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <CreditCard className="w-4 h-4" /> Global Ledger Ledger
-            </button>
-            <button
-              id="admin_tab_students"
-              onClick={() => setActiveTab('students')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'students' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <Users className="w-4 h-4" /> Scholars
-            </button>
-            <button
-              id="admin_tab_progress"
-              onClick={() => {
-                setActiveTab('progress');
-                fetchAttendanceRecords();
-              }}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'progress' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <GraduationCap className="w-4 h-4 text-indigo-300" /> Student Progress
-            </button>
-            <button
-              id="admin_tab_tutors"
-              onClick={() => setActiveTab('tutors')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'tutors' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <UserCheck className="w-4 h-4" /> Faculty
-            </button>
-            <button
-              id="admin_tab_classes"
-              onClick={() => setActiveTab('classes')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'classes' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <BookOpen className="w-4 h-4" /> Curriculums
-            </button>
-            <button
-              id="admin_tab_pathways"
-              onClick={() => setActiveTab('pathways')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'pathways' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <Layers className="w-4 h-4 text-cyan-400" /> Course Pathways & Subjects
-            </button>
-            <button
-              id="admin_tab_banners"
-              onClick={() => setActiveTab('banners')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'banners' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <ImageIcon className="w-4 h-4 text-emerald-400" /> Hero Banners
-            </button>
-            <button
-              id="admin_tab_notices"
-              onClick={() => setActiveTab('notices')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'notices' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <Bell className="w-4 h-4 text-amber-400" /> Notices & System Alerts
-              {notifications.filter(n => !n.isRead).length > 0 && (
-                <span className="px-1.5 py-0.2 bg-red-500 text-white text-[9px] font-black rounded-full animate-pulse">
-                  {notifications.filter(n => !n.isRead).length}
+              <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
+                <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                  {activeTab === 'analytics' && <BarChart3 className="w-4 h-4" />}
+                  {activeTab === 'payments' && <CreditCard className="w-4 h-4" />}
+                  {activeTab === 'students' && <Users className="w-4 h-4" />}
+                  {activeTab === 'progress' && <GraduationCap className="w-4 h-4" />}
+                  {activeTab === 'tutors' && <UserCheck className="w-4 h-4" />}
+                  {activeTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                  {activeTab === 'pathways' && <Layers className="w-4 h-4" />}
+                  {activeTab === 'banners' && <ImageIcon className="w-4 h-4" />}
+                  {activeTab === 'notices' && <Bell className="w-4 h-4" />}
+                  {activeTab === 'admins' && <ShieldCheck className="w-4 h-4" />}
+                  {activeTab === 'reviews' && <Star className="w-4 h-4" />}
                 </span>
-              )}
+                <span className="capitalize">
+                  {activeTab === 'analytics' && 'Insights & Analytics'}
+                  {activeTab === 'payments' && 'Global Ledger Ledger'}
+                  {activeTab === 'students' && 'Scholars & Students'}
+                  {activeTab === 'progress' && 'Student Progress & Attendance'}
+                  {activeTab === 'tutors' && 'Faculty & Tutors'}
+                  {activeTab === 'classes' && 'Curriculums & Classes'}
+                  {activeTab === 'pathways' && 'Course Pathways & Subjects'}
+                  {activeTab === 'banners' && 'Hero Banners'}
+                  {activeTab === 'notices' && 'Notices & System Alerts'}
+                  {activeTab === 'admins' && 'Administrative Staff'}
+                  {activeTab === 'reviews' && 'Moderate Reviews'}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
+                Navigation
+              </span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-            <button
-              id="admin_tab_admins"
-              onClick={() => setActiveTab('admins')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'admins' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-500" /> Administrative Staff
-            </button>
-            <button
-              id="admin_tab_reviews"
-              onClick={() => setActiveTab('reviews')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeTab === 'reviews' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-            >
-              <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-pulse" /> Moderate Reviews
-            </button>
+
+            {isNavDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
+                  <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
+                    Select Section View
+                  </div>
+                  {[
+                    { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" /> },
+                    { id: 'payments', label: 'Global Ledger Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" /> },
+                    { id: 'students', label: 'Scholars', icon: <Users className="w-4 h-4 text-indigo-500" /> },
+                    { id: 'progress', label: 'Student Progress', icon: <GraduationCap className="w-4 h-4 text-purple-500" /> },
+                    { id: 'tutors', label: 'Faculty', icon: <UserCheck className="w-4 h-4 text-amber-500" /> },
+                    { id: 'classes', label: 'Curriculums', icon: <BookOpen className="w-4 h-4 text-sky-500" /> },
+                    { id: 'pathways', label: 'Course Pathways & Subjects', icon: <Layers className="w-4 h-4 text-cyan-500" /> },
+                    { id: 'banners', label: 'Hero Banners', icon: <ImageIcon className="w-4 h-4 text-teal-500" /> },
+                    { id: 'notices', label: 'Notices & System Alerts', icon: <Bell className="w-4 h-4 text-amber-500" />, badge: notifications.filter(n => !n.isRead).length },
+                    { id: 'admins', label: 'Administrative Staff', icon: <ShieldCheck className="w-4 h-4 text-emerald-500" /> },
+                    { id: 'reviews', label: 'Moderate Reviews', icon: <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      id={`admin_tab_${opt.id}`}
+                      onClick={() => {
+                        setActiveTab(opt.id as any);
+                        if (opt.id === 'progress') fetchAttendanceRecords();
+                        setIsNavDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === opt.id
+                          ? 'bg-blue-600 text-white shadow-xs font-black'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </div>
+                      {opt.badge && opt.badge > 0 ? (
+                        <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
+                          {opt.badge}
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Aggregate statistics bento bar */}
-        <motion.div 
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: { opacity: 0 },
-            visible: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.08
+        {/* Aggregate statistics bento bar - Only visible on Insights & Analytics tab */}
+        {activeTab === 'analytics' && (
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.08
+                }
               }
-            }
-          }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8"
-        >
-          
-          {/* Revenue */}
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 15 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
             }}
-            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8"
           >
-            <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 border border-blue-105 flex items-center justify-center">
-              <DollarSign className="w-5.5 h-5.5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Gross Tuition collected</span>
-              <span className="text-xl font-extrabold text-blue-950 block mt-1.5 leading-none font-mono">LKR {totalCollectedRevenue}</span>
-            </div>
-          </motion.div>
+            
+            {/* Revenue */}
+            <motion.div 
+              variants={{
+                hidden: { opacity: 0, y: 15 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+              }}
+              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
+            >
+              <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 border border-blue-105 flex items-center justify-center">
+                <DollarSign className="w-5.5 h-5.5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Gross Tuition collected</span>
+                <span className="text-xl font-extrabold text-blue-950 block mt-1.5 leading-none font-mono">LKR {totalCollectedRevenue}</span>
+              </div>
+            </motion.div>
 
-          {/* Bookings */}
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 15 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
-            }}
-            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
-          >
-            <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 border border-purple-105 flex items-center justify-center">
-              <BookOpen className="w-5.5 h-5.5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Syllabus Class Bookings</span>
-              <span className="text-xl font-extrabold text-gray-900 block mt-1.5 leading-none font-mono">{bookingsList.length} Active Slots</span>
-            </div>
-          </motion.div>
+            {/* Bookings */}
+            <motion.div 
+              variants={{
+                hidden: { opacity: 0, y: 15 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+              }}
+              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
+            >
+              <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 border border-purple-105 flex items-center justify-center">
+                <BookOpen className="w-5.5 h-5.5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Syllabus Class Bookings</span>
+                <span className="text-xl font-extrabold text-gray-900 block mt-1.5 leading-none font-mono">{bookingsList.length} Active Slots</span>
+              </div>
+            </motion.div>
 
-          {/* Scholars */}
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 15 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
-            }}
-            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
-          >
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-105 flex items-center justify-center">
-              <Users className="w-5.5 h-5.5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Scholars Enrolled</span>
-              <span className="text-xl font-extrabold text-gray-900 block mt-1.5 leading-none font-mono">{users.filter(u => u.role==='student').length} Accounts</span>
-            </div>
-          </motion.div>
+            {/* Scholars */}
+            <motion.div 
+              variants={{
+                hidden: { opacity: 0, y: 15 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+              }}
+              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
+            >
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-105 flex items-center justify-center">
+                <Users className="w-5.5 h-5.5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Scholars Enrolled</span>
+                <span className="text-xl font-extrabold text-gray-900 block mt-1.5 leading-none font-mono">{users.filter(u => u.role==='student').length} Accounts</span>
+              </div>
+            </motion.div>
 
-          {/* Collection Status */}
-          <motion.div 
-            variants={{
-              hidden: { opacity: 0, y: 15 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
-            }}
-            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
-          >
-            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-105 flex items-center justify-center">
-              <TrendingUp className="w-5.5 h-5.5" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Ledger Recovery Yield</span>
-              <span className="text-xl font-extrabold text-emerald-600 block mt-1.5 leading-none font-mono">{successPcnt}% recovery</span>
-            </div>
-          </motion.div>
+            {/* Collection Status */}
+            <motion.div 
+              variants={{
+                hidden: { opacity: 0, y: 15 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+              }}
+              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center gap-4"
+            >
+              <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-105 flex items-center justify-center">
+                <TrendingUp className="w-5.5 h-5.5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 font-mono tracking-widest block leading-none">Ledger Recovery Yield</span>
+                <span className="text-xl font-extrabold text-emerald-600 block mt-1.5 leading-none font-mono">{successPcnt}% recovery</span>
+              </div>
+            </motion.div>
 
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Dynamic Inner displays */}
         {loading && users.length === 0 ? (
@@ -2809,7 +2817,15 @@ export const AdminDashboard: React.FC = () => {
                       </div>
 
                       {/* Card Action Controls */}
-                      <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100">
+                      <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
+                        <button
+                          id={`view-tutor-profile-btn-${tut.uid}`}
+                          onClick={() => setSelectedTutorForProfile(tut)}
+                          className="p-1 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-150 text-indigo-700 cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all"
+                          title="View full tutor biography, expertise areas & working hours"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" /> Profile
+                        </button>
                         <button 
                           id={`feature-tutor-btn-${tut.uid}`}
                           onClick={async () => {
@@ -4917,6 +4933,16 @@ export const AdminDashboard: React.FC = () => {
         }}
         showToast={showToast}
       />
+
+      {/* Tutor Profile Modal for Admin */}
+      {selectedTutorForProfile && (
+        <TutorProfileModal
+          tutor={selectedTutorForProfile}
+          isOpen={!!selectedTutorForProfile}
+          onClose={() => setSelectedTutorForProfile(null)}
+          reviews={reviews || []}
+        />
+      )}
     </motion.div>
   );
 };

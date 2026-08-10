@@ -38,10 +38,18 @@ export interface UserProfile {
   tutorDetails?: {
     bio: string;
     subjects: string[];
+    expertiseAreas?: string[];
     experience: number; // in years
     qualification: string;
     hourlyRate: number;
     rating: number;
+    workingHours?: {
+      day: string;
+      enabled: boolean;
+      startTime: string;
+      endTime: string;
+    }[];
+    daysOff?: string[];
     availability: {
       day: string; // e.g. "Monday", "Tuesday"
       slots: string[]; // e.g. ["10:00 AM", "02:00 PM"]

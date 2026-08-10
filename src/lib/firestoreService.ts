@@ -31,12 +31,27 @@ import {
 let isUsingCloud = true;
 let isOriginalCloud = true;
 
+function getCircularReplacer() {
+  const seen = new WeakSet();
+  return (_key: string, value: any) => {
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return undefined;
+      }
+      seen.add(value);
+    }
+    return value;
+  };
+}
+
 // Helper to stringify objects with circular reference protection and custom type exclusions
-function cleanObjectForSerialization(val: any, seen = new WeakSet()): any {
+function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0): any {
   if (val === null || val === undefined) return val;
   const type = typeof val;
   if (type === 'number' || type === 'string' || type === 'boolean') return val;
   if (type === 'function' || type === 'symbol') return undefined;
+
+  if (depth > 8) return undefined;
 
   if (type === 'object') {
     if (seen.has(val)) return undefined;
@@ -64,6 +79,19 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet()): any {
       }
     }
 
+    // Check for Firebase/Firestore internal delegates or complex internal SDK properties
+    try {
+      if (val._delegate || val._firestore || val._databaseId || val._query || val._key) {
+        if (val.message && typeof val.message === 'string') return val.message;
+        if (val.code && typeof val.code === 'string') return val.code;
+        if (val.id && typeof val.id === 'string') return val.id;
+        if (val.path && typeof val.path === 'string') return val.path;
+        return undefined;
+      }
+    } catch (_) {
+      return undefined;
+    }
+
     // Check constructor name to exclude SDK internal instances (e.g. Y2, Ka, Firestore, Auth, etc.)
     try {
       const cName = val?.constructor?.name;
@@ -79,10 +107,13 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet()): any {
           cName.includes('Auth') ||
           cName.includes('Error') ||
           cName.includes('Reference') ||
-          cName.includes('Query')
+          cName.includes('Query') ||
+          cName.includes('Document') ||
+          cName.includes('Collection')
         ) {
           if (val.message && typeof val.message === 'string') return val.message;
           if (val.code && typeof val.code === 'string') return val.code;
+          if (val.id && typeof val.id === 'string') return val.id;
           return undefined;
         }
       }
@@ -94,7 +125,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet()): any {
       const cleanArr: any[] = [];
       for (let i = 0; i < val.length; i++) {
         try {
-          const item = cleanObjectForSerialization(val[i], seen);
+          const item = cleanObjectForSerialization(val[i], seen, depth + 1);
           if (item !== undefined) cleanArr.push(item);
         } catch (_) {}
       }
@@ -105,7 +136,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet()): any {
     for (const key of Object.keys(val)) {
       if (key.startsWith('$$') || key.startsWith('_v')) continue;
       try {
-        const item = cleanObjectForSerialization(val[key], seen);
+        const item = cleanObjectForSerialization(val[key], seen, depth + 1);
         if (item !== undefined) {
           cleanObj[key] = item;
         }
@@ -126,7 +157,7 @@ export function safeStringify(obj: any): string {
 
   try {
     const cleaned = cleanObjectForSerialization(obj);
-    return JSON.stringify(cleaned);
+    return JSON.stringify(cleaned, getCircularReplacer());
   } catch (err) {
     console.warn("[safeStringify] Safe stringify error caught:", err);
     try {

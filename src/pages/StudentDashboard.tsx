@@ -36,7 +36,8 @@ import {
   Camera,
   FileText,
   QrCode,
-  Download
+  Download,
+  ChevronDown
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
@@ -59,6 +60,7 @@ export const StudentDashboard: React.FC = () => {
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
+  const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
@@ -352,60 +354,82 @@ export const StudentDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Sub menu controls */}
-          <div className="flex flex-wrap gap-1 bg-white border border-slate-200/80 p-1.5 rounded-2xl text-xs font-bold text-slate-500 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+          {/* Sub menu controls - Modern Dropdown Navigation */}
+          <div className="relative">
             <button
-              id="student_tab_schedule"
-              onClick={() => setActiveSubTab('schedule')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'schedule' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
+              id="student_dashboard_nav_dropdown_trigger"
+              onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
+              className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
             >
-              <Calendar className="w-4 h-4 text-indigo-400" /> Calendar
+              <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
+                <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                  {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
+                  {activeSubTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                  {activeSubTab === 'payments' && <FileText className="w-4 h-4" />}
+                  {activeSubTab === 'performance' && <TrendingUp className="w-4 h-4" />}
+                  {activeSubTab === 'roadmap' && <Compass className="w-4 h-4" />}
+                  {activeSubTab === 'chat' && <MessageSquare className="w-4 h-4" />}
+                  {activeSubTab === 'notifications' && <Bell className="w-4 h-4" />}
+                </span>
+                <span className="capitalize">
+                  {activeSubTab === 'schedule' && 'Calendar & Timetable'}
+                  {activeSubTab === 'classes' && 'Classes & Enrolled Ledger'}
+                  {activeSubTab === 'payments' && 'Payment History'}
+                  {activeSubTab === 'performance' && 'Progress & Attendance'}
+                  {activeSubTab === 'roadmap' && 'Syllabus Roadmap'}
+                  {activeSubTab === 'chat' && 'Message Chat'}
+                  {activeSubTab === 'notifications' && 'Alerts & System Notices'}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
+                Navigation
+              </span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-            <button
-              id="student_tab_classes"
-              onClick={() => setActiveSubTab('classes')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'classes' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              <BookOpen className="w-4 h-4 text-indigo-400" /> Classes & Ledger
-            </button>
-            <button
-              id="student_tab_payments"
-              onClick={() => setActiveSubTab('payments')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'payments' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              <FileText className="w-4 h-4 text-indigo-400" /> Payment History
-            </button>
-            <button
-              id="student_tab_performance"
-              onClick={() => setActiveSubTab('performance')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'performance' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              <TrendingUp className="w-4 h-4 text-indigo-400" /> Progress Tracker
-            </button>
-            <button
-              id="student_tab_roadmap"
-              onClick={() => setActiveSubTab('roadmap')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'roadmap' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              <Compass className="w-4 h-4 text-indigo-400" /> Syllabus Roadmap
-            </button>
-            <button
-              id="student_tab_chat"
-              onClick={() => setActiveSubTab('chat')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'chat' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              <MessageSquare className="w-4 h-4 text-indigo-400" /> Message Chat
-            </button>
-            <button
-              id="student_tab_notifications"
-              onClick={() => setActiveSubTab('notifications')}
-              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 relative cursor-pointer ${activeSubTab === 'notifications' ? 'bg-slate-900 text-white font-extrabold' : 'hover:bg-slate-50 hover:text-slate-900'}`}
-            >
-              <Bell className="w-4 h-4 text-indigo-400" /> Alerts
-              {notifications.filter(n => !n.isRead).length > 0 && (
-                <span className="h-2 w-2 rounded-full bg-red-500 absolute top-1.5 right-1.5 animate-ping"></span>
-              )}
-            </button>
+
+            {isNavDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
+                  <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
+                    Scholar Menu Options
+                  </div>
+                  {[
+                    { id: 'schedule', label: 'Calendar & Timetable', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
+                    { id: 'classes', label: 'Classes & Enrolled Ledger', icon: <BookOpen className="w-4 h-4 text-blue-500" /> },
+                    { id: 'payments', label: 'Payment History', icon: <FileText className="w-4 h-4 text-emerald-500" /> },
+                    { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" /> },
+                    { id: 'roadmap', label: 'Syllabus Roadmap', icon: <Compass className="w-4 h-4 text-purple-500" /> },
+                    { id: 'chat', label: 'Message Chat', icon: <MessageSquare className="w-4 h-4 text-cyan-500" /> },
+                    { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      id={`student_tab_${opt.id}`}
+                      onClick={() => {
+                        setActiveSubTab(opt.id as any);
+                        setIsNavDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeSubTab === opt.id
+                          ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs font-black'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </div>
+                      {opt.badge && opt.badge > 0 ? (
+                        <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
+                          {opt.badge}
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

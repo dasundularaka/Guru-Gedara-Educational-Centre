@@ -1,5 +1,5 @@
 import { ClassItem, Booking, UserProfile, AttendanceRecord } from '../types';
-import { firestoreService } from './firestoreService';
+import { firestoreService, safeStringify } from './firestoreService';
 
 export interface ExtraClassSession {
   classId: string;
@@ -116,7 +116,7 @@ export function getStoredExtraClassSessions(): Record<string, ExtraClassSession>
     });
 
     if (Object.keys(active).length !== Object.keys(parsed).length) {
-      localStorage.setItem(EXTRA_CLASS_STORAGE_KEY, JSON.stringify(active));
+      localStorage.setItem(EXTRA_CLASS_STORAGE_KEY, safeStringify(active));
     }
 
     return active;
@@ -137,13 +137,13 @@ export function getActiveExtraClassSession(classId: string): ExtraClassSession |
 export function saveExtraClassSession(session: ExtraClassSession): void {
   const sessions = getStoredExtraClassSessions();
   sessions[session.classId] = session;
-  localStorage.setItem(EXTRA_CLASS_STORAGE_KEY, JSON.stringify(sessions));
+  localStorage.setItem(EXTRA_CLASS_STORAGE_KEY, safeStringify(sessions));
 }
 
 export function removeExtraClassSession(classId: string): void {
   const sessions = getStoredExtraClassSessions();
   delete sessions[classId];
-  localStorage.setItem(EXTRA_CLASS_STORAGE_KEY, JSON.stringify(sessions));
+  localStorage.setItem(EXTRA_CLASS_STORAGE_KEY, safeStringify(sessions));
 }
 
 // Validate if QR attendance can be marked for a class

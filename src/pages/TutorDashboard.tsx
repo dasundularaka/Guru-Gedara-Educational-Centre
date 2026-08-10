@@ -33,6 +33,7 @@ import {
   CheckSquare,
   Search,
   Bell,
+  ChevronDown,
   CreditCard,
   Mail,
   Shield,
@@ -50,10 +51,16 @@ import {
   Layers,
   Filter,
   Copy,
-  FolderOpen
+  FolderOpen,
+  Upload,
+  Clock,
+  Briefcase,
+  Award,
+  Eye
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
+import { TutorProfileModal } from '../components/TutorProfileModal';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -73,6 +80,7 @@ export const TutorDashboard: React.FC = () => {
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
+  const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'reminders'>('all');
   const [tutorNoticeTitle, setTutorNoticeTitle] = useState('');
   const [tutorNoticeMsg, setTutorNoticeMsg] = useState('');
@@ -162,6 +170,20 @@ export const TutorDashboard: React.FC = () => {
   const [profSubjects, setProfSubjects] = useState("");
   const [profBio, setProfBio] = useState("");
   const [profPhoto, setProfPhoto] = useState("");
+  const [profExpertiseAreas, setProfExpertiseAreas] = useState<string[]>([]);
+  const [newExpertiseInput, setNewExpertiseInput] = useState("");
+  const [profDaysOff, setProfDaysOff] = useState<string[]>([]);
+  const [newDayOffInput, setNewDayOffInput] = useState("");
+  const [showSelfProfileModal, setShowSelfProfileModal] = useState(false);
+  const [profWorkingHours, setProfWorkingHours] = useState<{ day: string; enabled: boolean; startTime: string; endTime: string }[]>([
+    { day: "Monday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
+    { day: "Tuesday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
+    { day: "Wednesday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
+    { day: "Thursday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
+    { day: "Friday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
+    { day: "Saturday", enabled: true, startTime: "09:00 AM", endTime: "02:00 PM" },
+    { day: "Sunday", enabled: false, startTime: "09:00 AM", endTime: "12:00 PM" }
+  ]);
 
   // Dynamic Database Subjects and Pathways
   const [dbSubjects, setDbSubjects] = useState<SubjectItem[]>([]);
@@ -200,6 +222,11 @@ export const TutorDashboard: React.FC = () => {
       setProfSubjects(currentUser.tutorDetails?.subjects?.join(", ") || "");
       setProfBio(currentUser.tutorDetails?.bio || "");
       setProfPhoto(currentUser.photoURL || "");
+      setProfExpertiseAreas(currentUser.tutorDetails?.expertiseAreas || []);
+      setProfDaysOff(currentUser.tutorDetails?.daysOff || []);
+      if (currentUser.tutorDetails?.workingHours && currentUser.tutorDetails.workingHours.length > 0) {
+        setProfWorkingHours(currentUser.tutorDetails.workingHours);
+      }
     }
   }, [currentUser]);
 
@@ -566,6 +593,47 @@ export const TutorDashboard: React.FC = () => {
     }
   };
 
+  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Profile image must be under 5MB", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfPhoto(reader.result as string);
+      showToast("Photo uploaded! Click 'Save Profile Details' to publish changes.", "info");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddExpertiseArea = () => {
+    if (!newExpertiseInput.trim()) return;
+    const tag = newExpertiseInput.trim();
+    if (!profExpertiseAreas.includes(tag)) {
+      setProfExpertiseAreas([...profExpertiseAreas, tag]);
+    }
+    setNewExpertiseInput("");
+  };
+
+  const handleRemoveExpertiseArea = (tagToRemove: string) => {
+    setProfExpertiseAreas(profExpertiseAreas.filter(t => t !== tagToRemove));
+  };
+
+  const handleAddDayOff = () => {
+    if (!newDayOffInput.trim()) return;
+    const day = newDayOffInput.trim();
+    if (!profDaysOff.includes(day)) {
+      setProfDaysOff([...profDaysOff, day]);
+    }
+    setNewDayOffInput("");
+  };
+
+  const handleRemoveDayOff = (dayToRemove: string) => {
+    setProfDaysOff(profDaysOff.filter(d => d !== dayToRemove));
+  };
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
@@ -598,10 +666,13 @@ export const TutorDashboard: React.FC = () => {
         tutorDetails: {
           bio: profBio,
           subjects: profSubjects.split(',').map(s => s.trim()).filter(Boolean),
+          expertiseAreas: profExpertiseAreas,
           experience: Number(profExperience),
           qualification: profQualification,
           hourlyRate: Number(profHourlyRate),
           rating: currentUser.tutorDetails?.rating || 5.0,
+          workingHours: profWorkingHours,
+          daysOff: profDaysOff,
           availability: tutorAvailability
         }
       });
@@ -856,69 +927,85 @@ export const TutorDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Tab switchers */}
-            <div className="flex bg-white border border-gray-100 p-1 rounded-xl text-xs font-bold text-gray-500 shadow-sm flex-wrap gap-1">
+            {/* Sub menu controls - Modern Dropdown Navigation */}
+            <div className="relative">
               <button
-                id="tutor_tab_schedule"
-                onClick={() => setActiveSubTab('schedule')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'schedule' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
+                id="tutor_dashboard_nav_dropdown_trigger"
+                onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
+                className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
               >
-                <Calendar className="w-4 h-4" /> Teaching Schedules
-              </button>
-              <button
-                id="tutor_tab_students"
-                onClick={() => setActiveSubTab('students')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'students' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <Users className="w-4 h-4" /> listed Scholars ({rosterBookings.length})
-              </button>
-              <button
-                id="tutor_tab_resources"
-                onClick={() => setActiveSubTab('resources')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'resources' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <BookOpen className="w-4 h-4" /> Course Resources ({tutorMaterials.length})
-              </button>
-              <button
-                id="tutor_tab_attendance"
-                onClick={() => setActiveSubTab('attendance')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'attendance' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <ClipboardList className="w-4 h-4" /> Attendance Tracker
-              </button>
-              <button
-                id="tutor_tab_chat"
-                onClick={() => setActiveSubTab('chat')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'chat' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <MessageSquare className="w-4 h-4" /> Students Chat
-              </button>
-              <button
-                id="tutor_tab_alerts"
-                onClick={() => setActiveSubTab('alerts')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer relative ${activeSubTab === 'alerts' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <Bell className="w-4 h-4 text-amber-400" /> Alerts
-                {notifications.filter(n => !n.isRead).length > 0 && (
-                  <span className="px-1.5 py-0.2 bg-red-500 text-white text-[9px] font-black rounded-full animate-pulse">
-                    {notifications.filter(n => !n.isRead).length}
+                <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
+                  <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                    {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
+                    {activeSubTab === 'students' && <Users className="w-4 h-4" />}
+                    {activeSubTab === 'resources' && <BookOpen className="w-4 h-4" />}
+                    {activeSubTab === 'attendance' && <ClipboardList className="w-4 h-4" />}
+                    {activeSubTab === 'chat' && <MessageSquare className="w-4 h-4" />}
+                    {activeSubTab === 'alerts' && <Bell className="w-4 h-4" />}
+                    {activeSubTab === 'profile' && <User className="w-4 h-4" />}
+                    {activeSubTab === 'settings' && <Settings className="w-4 h-4" />}
                   </span>
-                )}
+                  <span className="capitalize">
+                    {activeSubTab === 'schedule' && 'Teaching Schedules'}
+                    {activeSubTab === 'students' && `Listed Scholars (${rosterBookings.length})`}
+                    {activeSubTab === 'resources' && `Course Resources (${tutorMaterials.length})`}
+                    {activeSubTab === 'attendance' && 'Attendance Tracker'}
+                    {activeSubTab === 'chat' && 'Students Chat'}
+                    {activeSubTab === 'alerts' && 'Alerts & System Notices'}
+                    {activeSubTab === 'profile' && 'Faculty Profile'}
+                    {activeSubTab === 'settings' && 'Alert Preferences'}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
+                  Navigation
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
-              <button
-                id="tutor_tab_profile"
-                onClick={() => setActiveSubTab('profile')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'profile' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <User className="w-4 h-4" /> My Profile
-              </button>
-              <button
-                id="tutor_tab_settings"
-                onClick={() => setActiveSubTab('settings')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${activeSubTab === 'settings' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-gray-50'}`}
-              >
-                <Settings className="w-4 h-4" /> Alert preferences
-              </button>
+
+              {isNavDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
+                    <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
+                      Faculty Menu Options
+                    </div>
+                    {[
+                      { id: 'schedule', label: 'Teaching Schedules', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
+                      { id: 'students', label: `Listed Scholars (${rosterBookings.length})`, icon: <Users className="w-4 h-4 text-blue-500" /> },
+                      { id: 'resources', label: `Course Resources (${tutorMaterials.length})`, icon: <BookOpen className="w-4 h-4 text-emerald-500" /> },
+                      { id: 'attendance', label: 'Attendance Tracker', icon: <ClipboardList className="w-4 h-4 text-amber-500" /> },
+                      { id: 'chat', label: 'Students Chat', icon: <MessageSquare className="w-4 h-4 text-purple-500" /> },
+                      { id: 'alerts', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length },
+                      { id: 'profile', label: 'Faculty Profile', icon: <User className="w-4 h-4 text-cyan-500" /> },
+                      { id: 'settings', label: 'Alert Preferences', icon: <Settings className="w-4 h-4 text-slate-500" /> },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        id={`tutor_tab_${opt.id}`}
+                        onClick={() => {
+                          setActiveSubTab(opt.id as any);
+                          setIsNavDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          activeSubTab === opt.id
+                            ? 'bg-blue-600 text-white shadow-xs font-black'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span>{opt.icon}</span>
+                          <span>{opt.label}</span>
+                        </div>
+                        {opt.badge && opt.badge > 0 ? (
+                          <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
+                            {opt.badge}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
           </div>
@@ -1678,20 +1765,30 @@ export const TutorDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
               >
-                {/* Visual Avatar Card Selector */}
-                <div className="lg:col-span-4 bg-white border border-gray-150 rounded-2xl p-6 text-center space-y-4">
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider font-mono">My Faculty Avatar</h3>
+                {/* Left Column: Visual Avatar Card & Quick Actions */}
+                <div className="lg:col-span-4 bg-white border border-gray-150 rounded-2xl p-6 text-center space-y-5">
+                  <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">My Faculty Avatar</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowSelfProfileModal(true)}
+                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      title="Preview how students and parents view your public profile card"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Preview Profile
+                    </button>
+                  </div>
                   
-                  <div className="relative inline-block">
+                  <div className="relative inline-block group">
                     {profPhoto ? (
                       <img
                         referrerPolicy="no-referrer"
                         src={profPhoto}
                         alt="Profile preview"
-                        className="w-24 h-24 rounded-full object-cover mx-auto border-2 border-blue-500 shadow-md"
+                        className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-indigo-500/20 shadow-md ring-2 ring-indigo-500/10"
                       />
                     ) : (
-                      <div className="w-24 h-24 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-3xl font-extrabold mx-auto border border-blue-150 shadow-sm">
+                      <div className="w-28 h-28 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-4xl font-extrabold mx-auto border-2 border-indigo-200 shadow-sm">
                         {profName ? profName.charAt(0).toUpperCase() : "?"}
                       </div>
                     )}
@@ -1699,35 +1796,43 @@ export const TutorDashboard: React.FC = () => {
                   
                   <div>
                     <h4 className="text-sm font-extrabold text-gray-900">{profName || "My Profile"}</h4>
+                    <p className="text-[11px] text-indigo-600 font-semibold mt-0.5">{profQualification || "Academic Tutor"}</p>
                     <p className="text-[10px] text-gray-400 font-mono mt-0.5">{currentUser.email}</p>
                   </div>
 
+                  {/* Photo Upload Dropzone */}
+                  <div className="border border-dashed border-gray-200 hover:border-indigo-400 bg-slate-50/60 rounded-xl p-3 text-center transition-all space-y-2">
+                    <div className="flex justify-center">
+                      <Upload className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <p className="text-[11px] font-bold text-gray-700">Upload Profile Picture</p>
+                    <p className="text-[10px] text-gray-400">Supports PNG or JPG up to 5MB</p>
+                    <label className="inline-block px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-xs">
+                      Choose File
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg"
+                        onChange={handlePhotoFileUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Avatar Presets */}
                   <div className="border-t border-gray-100 pt-4 text-left">
-                    <label className="block text-xs font-bold text-gray-700 mb-2">Pick Professional Avatar Preset:</label>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">Or Choose Professional Avatar Preset:</label>
                     <div className="grid grid-cols-4 gap-2">
                       {[
-                        {
-                          url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200",
-                          label: "Option 1"
-                        },
-                        {
-                          url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200",
-                          label: "Option 2"
-                        },
-                        {
-                          url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
-                          label: "Option 3"
-                        },
-                        {
-                          url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200",
-                          label: "Option 4"
-                        }
+                        { url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200", label: "Option 1" },
+                        { url: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200", label: "Option 2" },
+                        { url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200", label: "Option 3" },
+                        { url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200", label: "Option 4" }
                       ].map((avatar, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => setProfPhoto(avatar.url)}
-                          className={`relative rounded-lg overflow-hidden border-2 transition-all aspect-square cursor-pointer ${profPhoto === avatar.url ? 'border-blue-600 scale-105 shadow' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                          className={`relative rounded-lg overflow-hidden border-2 transition-all aspect-square cursor-pointer ${profPhoto === avatar.url ? 'border-indigo-600 scale-105 shadow' : 'border-transparent opacity-80 hover:opacity-100'}`}
                         >
                           <img referrerPolicy="no-referrer" src={avatar.url} alt={avatar.label} className="w-full h-full object-cover" />
                         </button>
@@ -1736,162 +1841,402 @@ export const TutorDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Main Profile Form */}
-                <div className="lg:col-span-8 bg-white border border-gray-150 rounded-2xl p-6 font-sans">
-                  <h3 className="text-base font-bold text-gray-900 border-b pb-4 border-gray-50 mb-5 flex items-center gap-2">
-                    <User className="w-5 h-5 text-blue-550 border-none" />
-                    Tutor Faculty Profile Settings
-                  </h3>
+                {/* Right Column: Main Profile Form */}
+                <div className="lg:col-span-8 bg-white border border-gray-150 rounded-2xl p-6 font-sans space-y-6">
+                  <div className="flex justify-between items-center border-b pb-4 border-gray-100">
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <User className="w-5 h-5 text-indigo-600" />
+                      Faculty Profile & Availability Manager
+                    </h3>
+                    <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-bold">
+                      ● Active Public Faculty
+                    </span>
+                  </div>
                   
-                  <form onSubmit={handleUpdateProfile} className="space-y-4 text-xs">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Profile Display Name:
-                        </label>
-                        <SyncBadge status={getFieldStatus('profName')} message={getFieldMessage('profName')} position="inside">
-                          <input
-                            required
-                            type="text"
-                            value={profName}
-                            onChange={(e) => setProfName(e.target.value)}
-                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
-                          />
-                        </SyncBadge>
+                  <form onSubmit={handleUpdateProfile} className="space-y-6 text-xs">
+                    {/* Basic Info Section */}
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5 text-indigo-500" /> 1. Professional Credentials & Info
+                      </h4>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Profile Display Name:
+                          </label>
+                          <SyncBadge status={getFieldStatus('profName')} message={getFieldMessage('profName')} position="inside">
+                            <input
+                              required
+                              type="text"
+                              value={profName}
+                              onChange={(e) => setProfName(e.target.value)}
+                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600"
+                            />
+                          </SyncBadge>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Photo URL (Optional Link Override):
+                          </label>
+                          <SyncBadge status={getFieldStatus('profPhoto')} message={getFieldMessage('profPhoto')} position="inside">
+                            <input
+                              type="text"
+                              value={profPhoto}
+                              onChange={(e) => setProfPhoto(e.target.value)}
+                              placeholder="https://images.unsplash.com/photo-..."
+                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600 font-mono"
+                            />
+                          </SyncBadge>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Custom Photo Image Link (URL):
-                        </label>
-                        <SyncBadge status={getFieldStatus('profPhoto')} message={getFieldMessage('profPhoto')} position="inside">
-                          <input
-                            type="text"
-                            value={profPhoto}
-                            onChange={(e) => setProfPhoto(e.target.value)}
-                            placeholder="Paste custom secure https:// url here..."
-                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
-                          />
-                        </SyncBadge>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Highest Qualification Credentials:
+                          </label>
+                          <SyncBadge status={getFieldStatus('profQualification')} message={getFieldMessage('profQualification')} position="inside">
+                            <input
+                              required
+                              type="text"
+                              value={profQualification}
+                              onChange={(e) => setProfQualification(e.target.value)}
+                              placeholder="e.g. B.Sc. (Hons) Special in Physics, University of Colombo"
+                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600"
+                            />
+                          </SyncBadge>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Experience (Years):
+                          </label>
+                          <SyncBadge status={getFieldStatus('profExperience')} message={getFieldMessage('profExperience')} position="inside">
+                            <input
+                              required
+                              type="number"
+                              value={profExperience}
+                              onChange={(e) => setProfExperience(e.target.value)}
+                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600 font-mono"
+                            />
+                          </SyncBadge>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Hourly Rate (LKR / Hr):
+                          </label>
+                          <SyncBadge status={getFieldStatus('profHourlyRate')} message={getFieldMessage('profHourlyRate')} position="inside">
+                            <input
+                              required
+                              type="number"
+                              value={profHourlyRate}
+                              onChange={(e) => setProfHourlyRate(e.target.value)}
+                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600 font-mono"
+                            />
+                          </SyncBadge>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                            Instructed Subject Tracks (comma-separated):
+                          </label>
+                          <SyncBadge status={getFieldStatus('profSubjects')} message={getFieldMessage('profSubjects')} position="inside">
+                            <input
+                              required
+                              type="text"
+                              value={profSubjects}
+                              onChange={(e) => setProfSubjects(e.target.value)}
+                              placeholder="e.g. Physics, Combined Mathematics, Chemistry"
+                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600"
+                            />
+                          </SyncBadge>
+                          {availableSubjectOptions.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                              <span className="text-[10px] text-gray-400 font-medium">Quick add:</span>
+                              {availableSubjectOptions.slice(0, 10).map((subj) => {
+                                const currentList = profSubjects.split(',').map(s => s.trim()).filter(Boolean);
+                                const isSelected = currentList.some(s => s.toLowerCase() === subj.toLowerCase());
+                                return (
+                                  <button
+                                    key={subj}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setProfSubjects(currentList.filter(s => s.toLowerCase() !== subj.toLowerCase()).join(', '));
+                                      } else {
+                                        setProfSubjects([...currentList, subj].join(', '));
+                                      }
+                                    }}
+                                    className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    {isSelected ? `✓ ${subj}` : `+ ${subj}`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Highest Qualification Credentials:
-                        </label>
-                        <SyncBadge status={getFieldStatus('profQualification')} message={getFieldMessage('profQualification')} position="inside">
-                          <input
-                            required
-                            type="text"
-                            value={profQualification}
-                            onChange={(e) => setProfQualification(e.target.value)}
-                            placeholder="e.g. PhD in Chemical Physics, Johns Hopkins"
-                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
-                          />
-                        </SyncBadge>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Experience (Years):
-                        </label>
-                        <SyncBadge status={getFieldStatus('profExperience')} message={getFieldMessage('profExperience')} position="inside">
-                          <input
-                            required
-                            type="number"
-                            value={profExperience}
-                            onChange={(e) => setProfExperience(e.target.value)}
-                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
-                          />
-                        </SyncBadge>
-                      </div>
-                    </div>
+                    {/* Areas of Expertise / Specializations Section */}
+                    <div className="space-y-3 pt-3 border-t border-gray-100">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-indigo-500" /> 2. Areas of Expertise & Specializations
+                      </h4>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Hourly Tuition Rate ($ / Hr):
-                        </label>
-                        <SyncBadge status={getFieldStatus('profHourlyRate')} message={getFieldMessage('profHourlyRate')} position="inside">
+                      <div className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 space-y-3">
+                        <p className="text-[11px] text-gray-500 leading-normal">
+                          Highlight specific curriculum domains, exam preparation methods, or advanced topic masteries to attract students.
+                        </p>
+
+                        <div className="flex gap-2">
                           <input
-                            required
-                            type="number"
-                            value={profHourlyRate}
-                            onChange={(e) => setProfHourlyRate(e.target.value)}
-                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
-                          />
-                        </SyncBadge>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Instructed Subject Tracks (comma-separated):
-                        </label>
-                        <SyncBadge status={getFieldStatus('profSubjects')} message={getFieldMessage('profSubjects')} position="inside">
-                          <input
-                            required
                             type="text"
-                            value={profSubjects}
-                            onChange={(e) => setProfSubjects(e.target.value)}
-                            placeholder="e.g. Physics, Chemistry, Algebra"
-                            className="w-full text-xs pl-3 pr-32 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                            value={newExpertiseInput}
+                            onChange={(e) => setNewExpertiseInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddExpertiseArea();
+                              }
+                            }}
+                            placeholder="Add expertise tag e.g. 'A/L Past Paper Revision', 'Quantum Mechanics'..."
+                            className="flex-1 text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-indigo-600 bg-white"
                           />
-                        </SyncBadge>
-                        {availableSubjectOptions.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5 items-center">
-                            <span className="text-[10px] text-gray-400 font-medium">Quick add from Database:</span>
-                            {availableSubjectOptions.slice(0, 12).map((subj) => {
-                              const currentList = profSubjects.split(',').map(s => s.trim()).filter(Boolean);
-                              const isSelected = currentList.some(s => s.toLowerCase() === subj.toLowerCase());
+                          <button
+                            type="button"
+                            onClick={handleAddExpertiseArea}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Tag
+                          </button>
+                        </div>
+
+                        {/* Display Active Tags */}
+                        {profExpertiseAreas.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {profExpertiseAreas.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold"
+                              >
+                                {tag}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveExpertiseArea(tag)}
+                                  className="text-indigo-400 hover:text-red-600 cursor-pointer p-0.5 rounded"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 italic">No custom expertise tags added yet.</p>
+                        )}
+
+                        {/* Quick Suggestions */}
+                        <div className="pt-2 border-t border-slate-200/60">
+                          <span className="text-[10px] text-gray-400 font-bold block mb-1">Recommended Expertise Tags:</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {["Organic Chemistry", "Advanced Calculus", "A/L Past Papers", "Physics Practicals", "Exam Techniques", "O/L Mathematics", "University Prep", "Thermodynamics"].map((rec) => {
+                              const isAdded = profExpertiseAreas.includes(rec);
                               return (
                                 <button
-                                  key={subj}
+                                  key={rec}
                                   type="button"
                                   onClick={() => {
-                                    if (isSelected) {
-                                      setProfSubjects(currentList.filter(s => s.toLowerCase() !== subj.toLowerCase()).join(', '));
+                                    if (isAdded) {
+                                      handleRemoveExpertiseArea(rec);
                                     } else {
-                                      setProfSubjects([...currentList, subj].join(', '));
+                                      setProfExpertiseAreas([...profExpertiseAreas, rec]);
                                     }
                                   }}
-                                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'bg-blue-600 text-white border-blue-600'
-                                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                                  className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border transition-all cursor-pointer ${
+                                    isAdded ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-slate-100'
                                   }`}
                                 >
-                                  {isSelected ? `✓ ${subj}` : `+ ${subj}`}
+                                  {isAdded ? `✓ ${rec}` : `+ ${rec}`}
                                 </button>
                               );
                             })}
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="font-sans">
+                    {/* Biography Section */}
+                    <div className="space-y-2 pt-3 border-t border-gray-100">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-indigo-500" /> 3. Teaching Philosophy & Biography
+                      </h4>
+
                       <SyncBadge status={getFieldStatus('profBio')} message={getFieldMessage('profBio')} position="top-right">
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                          Tuition Biography bio:
-                        </label>
                         <textarea
                           required
                           rows={4}
                           value={profBio}
                           onChange={(e) => setProfBio(e.target.value)}
                           placeholder="Share your teaching style, professional curriculum history, and academic results track-record..."
-                          className="w-full text-xs rounded-xl p-3 border border-gray-200 outline-none focus:border-blue-500 leading-relaxed bg-gray-50/30"
+                          className="w-full text-xs rounded-xl p-3 border border-gray-200 outline-none focus:border-indigo-600 leading-relaxed bg-gray-50/30"
                         ></textarea>
                       </SyncBadge>
                     </div>
 
-                    <div className="flex justify-end items-center gap-3 pt-2 font-sans">
-                      <SyncStatusIndicator operationPatterns={['profile']} />
-                      <button
-                        type="submit"
-                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
-                      >
-                        Save Profile Details
-                      </button>
+                    {/* Working Hours & Availability Section */}
+                    <div className="space-y-4 pt-3 border-t border-gray-100">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-indigo-500" /> 4. Working Hours & Days Off Schedule
+                      </h4>
+
+                      {/* Weekly Working Hours Table */}
+                      <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                        <div className="bg-slate-50 px-4 py-2.5 border-b border-gray-200 flex justify-between items-center">
+                          <span className="text-xs font-extrabold text-slate-800">Weekly Teaching Hours</span>
+                          <span className="text-[10px] text-gray-400 font-mono">Configures student booking availability</span>
+                        </div>
+
+                        <div className="divide-y divide-gray-100">
+                          {profWorkingHours.map((wh, index) => (
+                            <div key={wh.day} className="p-3 flex items-center justify-between hover:bg-slate-50/60 transition-colors gap-3">
+                              <div className="flex items-center gap-3 w-32 shrink-0">
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={wh.enabled}
+                                    onChange={(e) => {
+                                      const updated = [...profWorkingHours];
+                                      updated[index].enabled = e.target.checked;
+                                      setProfWorkingHours(updated);
+                                    }}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+                                </label>
+                                <span className={`text-xs font-bold ${wh.enabled ? 'text-slate-900' : 'text-gray-400 line-through'}`}>
+                                  {wh.day}
+                                </span>
+                              </div>
+
+                              {wh.enabled ? (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <input
+                                    type="text"
+                                    value={wh.startTime}
+                                    onChange={(e) => {
+                                      const updated = [...profWorkingHours];
+                                      updated[index].startTime = e.target.value;
+                                      setProfWorkingHours(updated);
+                                    }}
+                                    className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-center font-mono outline-none focus:border-indigo-600"
+                                    placeholder="08:00 AM"
+                                  />
+                                  <span className="text-gray-400 font-mono">to</span>
+                                  <input
+                                    type="text"
+                                    value={wh.endTime}
+                                    onChange={(e) => {
+                                      const updated = [...profWorkingHours];
+                                      updated[index].endTime = e.target.value;
+                                      setProfWorkingHours(updated);
+                                    }}
+                                    className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-center font-mono outline-none focus:border-indigo-600"
+                                    placeholder="05:00 PM"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-red-500 font-bold bg-red-50 px-2.5 py-0.5 rounded-full">
+                                  Off Day
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Days Off & Vacation Schedule */}
+                      <div className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 space-y-3">
+                        <span className="text-xs font-extrabold text-slate-800 block">Declared Days Off & Holidays:</span>
+                        
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newDayOffInput}
+                            onChange={(e) => setNewDayOffInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddDayOff();
+                              }
+                            }}
+                            placeholder="Add off-day e.g. 'Sundays', 'Poya Holidays', '15 Oct 2026'..."
+                            className="flex-1 text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-indigo-600 bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddDayOff}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Off Day
+                          </button>
+                        </div>
+
+                        {profDaysOff.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {profDaysOff.map((offDay) => (
+                              <span
+                                key={offDay}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-bold"
+                              >
+                                🌴 {offDay}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveDayOff(offDay)}
+                                  className="text-red-400 hover:text-red-800 cursor-pointer p-0.5 rounded"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 italic">No specific days off or holidays listed.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Form Footer */}
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-gray-100 font-sans">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <SyncStatusIndicator operationPatterns={['profile']} />
+                      </div>
+
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => setShowSelfProfileModal(true)}
+                          className="w-1/2 sm:w-auto px-4 py-2.5 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Preview Public View
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-1/2 sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          {loading ? 'Saving Changes...' : 'Save Profile Details'}
+                        </button>
+                      </div>
                     </div>
                   </form>
                 </div>
@@ -2683,6 +3028,16 @@ export const TutorDashboard: React.FC = () => {
         }}
         showToast={showToast}
       />
+
+      {/* Self Public Profile Preview Modal */}
+      {currentUser && (
+        <TutorProfileModal
+          tutor={currentUser}
+          isOpen={showSelfProfileModal}
+          onClose={() => setShowSelfProfileModal(false)}
+          reviews={[]}
+        />
+      )}
     </motion.div>
   );
 };
