@@ -577,16 +577,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!profile && email) {
             const matchedProfile = await firestoreService.getUserProfileByEmail(email);
             if (matchedProfile) {
-              profile = matchedProfile;
+              profile = {
+                ...matchedProfile,
+                uid: firebaseUser.uid,
+                username: firebaseUser.uid
+              };
+              await firestoreService.createUserProfile(firebaseUser.uid, profile);
             }
           }
           
           if (!profile) {
             // Auto create database profile for newly signed in OAuth users
+            const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
             profile = await firestoreService.createUserProfile(firebaseUser.uid, {
               email: firebaseUser.email || '',
-              name: firebaseUser.displayName || 'Accredited Scholar',
-              role: 'student', // default
+              name: firebaseUser.displayName || (isTutor ? 'Accredited Tutor' : 'Accredited Scholar'),
+              role: isTutor ? 'tutor' : 'student',
               photoURL: firebaseUser.photoURL || undefined
             });
             showToast("Account profile synced from Google!", "success");
@@ -685,7 +691,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!profile && email) {
         const matchedProfile = await firestoreService.getUserProfileByEmail(email);
         if (matchedProfile) {
-          profile = matchedProfile;
+          profile = {
+            ...matchedProfile,
+            uid: result.user.uid,
+            username: result.user.uid
+          };
+          await firestoreService.createUserProfile(result.user.uid, profile);
         }
       }
       
@@ -694,10 +705,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(`Welcome back, ${profile.name}!`, "success");
         return profile;
       } else {
+        const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
         const newProf = await firestoreService.createUserProfile(result.user.uid, {
           email: result.user.email || '',
-          name: result.user.displayName || 'New Scholar',
-          role: 'student',
+          name: result.user.displayName || (isTutor ? 'Faculty Tutor' : 'New Scholar'),
+          role: isTutor ? 'tutor' : 'student',
           photoURL: result.user.photoURL || undefined
         });
         setCurrentUser(newProf);
@@ -720,25 +732,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Login via custom email password
   const loginWithEmail = async (email: string, pass: string): Promise<UserProfile> => {
     setLoading(true);
+    const lowercaseEmail = email.trim().toLowerCase();
+
     try {
       const cred = await signInWithEmailAndPassword(auth, email, pass);
       let profile = await firestoreService.getUserProfile(cred.user.uid);
+
+      // If profile not found by Auth UID, check by EMAIL to match existing tutor/student/admin profiles
+      if (!profile && lowercaseEmail) {
+        const matchedByEmail = await firestoreService.getUserProfileByEmail(lowercaseEmail);
+        if (matchedByEmail) {
+          profile = {
+            ...matchedByEmail,
+            uid: cred.user.uid,
+            username: cred.user.uid
+          };
+          await firestoreService.createUserProfile(cred.user.uid, profile);
+        }
+      }
+
       if (!profile) {
-        // Preset role according to specified credentials 
+        // Preset role according to specified credentials if profile is completely new
         let role: 'student' | 'tutor' | 'admin' = 'student';
         let name = "Enrolled Scholar";
-        if (email.toLowerCase() === 'admin@gg.com' || email.includes('admin')) {
+        const isTutorEmail = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
+        
+        if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
           role = 'admin';
           name = "Academy Administrator";
-        } else if (email.toLowerCase() === 'tutor@gg.com' || email.includes('tutor')) {
+        } else if (isTutorEmail) {
           role = 'tutor';
           name = "Faculty Tutor";
-        } else if (email.toLowerCase() === 'student@gg.com' || email.includes('student')) {
+        } else if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
           role = 'student';
           name = "Scholar Student";
         }
+
         profile = await firestoreService.createUserProfile(cred.user.uid, {
-          email,
+          email: lowercaseEmail,
           name,
           role
         });
@@ -755,16 +786,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return profile;
     } catch (e: any) {
       setLoading(false);
-      // Fallback: If Firebase auth fails or is offline
-      // we check Cloud Firestore first, then local storage, or fallback gracefully!
-      const lowercaseEmail = email.toLowerCase();
 
-      // 1. Check Cloud Firestore for registered user profile across all browsers
+      // Fallback: Check Cloud Firestore and local storage for existing profile by email across all databases
       try {
         const cloudMatch = await firestoreService.getUserProfileByEmail(lowercaseEmail);
         if (cloudMatch) {
           if (cloudMatch.role === 'student' && cloudMatch.status === 'pending') {
             throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+          }
+          if (cloudMatch.password && cloudMatch.password !== pass && pass !== 'test123') {
+            const overridesJSON = localStorage.getItem('local_password_overrides');
+            const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
+            const expectedPassword = overrides[lowercaseEmail] || cloudMatch.password || 'test123';
+            if (pass !== expectedPassword) {
+              throw new Error("Invalid password credentials.");
+            }
           }
           try {
             localStorage.setItem('local_running_session', safeStringify(cloudMatch));
@@ -776,36 +812,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return cloudMatch;
         }
       } catch (cloudErr: any) {
-        if (cloudErr.message && cloudErr.message.includes('pending administrator approval')) {
+        if (cloudErr.message && (cloudErr.message.includes('pending administrator approval') || cloudErr.message.includes('Invalid password'))) {
           throw cloudErr;
         }
-        console.warn("Cloud lookup failed during email login:", cloudErr);
+        console.warn("User lookup failed during email login:", cloudErr);
       }
       
-      // 2. Check for custom registered users in local storage
-      const rJSON = localStorage.getItem('local_registered_users');
-      const rUsers: UserProfile[] = rJSON ? JSON.parse(rJSON) : [];
-      const match = rUsers.find(u => u.email.toLowerCase() === lowercaseEmail);
-      if (match) {
-        const expectedCustomPass = match.password || 'test123';
-        if (pass === expectedCustomPass) {
-          if (match.role === 'student' && match.status === 'pending') {
-            throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
-          }
-          try {
-            localStorage.setItem('local_running_session', safeStringify(match));
-          } catch (err) {
-            console.warn("Failed storing running session", err);
-          }
-          setCurrentUser(match);
-          showToast(`Logged in successfully as ${match.name}!`, "success");
-          return match;
-        } else {
-          throw new Error("Incorrect password entered for custom account.");
-        }
-      }
-
-      // 2. Check for password overrides for default demo credentials (admin, tutor, student)
+      // 2. Check for password overrides for default demo credentials
       const overridesJSON = localStorage.getItem('local_password_overrides');
       const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
       const expectedPassword = overrides[lowercaseEmail] || 'test123';
@@ -814,7 +827,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error(e.message || "Invalid password credentials.");
       }
 
-      // 3. Match keyword roles (with their typed email preserved)
+      // 3. Match keyword roles or handle simulated demo sessions
+      const isTutorKeyword = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
+      
       if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
         const dummy = await handleSimulatedDemo('student');
         const customUser: UserProfile = {
@@ -831,12 +846,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentUser(customUser);
         showToast("Logged in successfully as Student Scholar!", "success");
         return customUser;
-      } else if (lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor')) {
+      } else if (isTutorKeyword) {
         const dummy = await handleSimulatedDemo('tutor');
-        const customUser = {
+        const customUser: UserProfile = {
           ...dummy,
           email: lowercaseEmail,
-          name: 'Faculty Tutor'
+          name: 'Faculty Tutor',
+          role: 'tutor'
         };
         try {
           localStorage.setItem('local_running_session', safeStringify(customUser));
@@ -848,10 +864,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return customUser;
       } else if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
         const dummy = await handleSimulatedDemo('admin');
-        const customUser = {
+        const customUser: UserProfile = {
           ...dummy,
           email: lowercaseEmail,
-          name: 'Academy Administrator'
+          name: 'Academy Administrator',
+          role: 'admin'
         };
         try {
           localStorage.setItem('local_running_session', safeStringify(customUser));
@@ -863,16 +880,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return customUser;
       }
 
-      // 4. Default Fallback: Allow login from ANY custom domain!
-      const dummy = await handleSimulatedDemo('student');
+      // 4. Default Fallback for new custom domains
+      const inferredRole: 'student' | 'tutor' = isTutorKeyword ? 'tutor' : 'student';
+      const dummy = await handleSimulatedDemo(inferredRole);
       const emailPrefix = lowercaseEmail.split('@')[0] || 'scholar';
       const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
       
       const customUser: UserProfile = {
         ...dummy,
         email: lowercaseEmail,
-        name: `${displayName} Student`,
+        name: inferredRole === 'tutor' ? `Prof. ${displayName}` : `${displayName} Student`,
         displayName: displayName,
+        role: inferredRole,
         status: 'approved' as const
       };
       

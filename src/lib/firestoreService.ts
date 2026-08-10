@@ -447,7 +447,7 @@ const firestoreServiceRaw = {
          );
          if (userSnap.exists()) {
            const userData = userSnap.data() as UserProfile;
-           if (userData.role === 'tutor') {
+           if (userData.role === 'tutor' || userData.tutorDetails) {
              const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
              const filtered = tutors.filter(t => t.uid !== uid);
              filtered.push(userData);
@@ -465,17 +465,21 @@ const firestoreServiceRaw = {
        }
     }
     
-    // Local fallback
+    // Comprehensive fallback across all local/cached users
+    const allUsers = await this.getAllUsers();
+    const match = allUsers.find(u => u.uid === uid);
+    if (match) return match;
+
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
     const tutorMatch = tutors.find(t => t.uid === uid);
     if (tutorMatch) return tutorMatch;
 
-    // Checking dynamically added local signup profiles
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     return registered.find(u => u.uid === uid) || null;
   },
 
   async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
+    if (!email) return null;
     const cleanEmail = email.trim().toLowerCase();
     
     if (isUsingCloud) {
@@ -495,10 +499,15 @@ const firestoreServiceRaw = {
          console.warn("Falling back search by email", e);
        }
     }
+
+    // Comprehensive fallback search across ALL users (cloud, local_users_tutors, local_registered_users)
+    const allUsers = await this.getAllUsers();
+    const emailMatch = allUsers.find(u => u.email && u.email.trim().toLowerCase() === cleanEmail);
+    if (emailMatch) return emailMatch;
     
-    // Check tutors
+    // Check tutors explicitly
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-    const tutorMatch = tutors.find(t => t.email.toLowerCase() === cleanEmail);
+    const tutorMatch = tutors.find(t => t.email && t.email.trim().toLowerCase() === cleanEmail);
     if (tutorMatch) return tutorMatch;
     
     // Demo student
@@ -513,7 +522,7 @@ const firestoreServiceRaw = {
     
     // Dynamically registered users
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    return registered.find(u => u.email.toLowerCase() === cleanEmail) || null;
+    return registered.find(u => u.email && u.email.trim().toLowerCase() === cleanEmail) || null;
   },
 
   async createUserProfile(uid: string, profile: Partial<UserProfile>): Promise<UserProfile> {
@@ -585,9 +594,16 @@ const firestoreServiceRaw = {
 
     // Save locally
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    const filteredReg = registered.filter(u => u.uid !== uid);
+    const filteredReg = registered.filter(u => u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
     filteredReg.push(fullProfile);
     saveFallback('local_registered_users', filteredReg);
+
+    if (fullProfile.role === 'tutor' || fullProfile.tutorDetails) {
+      const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
+      const filteredTutors = tutors.filter(u => u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
+      filteredTutors.push(fullProfile);
+      saveFallback('local_users_tutors', filteredTutors);
+    }
 
     // Audit Log for user creation
     await this.addAuditLog({
