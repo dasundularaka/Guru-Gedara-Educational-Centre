@@ -10,6 +10,7 @@ import { StudentProgressTracker } from '../components/StudentProgressTracker';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { TutorProfileModal } from '../components/TutorProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
+import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -2996,11 +2997,14 @@ export const AdminDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+                className="space-y-6"
               >
-                
-                {/* Notice Deployer */}
-                <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm font-sans">
+                {/* 24-Hour Class Reminder Cron Control Panel */}
+                <ClassReminderCronPanel />
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Notice Deployer */}
+                  <div className="lg:col-span-7 bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm font-sans">
                   <h3 className="text-base font-bold text-blue-900 mb-4 pb-2 border-b border-gray-50 flex items-center gap-2">
                     <Megaphone className="w-5.2 h-5.2 text-blue-600 animate-pulse" />
                     Deploy Academy-wide Notice bulletin
@@ -3240,8 +3244,9 @@ export const AdminDashboard: React.FC = () => {
                     })()}
                   </div>
                 </div>
+              </div>
 
-              </motion.div>
+            </motion.div>
             )}
 
             {/* Tab 6: administrative staff dashboard access */}

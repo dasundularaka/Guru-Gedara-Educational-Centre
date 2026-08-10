@@ -16,6 +16,7 @@ import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
+import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -695,11 +696,14 @@ export const StudentDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start"
+                className="space-y-6"
               >
-                
-                {/* Lists alerts */}
-                <div className="lg:col-span-3 bg-white border border-gray-150 rounded-2xl p-6">
+                {/* 24-Hour Class Reminder Cron Trigger & Outbox Status */}
+                <ClassReminderCronPanel />
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+                  {/* Lists alerts */}
+                  <div className="lg:col-span-3 bg-white dark:bg-slate-800 border border-gray-150 dark:border-slate-700 rounded-2xl p-6">
                   <h3 className="text-base font-bold text-blue-900 flex items-center justify-between border-b pb-4 border-gray-50 mb-4">
                     <span>Notifications Dashboard</span>
                     {notifications.filter(n => !n.isRead).length > 0 && (
@@ -875,9 +879,9 @@ export const StudentDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+          )}
 
           </div>
         )}
