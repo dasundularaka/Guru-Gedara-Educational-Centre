@@ -12,6 +12,7 @@ import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
+import { GoogleCalendarIntegration } from '../components/GoogleCalendarIntegration';
 import { 
   Users, 
   Calendar, 
@@ -79,7 +80,7 @@ export const TutorDashboard: React.FC = () => {
     executeWriteWithRetry
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings' | 'google_calendar'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'reminders'>('all');
   const [tutorNoticeTitle, setTutorNoticeTitle] = useState('');
@@ -971,6 +972,7 @@ export const TutorDashboard: React.FC = () => {
                     </div>
                     {[
                       { id: 'schedule', label: 'Teaching Schedules', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
+                      { id: 'google_calendar', label: 'Google Calendar Sync', icon: <Calendar className="w-4 h-4 text-emerald-500" /> },
                       { id: 'students', label: `Listed Scholars (${rosterBookings.length})`, icon: <Users className="w-4 h-4 text-blue-500" /> },
                       { id: 'resources', label: `Course Resources (${tutorMaterials.length})`, icon: <BookOpen className="w-4 h-4 text-emerald-500" /> },
                       { id: 'attendance', label: 'Attendance Tracker', icon: <ClipboardList className="w-4 h-4 text-amber-500" /> },
@@ -1025,17 +1027,20 @@ export const TutorDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+                className="space-y-6"
               >
-                {/* Left Side: Calendar Schedule View */}
-                <div className="lg:col-span-8">
-                  <CalendarView
-                    userRole="tutor"
-                    tutorClasses={tutorClasses}
-                    tutorAvailability={tutorAvailability}
-                    onAddAvailability={handleAddAvailability}
-                  />
-                </div>
+                <GoogleCalendarIntegration />
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Side: Calendar Schedule View */}
+                  <div className="lg:col-span-8">
+                    <CalendarView
+                      userRole="tutor"
+                      tutorClasses={tutorClasses}
+                      tutorAvailability={tutorAvailability}
+                      onAddAvailability={handleAddAvailability}
+                    />
+                  </div>
 
                 {/* Right Side: Attendance Tracker Quick Widget */}
                 <div className="lg:col-span-4 space-y-6">
@@ -1198,6 +1203,18 @@ export const TutorDashboard: React.FC = () => {
 
                   </div>
                 </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Dedicated Google Calendar Tab */}
+            {activeSubTab === 'google_calendar' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <GoogleCalendarIntegration />
               </motion.div>
             )}
 

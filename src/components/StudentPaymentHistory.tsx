@@ -17,7 +17,8 @@ import {
   ArrowUpRight, 
   ShieldCheck, 
   Layers,
-  Printer
+  Printer,
+  Clock
 } from 'lucide-react';
 import { Payment } from '../types';
 import { firestoreService } from '../lib/firestoreService';
@@ -68,6 +69,7 @@ export const StudentPaymentHistory: React.FC = () => {
       const cls = (classes || []).find(c => c.id === b.classId);
       const classTitle = b.classTitle || cls?.title || 'Enrolled Tuition Course';
       const amount = cls?.price || 1500;
+      const status = (b as any).paymentStatus || ((b.status as string) === 'pending_approval' ? 'pending' : 'paid');
       synthesizedPayments.push({
         id: `pay_b_${b.id}`,
         studentId: currentUser.uid,
@@ -76,7 +78,7 @@ export const StudentPaymentHistory: React.FC = () => {
         classTitle,
         amount,
         paymentMethod: 'Online Tuition Portal',
-        status: 'paid',
+        status,
         date: b.bookingDate || new Date().toISOString(),
         dueDate: new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       });
@@ -96,7 +98,7 @@ export const StudentPaymentHistory: React.FC = () => {
           classTitle: cls.title,
           amount: cls.price || 1500,
           paymentMethod: 'Online Tuition Portal',
-          status: 'paid',
+          status: 'pending',
           date: new Date().toISOString(),
           dueDate: new Date(Date.now() + 86400000 * 7).toISOString()
         });
@@ -522,6 +524,117 @@ export const StudentPaymentHistory: React.FC = () => {
             <Layers className="w-3.5 h-3.5" />
             <span>{studentPayments.length} total invoice vouchers</span>
           </div>
+        </div>
+      </div>
+
+      {/* Upcoming Payment Deadlines for Registered Classes */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 border border-indigo-800/80 shadow-lg relative overflow-hidden" id="upcoming_payment_deadlines_card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-indigo-800/60 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-500/20 text-indigo-300 rounded-2xl border border-indigo-500/30">
+              <Calendar className="w-5 h-5 text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                Upcoming Payment Deadlines for Registered Classes
+              </h3>
+              <p className="text-xs text-indigo-200/70 mt-0.5">
+                Track pending tuition fees and deadline schedules for your active class enrollments
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 rounded-full text-xs font-bold font-mono">
+              {studentPayments.filter(p => p.status === 'pending').length} Pending Deadlines
+            </span>
+          </div>
+        </div>
+
+        {/* Registered Classes Deadlines Table */}
+        <div className="overflow-x-auto">
+          {studentPayments.length === 0 ? (
+            <p className="text-xs text-indigo-300/60 italic py-4">No registered class payment deadlines found.</p>
+          ) : (
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="text-[10px] uppercase font-mono text-indigo-300/70 border-b border-indigo-800/40 pb-2">
+                  <th className="py-2.5 px-3">Course / Class Title</th>
+                  <th className="py-2.5 px-3">Registered Date</th>
+                  <th className="py-2.5 px-3">Payment Deadline</th>
+                  <th className="py-2.5 px-3">Deadline Status</th>
+                  <th className="py-2.5 px-3 text-right">Fee (LKR)</th>
+                  <th className="py-2.5 px-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-indigo-800/30 font-sans">
+                {studentPayments.map(payment => {
+                  const isPaid = payment.status === 'paid';
+                  const origDate = new Date(payment.date);
+                  const fallBackDueDate = payment.dueDate || new Date(origDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                  const dueDateObj = new Date(fallBackDueDate);
+                  const now = new Date();
+                  const diffTime = dueDateObj.getTime() - now.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  const isOverdue = !isPaid && diffDays < 0;
+
+                  return (
+                    <tr key={`deadline_${payment.id}`} className="hover:bg-white/5 transition-colors">
+                      <td className="py-3 px-3 font-bold text-white">
+                        {payment.classTitle}
+                      </td>
+                      <td className="py-3 px-3 text-indigo-200/80 font-mono text-[11px]">
+                        {origDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px]">
+                        <span className={isOverdue ? 'text-rose-400 font-bold' : 'text-indigo-200'}>
+                          {dueDateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        {isPaid ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3" /> Settled
+                          </span>
+                        ) : isOverdue ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            <AlertTriangle className="w-3 h-3" /> Overdue by {Math.abs(diffDays)}d
+                          </span>
+                        ) : diffDays === 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
+                            <Hourglass className="w-3 h-3" /> Due Today
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                            <Clock className="w-3 h-3" /> Due in {diffDays} days
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-amber-300">
+                        LKR {payment.amount.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {!isPaid ? (
+                          <button
+                            onClick={() => setPayInvoice(payment)}
+                            className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] rounded-lg transition-all shadow-sm cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                          >
+                            Pay Now <ArrowUpRight className="w-3 h-3" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setSelectedInvoice(payment)}
+                            className="px-3 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-indigo-100 font-bold text-[10px] rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto border border-indigo-600/50"
+                          >
+                            <FileText className="w-3 h-3" /> View Receipt
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

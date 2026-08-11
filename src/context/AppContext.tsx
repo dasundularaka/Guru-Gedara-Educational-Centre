@@ -25,6 +25,9 @@ interface AppContextType {
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   hideToast: () => void;
   loginWithGoogle: () => Promise<UserProfile | null>;
+  googleAccessToken: string | null;
+  connectGoogleCalendar: () => Promise<string | null>;
+  disconnectGoogleCalendar: () => void;
   loginWithEmail: (email: string, pass: string) => Promise<UserProfile>;
   registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'tutor', details?: any) => Promise<UserProfile>;
   logout: () => Promise<void>;
@@ -164,6 +167,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [authDomainError, setAuthDomainError] = useState<string | null>(null);
   const clearAuthDomainError = () => setAuthDomainError(null);
+
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+
+  const connectGoogleCalendar = async (): Promise<string | null> => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/calendar');
+      provider.addScope('https://www.googleapis.com/auth/calendar.events');
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken || null;
+      if (token) {
+        setGoogleAccessToken(token);
+        showToast("Google Calendar successfully connected!", "success");
+      } else {
+        showToast("Connected to Google, but no access token was returned.", "error");
+      }
+      return token;
+    } catch (e: any) {
+      console.error("Google Calendar Auth error:", e);
+      if (e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
+        setAuthDomainError(window.location.hostname);
+        showToast("Unauthorized Domain: Add this domain to Firebase Authorized Domains.", "error");
+      } else {
+        showToast(e.message || "Failed to connect Google Calendar.", "error");
+      }
+      return null;
+    }
+  };
+
+  const disconnectGoogleCalendar = () => {
+    setGoogleAccessToken(null);
+    showToast("Google Calendar session disconnected.", "info");
+  };
 
   const [syncState, setSyncState] = useState<{
     status: 'idle' | 'syncing' | 'synced' | 'failed';
@@ -683,7 +720,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/calendar');
+      provider.addScope('https://www.googleapis.com/auth/calendar.events');
       const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        setGoogleAccessToken(credential.accessToken);
+      }
       const email = result.user.email || '';
       
       let profile = await firestoreService.getUserProfile(result.user.uid);
@@ -1061,6 +1104,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast,
       hideToast,
       loginWithGoogle,
+      googleAccessToken,
+      connectGoogleCalendar,
+      disconnectGoogleCalendar,
       loginWithEmail,
       registerWithEmail,
       logout,
