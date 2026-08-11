@@ -18,7 +18,6 @@ import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { GoogleCalendarIntegration } from '../components/GoogleCalendarIntegration';
-import { GoogleCalendarPostClassFeedbackModal } from '../components/GoogleCalendarPostClassFeedbackModal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -434,38 +433,6 @@ export const StudentDashboard: React.FC = () => {
                 Grade Level: <span className="font-extrabold text-indigo-600">{currentUser.studentDetails?.grade || 'Grade 11'}</span> 
                 • Access code: <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">SYNCED_SCHOLAR</span>
               </p>
-
-              {/* Pending Photo Approval Status Card */}
-              {currentUser.pendingPhotoURL && (
-                <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <img src={currentUser.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150"} className="w-8 h-8 rounded-full object-cover border border-slate-200" title="Live Photo" />
-                      <span className="text-slate-400 font-mono text-xs">&rarr;</span>
-                      <img src={currentUser.pendingPhotoURL} className="w-8 h-8 rounded-full object-cover border-2 border-amber-500 shadow-xs" title="Proposed Photo" />
-                    </div>
-                    <div>
-                      <span className="font-extrabold text-[11px] block text-amber-950">📸 Proposed Photo Pending Admin Approval</span>
-                      <span className="text-[10px] text-amber-700">Uploaded to Firebase Storage & awaiting administrator confirmation.</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await firestoreService.updateUserProfile(currentUser.uid, { pendingPhotoURL: "" });
-                        if (refreshUserProfile) await refreshUserProfile();
-                        showToast("Pending photo update cancelled.", "info");
-                      } catch (e: any) {
-                        showToast("Failed to cancel: " + e.message, "error");
-                      }
-                    }}
-                    className="px-2.5 py-1 bg-amber-200/70 hover:bg-amber-200 text-amber-900 rounded-xl font-bold text-[10px] transition-colors cursor-pointer"
-                  >
-                    Cancel Request
-                  </button>
-                </div>
-              )}
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center sm:justify-start">
                 <button 
                   onClick={() => setShowCameraModal(true)}
@@ -1259,9 +1226,6 @@ export const StudentDashboard: React.FC = () => {
           onUpdateData={fetchDashboardData}
         />
       )}
-
-      {/* Global Google Calendar 24h Automated Post-Class Feedback Detector & Modal */}
-      <GoogleCalendarPostClassFeedbackModal onReviewSubmitted={fetchDashboardData} />
     </motion.div>
   );
 };

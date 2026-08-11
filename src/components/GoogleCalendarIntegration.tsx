@@ -23,15 +23,12 @@ import {
   CalendarPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleCalendarPaymentReminders } from './GoogleCalendarPaymentReminders';
-import { GoogleCalendarPostClassFeedbackModal } from './GoogleCalendarPostClassFeedbackModal';
 
 export const GoogleCalendarIntegration: React.FC = () => {
   const { 
     currentUser, 
     classes, 
     bookings, 
-    payments,
     googleAccessToken, 
     connectGoogleCalendar, 
     disconnectGoogleCalendar, 
@@ -511,12 +508,6 @@ export const GoogleCalendarIntegration: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Automated Email Reminders Triggered by Google Calendar Events */}
-      <GoogleCalendarPaymentReminders payments={payments} />
-
-      {/* Automated 24h Post-Class Feedback Trigger & Modal */}
-      <GoogleCalendarPostClassFeedbackModal events={events} />
 
       {/* Schedule Event Modal */}
       <AnimatePresence>

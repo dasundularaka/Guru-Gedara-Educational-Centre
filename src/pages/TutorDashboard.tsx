@@ -13,8 +13,6 @@ import { ChatWidget } from '../components/ChatWidget';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { GoogleCalendarIntegration } from '../components/GoogleCalendarIntegration';
-import { CameraProfileCapture } from '../components/CameraProfileCapture';
-import { uploadProfilePhotoToStorage } from '../lib/storageService';
 import { 
   Users, 
   Calendar, 
@@ -50,13 +48,12 @@ import {
   Share2,
   HelpCircle,
   Video,
-  Camera,
-  Upload,
   FileSpreadsheet,
   Layers,
   Filter,
   Copy,
   FolderOpen,
+  Upload,
   Clock,
   Briefcase,
   Award,
@@ -99,7 +96,6 @@ export const TutorDashboard: React.FC = () => {
 
   // Resource Upload & Edit Modal state
   const [showResourceModal, setShowResourceModal] = useState(false);
-  const [showCameraModal, setShowCameraModal] = useState(false);
   const [editingResource, setEditingResource] = useState<StudyMaterial | null>(null);
   const [resTitle, setResTitle] = useState('');
   const [resDescription, setResDescription] = useState('');
@@ -598,21 +594,19 @@ export const TutorDashboard: React.FC = () => {
     }
   };
 
-  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("Profile image must be under 10MB", "error");
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Profile image must be under 5MB", "error");
       return;
     }
-    try {
-      showToast("Uploading image to Firebase Storage...", "info");
-      const storageUrl = await uploadProfilePhotoToStorage(currentUser?.uid || 'tutor', file);
-      setProfPhoto(storageUrl);
-      showToast("Photo uploaded to Firebase Storage! Click 'Save Profile Details' to submit for Admin approval.", "success");
-    } catch (err: any) {
-      showToast("Failed to upload photo: " + (err.message || "Unknown error"), "error");
-    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfPhoto(reader.result as string);
+      showToast("Photo uploaded! Click 'Save Profile Details' to publish changes.", "info");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAddExpertiseArea = () => {
@@ -658,16 +652,18 @@ export const TutorDashboard: React.FC = () => {
     if (profSubjects !== subjectsStr) changedFields.push('profSubjects');
 
     if (changedFields.length === 0) {
+      // If nothing has actually changed, let's flash Name field to show sync readiness
       changedFields.push('profName');
     }
 
+    // Set all modified fields to syncing status
     changedFields.forEach(f => syncFieldStart(f));
 
     try {
       setLoading(true);
-
-      const updates: any = {
+      await updateProfile({
         name: profName,
+        photoURL: profPhoto,
         tutorDetails: {
           bio: profBio,
           subjects: profSubjects.split(',').map(s => s.trim()).filter(Boolean),
@@ -680,26 +676,11 @@ export const TutorDashboard: React.FC = () => {
           daysOff: profDaysOff,
           availability: tutorAvailability
         }
-      };
-
-      const photoHasChanged = profPhoto !== currentUser.photoURL;
-      if (photoHasChanged) {
-        // Tutor photo changes park in pendingPhotoURL for Admin confirmation!
-        updates.pendingPhotoURL = profPhoto;
-        await firestoreService.triggerNotification(
-          currentUser.uid,
-          "📸 Tutor Photo Approval Pending",
-          `Tutor ${profName} submitted a profile photo update for Administrator review.`,
-          "announcement"
-        );
-      }
-
-      await updateProfile(updates);
-
+      });
+      
+      // Mark all modified fields as successfully saved & verified
       changedFields.forEach(f => syncFieldSuccess(f));
-      showToast(photoHasChanged 
-        ? "Profile updated! New photo parked for Administrator approval." 
-        : "Tutor profile updated successfully!", "success");
+      showToast("Tutor profile updated successfully!", "success");
       if (refreshUserProfile) {
         await refreshUserProfile();
       }
@@ -1222,9 +1203,9 @@ export const TutorDashboard: React.FC = () => {
 
                   </div>
                 </div>
-                </div>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+          )}
 
             {/* Dedicated Google Calendar Tab */}
             {activeSubTab === 'google_calendar' && (
@@ -1836,62 +1817,22 @@ export const TutorDashboard: React.FC = () => {
                     <p className="text-[10px] text-gray-400 font-mono mt-0.5">{currentUser.email}</p>
                   </div>
 
-                  {/* Pending Photo Approval Banner */}
-                  {currentUser?.pendingPhotoURL && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-left">
-                      <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                        <span className="flex items-center gap-1 font-mono text-[10px] uppercase font-black text-amber-800">📸 Pending Admin Review</span>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await updateProfile({ pendingPhotoURL: "" });
-                              showToast("Pending photo update cancelled.", "info");
-                            } catch (e: any) {
-                              showToast("Failed to cancel: " + e.message, "error");
-                            }
-                          }}
-                          className="px-2 py-0.5 bg-amber-200/70 hover:bg-amber-200 text-amber-900 rounded-lg text-[10px] font-bold cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <img src={currentUser.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150"} className="w-9 h-9 rounded-full object-cover border border-slate-200" title="Live Photo" />
-                        <span className="text-slate-400 font-mono text-xs">&rarr;</span>
-                        <img src={currentUser.pendingPhotoURL} className="w-9 h-9 rounded-full object-cover border-2 border-amber-500" title="Pending Photo" />
-                      </div>
-                      <p className="text-[10px] text-amber-800 leading-tight">
-                        Your proposed photo is stored in Firebase Storage and waiting for Admin approval.
-                      </p>
+                  {/* Photo Upload Dropzone */}
+                  <div className="border border-dashed border-gray-200 hover:border-indigo-400 bg-slate-50/60 rounded-xl p-3 text-center transition-all space-y-2">
+                    <div className="flex justify-center">
+                      <Upload className="w-5 h-5 text-indigo-600" />
                     </div>
-                  )}
-
-                  {/* Camera & Upload Options */}
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowCameraModal(true)}
-                      className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4" />
-                      <Upload className="w-4 h-4" />
-                      <span>Take Photo / Device Upload</span>
-                    </button>
-
-                    <div className="border border-dashed border-gray-200 hover:border-indigo-400 bg-slate-50/60 rounded-xl p-3 text-center transition-all space-y-1.5">
-                      <p className="text-[11px] font-bold text-gray-700">Or Select File from Computer</p>
-                      <p className="text-[10px] text-gray-400 font-mono">JPG, PNG, WEBP up to 10MB</p>
-                      <label className="inline-block px-3 py-1 bg-slate-900 hover:bg-slate-950 text-white rounded-lg text-[11px] font-bold cursor-pointer transition-all shadow-xs">
-                        Browse Device...
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePhotoFileUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
+                    <p className="text-[11px] font-bold text-gray-700">Upload Profile Picture</p>
+                    <p className="text-[10px] text-gray-400">Supports PNG or JPG up to 5MB</p>
+                    <label className="inline-block px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all shadow-xs">
+                      Choose File
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg"
+                        onChange={handlePhotoFileUpload}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
 
                   {/* Avatar Presets */}
@@ -3114,12 +3055,6 @@ export const TutorDashboard: React.FC = () => {
           reviews={[]}
         />
       )}
-
-      {/* Camera Profile Capture Modal */}
-      <CameraProfileCapture 
-        isOpen={showCameraModal} 
-        onClose={() => setShowCameraModal(false)} 
-      />
     </motion.div>
   );
 };

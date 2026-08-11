@@ -51,7 +51,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
   if (type === 'number' || type === 'string' || type === 'boolean') return val;
   if (type === 'function' || type === 'symbol') return undefined;
 
-  if (depth > 6) return undefined;
+  if (depth > 8) return undefined;
 
   if (type === 'object') {
     if (seen.has(val)) return undefined;
@@ -62,8 +62,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
       if (
         (typeof window !== 'undefined' && val === window) ||
         val.nodeType !== undefined ||
-        val.nativeEvent !== undefined ||
-        val.target !== undefined
+        val.nativeEvent !== undefined
       ) {
         return undefined;
       }
@@ -110,16 +109,12 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
           cName.includes('Reference') ||
           cName.includes('Query') ||
           cName.includes('Document') ||
-          cName.includes('Collection') ||
-          cName.includes('Impl')
+          cName.includes('Collection')
         ) {
-          const res: Record<string, any> = {};
-          if (val.message && typeof val.message === 'string') res.message = val.message;
-          if (val.code && typeof val.code === 'string') res.code = val.code;
-          if (val.id && typeof val.id === 'string') res.id = val.id;
-          if (val.path && typeof val.path === 'string') res.path = val.path;
-          if (val.name && typeof val.name === 'string') res.name = val.name;
-          return Object.keys(res).length > 0 ? res : undefined;
+          if (val.message && typeof val.message === 'string') return val.message;
+          if (val.code && typeof val.code === 'string') return val.code;
+          if (val.id && typeof val.id === 'string') return val.id;
+          return undefined;
         }
       }
     } catch (_) {
@@ -139,11 +134,9 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
 
     const cleanObj: Record<string, any> = {};
     for (const key of Object.keys(val)) {
-      if (key.startsWith('$$') || key.startsWith('_v') || key === 'toJSON') continue;
+      if (key.startsWith('$$') || key.startsWith('_v')) continue;
       try {
-        const propVal = val[key];
-        if (typeof propVal === 'function') continue;
-        const item = cleanObjectForSerialization(propVal, seen, depth + 1);
+        const item = cleanObjectForSerialization(val[key], seen, depth + 1);
         if (item !== undefined) {
           cleanObj[key] = item;
         }
@@ -165,8 +158,8 @@ export function safeStringify(obj: any): string {
   try {
     const cleaned = cleanObjectForSerialization(obj);
     return JSON.stringify(cleaned, getCircularReplacer());
-  } catch (err: any) {
-    console.warn("[safeStringify] Safe stringify caught:", err?.message || String(err));
+  } catch (err) {
+    console.warn("[safeStringify] Safe stringify error caught:", err);
     try {
       if (typeof obj === 'object') {
         if (Array.isArray(obj)) return '[]';
@@ -449,7 +442,7 @@ const firestoreServiceRaw = {
          const userRef = doc(db, 'users', uid);
          const userSnap = await promiseWithTimeout(
            getDoc(userRef),
-           8000,
+           2000,
            { exists: () => false } as any
          );
          if (userSnap.exists()) {
@@ -495,7 +488,7 @@ const firestoreServiceRaw = {
          const q = query(usersRef, where('email', '==', cleanEmail));
          const qSnap = await promiseWithTimeout(
            getDocs(q),
-           8000,
+           2000,
            { empty: true, docs: [] } as any
          );
          if (!qSnap.empty) {
