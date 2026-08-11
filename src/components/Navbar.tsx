@@ -22,11 +22,14 @@ import {
   ExternalLink,
   Calendar,
   Sparkles,
-  Info
+  Info,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
 import { Booking, NotificationItem } from '../types';
+import { CameraProfileCapture } from './CameraProfileCapture';
 
 interface NavbarProps {
   currentTab: string;
@@ -53,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
   const [upcomingClasses, setUpcomingClasses] = useState<Booking[]>([]);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
@@ -198,15 +202,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     if (!currentUser) return;
     setIsSavingProfile(true);
     try {
-      const isStudent = currentUser.role === 'student';
+      const needsApproval = currentUser.role === 'student' || currentUser.role === 'tutor';
       const updates: any = {
         name: profileName,
         displayName: profileDisplayName
       };
 
-      if (isStudent) {
+      if (needsApproval) {
         if (profilePhoto !== currentUser.photoURL) {
-          // Send for approval
+          // Send for admin approval
           updates.pendingPhotoURL = profilePhoto;
           // Trigger notification
           await firestoreService.triggerNotification(
@@ -217,12 +221,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           );
         }
       } else {
-        // Tutors and admins can change photoURL directly
+        // Admins can change photoURL directly
         updates.photoURL = profilePhoto;
       }
 
       await updateProfile(updates);
-      showToast(isStudent && profilePhoto !== currentUser.photoURL 
+      showToast(needsApproval && profilePhoto !== currentUser.photoURL 
         ? "Display details updated. Profile photo request has been sent for Admin approval!" 
         : "Profile update saved successfully!", "success");
       setShowProfileDetails(false);
@@ -854,8 +858,38 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                     </span>
                   </div>
                   {currentUser.pendingPhotoURL && (
-                    <div className="mt-2 text-[9px] text-amber-800 bg-amber-50 rounded-lg p-1.5 leading-tight border border-amber-100 font-mono">
-                      ⏳ Pending Photo Verification...
+                    <div className="mt-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 font-mono flex items-center gap-1">
+                          📸 Proposed New Photo (Pending)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await updateProfile({ pendingPhotoURL: "" });
+                              showToast("Proposed photo update cancelled.", "info");
+                            } catch (e: any) {
+                              showToast("Failed to cancel: " + e.message, "error");
+                            }
+                          }}
+                          className="px-2 py-0.5 bg-amber-200/70 hover:bg-amber-200 text-amber-900 rounded-lg text-[9px] font-bold transition-colors cursor-pointer"
+                        >
+                          Cancel Request
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <div className="text-center">
+                          <img src={currentUser.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150"} className="w-9 h-9 rounded-full object-cover border border-slate-300 mx-auto" />
+                          <span className="text-[8px] text-slate-500 font-mono">Current Live</span>
+                        </div>
+                        <span className="text-slate-400 font-mono text-xs">&rarr;</span>
+                        <div className="text-center">
+                          <img src={currentUser.pendingPhotoURL} className="w-9 h-9 rounded-full object-cover border-2 border-amber-500 mx-auto" />
+                          <span className="text-[8px] text-amber-700 font-bold font-mono">Pending Approval</span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -959,6 +993,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 {/* Profile pictures updates */}
                 <div>
                   <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Select Profile Photo Avatar</label>
+                  
+                  {/* Camera & Upload Trigger Button */}
+                  <div className="mb-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProfileDetails(false);
+                        setShowCameraModal(true);
+                      }}
+                      className="w-full py-2.5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <Upload className="w-4 h-4" />
+                      <span>Take Photo or Upload to Firebase Storage</span>
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-4 gap-2 mb-2">
                     {PRESET_PHOTOS.map(ph => (
                       <button
@@ -985,9 +1036,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                     />
                   </div>
 
-                  {currentUser.role === 'student' && profilePhoto !== currentUser.photoURL && (
-                    <p className="mt-2 text-[10px] text-amber-700 bg-amber-50 rounded-lg p-2 leading-tight border border-amber-200/50">
-                      ⚠️ <strong>Verification Notice:</strong> Image updates for students require administrative audit & approval prior to displaying publicly.
+                  {(currentUser.role === 'student' || currentUser.role === 'tutor') && profilePhoto !== currentUser.photoURL && (
+                    <p className="mt-2 text-[10px] text-amber-800 bg-amber-50/80 rounded-xl p-2.5 leading-tight border border-amber-200">
+                      ⚠️ <strong>Verification Notice:</strong> Photo updates for {currentUser.role === 'tutor' ? 'tutors' : 'students'} are uploaded to Firebase Storage and require administrative approval before going live on your profile.
                     </p>
                   )}
                 </div>
@@ -1128,6 +1179,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Global Camera & File Upload Modal */}
+      <CameraProfileCapture 
+        isOpen={showCameraModal} 
+        onClose={() => setShowCameraModal(false)} 
+      />
     </>
   );
 };

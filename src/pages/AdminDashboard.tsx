@@ -14,6 +14,7 @@ import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
+import { deleteStorageFile } from '../lib/storageService';
 import {
   AreaChart,
   Area,
@@ -2325,6 +2326,12 @@ export const AdminDashboard: React.FC = () => {
                                           photoURL: stud.pendingPhotoURL,
                                           pendingPhotoURL: ""
                                         });
+                                        await firestoreService.triggerNotification(
+                                          stud.uid,
+                                          "✅ Profile Photo Approved",
+                                          "Your new profile photo has been approved by administrator and is now live on your account.",
+                                          "announcement"
+                                        );
                                         await fetchAdminDatasets();
                                         showToast("Scholar profile photo verified and saved successfully!", "success");
                                       } catch (err: any) {
@@ -2339,11 +2346,20 @@ export const AdminDashboard: React.FC = () => {
                                     id={`reject-photo-btn-${stud.uid}`}
                                     onClick={async () => {
                                       try {
+                                        if (stud.pendingPhotoURL) {
+                                          await deleteStorageFile(stud.pendingPhotoURL);
+                                        }
                                         await firestoreService.updateUserProfile(stud.uid, {
                                           pendingPhotoURL: ""
                                         });
+                                        await firestoreService.triggerNotification(
+                                          stud.uid,
+                                          "🚫 Proposed Photo Rejected",
+                                          "Your proposed profile photo update was rejected by administrator and automatically deleted from storage.",
+                                          "announcement"
+                                        );
                                         await fetchAdminDatasets();
-                                        showToast("Proposed picture was rejected and removed.", "info");
+                                        showToast("Proposed picture was rejected and removed automatically.", "info");
                                       } catch (err: any) {
                                         showToast("Failed to reject: " + err.message, "error");
                                       }
@@ -2816,6 +2832,78 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Pending Photo Review for Tutor */}
+                      {tut.pendingPhotoURL && (
+                        <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+                          <span className="block text-[10px] font-black text-amber-800 uppercase tracking-widest font-mono">
+                            📸 Proposed Faculty Photo Change
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <img src={tut.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"} className="w-10 h-10 rounded-full object-cover border border-slate-200" title="Current Active Photo" />
+                              <span className="absolute -bottom-1 -right-1 text-red-500 bg-white rounded-full px-1 text-[8px] font-bold shadow-sm border border-slate-100">Old</span>
+                            </div>
+                            <span className="text-slate-400 font-mono text-xs">&rarr;</span>
+                            <div className="relative">
+                              <img src={tut.pendingPhotoURL} className="w-10 h-10 rounded-full object-cover border-2 border-amber-400" title="Proposed New Photo" />
+                              <span className="absolute -bottom-1 -right-1 text-emerald-500 bg-white rounded-full px-1 text-[8px] font-bold shadow-sm border border-slate-100">New</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              id={`accept-tutor-photo-btn-${tut.uid}`}
+                              onClick={async () => {
+                                try {
+                                  await firestoreService.updateUserProfile(tut.uid, {
+                                    photoURL: tut.pendingPhotoURL,
+                                    pendingPhotoURL: ""
+                                  });
+                                  await firestoreService.triggerNotification(
+                                    tut.uid,
+                                    "✅ Faculty Profile Photo Approved",
+                                    "Your proposed profile photo update has been approved by administrator and is now live.",
+                                    "announcement"
+                                  );
+                                  await fetchAdminDatasets();
+                                  showToast("Faculty profile photo verified and updated successfully!", "success");
+                                } catch (err: any) {
+                                  showToast("Failed to approve photo: " + err.message, "error");
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer shadow-xs"
+                            >
+                              Accept Photo
+                            </button>
+                            <button
+                              id={`reject-tutor-photo-btn-${tut.uid}`}
+                              onClick={async () => {
+                                try {
+                                  if (tut.pendingPhotoURL) {
+                                    await deleteStorageFile(tut.pendingPhotoURL);
+                                  }
+                                  await firestoreService.updateUserProfile(tut.uid, {
+                                    pendingPhotoURL: ""
+                                  });
+                                  await firestoreService.triggerNotification(
+                                    tut.uid,
+                                    "🚫 Proposed Photo Rejected",
+                                    "Your proposed profile photo update was rejected by administrator and automatically deleted from storage.",
+                                    "announcement"
+                                  );
+                                  await fetchAdminDatasets();
+                                  showToast("Proposed picture was rejected and removed automatically.", "info");
+                                } catch (err: any) {
+                                  showToast("Failed to reject: " + err.message, "error");
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                            >
+                              Reject photo
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Card Action Controls */}
                       <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
