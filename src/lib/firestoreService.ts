@@ -545,6 +545,7 @@ const firestoreServiceRaw = {
       role: profile.role || 'student',
       photoURL: profile.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
       pendingPhotoURL: profile.pendingPhotoURL || '',
+      pendingPhotoSubmittedAt: profile.pendingPhotoSubmittedAt || '',
       phone: profile.phone || '',
       address: profile.address || '',
       gender: profile.gender || 'male',

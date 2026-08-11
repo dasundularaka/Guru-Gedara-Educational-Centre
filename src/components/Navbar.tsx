@@ -206,8 +206,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
       if (isStudent) {
         if (profilePhoto !== currentUser.photoURL) {
+          const submittedAt = new Date().toISOString();
           // Send for approval
           updates.pendingPhotoURL = profilePhoto;
+          updates.pendingPhotoSubmittedAt = submittedAt;
+          
+          // Add Audit Log entry for profile photo submission
+          await firestoreService.addAuditLog({
+            username: currentUser.username || currentUser.name || currentUser.uid,
+            action: 'PHOTO_APPROVAL_SUBMITTED',
+            details: `Profile photo submitted for approval by ${currentUser.name} (${currentUser.email || currentUser.username}).`
+          });
+
           // Trigger notification
           await firestoreService.triggerNotification(
             currentUser.uid,
