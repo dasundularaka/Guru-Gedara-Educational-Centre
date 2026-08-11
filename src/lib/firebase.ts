@@ -1,9 +1,8 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { 
   initializeFirestore, 
-  persistentLocalCache, 
-  persistentMultipleTabManager
+  memoryLocalCache
 } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
@@ -18,27 +17,37 @@ const firebaseConfig = {
   firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || (firebaseConfigData as any).firestoreDatabaseId
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 // Critical: In AI Studio Firebase setup, the firestore database ID may be custom.
-// We must initialize standard firestore with this custom ID and use force long-polling/fetch-streams disabled
-// to survive container networks, sandboxed iframes, or proxy connection restrictions.
+// We initialize Firestore with memory local cache & auto long polling to guarantee instant 
+// responsiveness and avoid 10s connection timeout errors in sandboxed container/iframe environments.
 const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)' 
   ? firebaseConfig.firestoreDatabaseId 
   : undefined;
 
-// Configure local persistent cache for offline-first resilience and slow bandwidth optimization
-const cacheSettings = {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  }),
-  experimentalForceLongPolling: true
-};
+let dbInstance: any;
 
-export const db = dbId
-  ? initializeFirestore(app, cacheSettings, dbId)
-  : initializeFirestore(app, cacheSettings);
+try {
+  const cacheSettings = {
+    localCache: memoryLocalCache(),
+    experimentalAutoDetectLongPolling: true
+  };
 
+  dbInstance = dbId
+    ? initializeFirestore(app, cacheSettings, dbId)
+    : initializeFirestore(app, cacheSettings);
+} catch (e) {
+  console.warn("[Firebase] Initializing fallback Firestore instance", e);
+  try {
+    dbInstance = dbId ? initializeFirestore(app, {}, dbId) : initializeFirestore(app, {});
+  } catch (_) {
+    // If already initialized
+    dbInstance = initializeFirestore(app, {});
+  }
+}
+
+export const db = dbInstance;
 export const auth = getAuth(app);
 
 export { firebaseConfig };

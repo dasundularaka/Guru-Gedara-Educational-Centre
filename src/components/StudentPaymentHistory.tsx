@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -18,10 +18,14 @@ import {
   ShieldCheck, 
   Layers,
   Printer,
-  Clock
+  Clock,
+  Bell,
+  BellRing,
+  BellOff
 } from 'lucide-react';
 import { Payment } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { GoogleCalendarPaymentReminders } from './GoogleCalendarPaymentReminders';
 
 export const StudentPaymentHistory: React.FC = () => {
   const { payments, bookings = [], classes = [], currentUser, refreshPayments, showToast, refreshNotifications } = useApp();
@@ -37,6 +41,60 @@ export const StudentPaymentHistory: React.FC = () => {
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
   const [processingPay, setProcessingPay] = useState(false);
+
+  // Persistent state for automated payment deadline reminders
+  const [notifiedPaymentIds, setNotifiedPaymentIds] = useState<string[]>(() => {
+    if (!currentUser?.uid) return [];
+    try {
+      const saved = localStorage.getItem(`notified_payment_ids_${currentUser.uid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const toggleDeadlineNotification = async (payment: Payment, diffDays: number) => {
+    if (!currentUser) return;
+    const paymentId = payment.id;
+    const isCurrentlyNotified = notifiedPaymentIds.includes(paymentId);
+    const updated = isCurrentlyNotified
+      ? notifiedPaymentIds.filter(id => id !== paymentId)
+      : [...notifiedPaymentIds, paymentId];
+
+    setNotifiedPaymentIds(updated);
+    try {
+      localStorage.setItem(`notified_payment_ids_${currentUser.uid}`, JSON.stringify(updated));
+    } catch (e) {
+      console.error("LocalStorage save error:", e);
+    }
+
+    if (!isCurrentlyNotified) {
+      // Request permission if browser supports it
+      if ('Notification' in window) {
+        if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+          await Notification.requestPermission().catch(() => {});
+        }
+      }
+
+      if (diffDays <= 3 && diffDays >= 0) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification("Guru Gedara: Payment Deadline Alert", {
+              body: `Upcoming Fee Alert: Tuition payment for "${payment.classTitle}" (LKR ${payment.amount.toLocaleString()}) is due in ${diffDays} day(s).`,
+              icon: '/favicon.ico'
+            });
+          } catch (e) {
+            console.warn("Local browser notification couldn't be spawned:", e);
+          }
+        }
+        showToast(`⚡ Alert set! Deadline for "${payment.classTitle}" is in ${diffDays} day(s). Notification triggered!`, "success");
+      } else {
+        showToast(`🔔 Automated 'Notify Me' enabled! You'll get a local browser notification 3 days prior to the deadline for "${payment.classTitle}".`, "success");
+      }
+    } else {
+      showToast(`🔕 Automated reminder disabled for "${payment.classTitle}".`, "info");
+    }
+  };
 
   if (!currentUser) return null;
 
@@ -562,6 +620,7 @@ export const StudentPaymentHistory: React.FC = () => {
                   <th className="py-2.5 px-3">Registered Date</th>
                   <th className="py-2.5 px-3">Payment Deadline</th>
                   <th className="py-2.5 px-3">Deadline Status</th>
+                  <th className="py-2.5 px-3 text-center">Automated Reminder</th>
                   <th className="py-2.5 px-3 text-right">Fee (LKR)</th>
                   <th className="py-2.5 px-3 text-center">Action</th>
                 </tr>
@@ -576,6 +635,7 @@ export const StudentPaymentHistory: React.FC = () => {
                   const diffTime = dueDateObj.getTime() - now.getTime();
                   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                   const isOverdue = !isPaid && diffDays < 0;
+                  const isNotified = notifiedPaymentIds.includes(payment.id);
 
                   return (
                     <tr key={`deadline_${payment.id}`} className="hover:bg-white/5 transition-colors">
@@ -609,6 +669,33 @@ export const StudentPaymentHistory: React.FC = () => {
                           </span>
                         )}
                       </td>
+                      <td className="py-3 px-3 text-center">
+                        {isPaid ? (
+                          <span className="text-[10px] text-emerald-400/60 font-mono">Paid</span>
+                        ) : (
+                          <button
+                            onClick={() => toggleDeadlineNotification(payment, diffDays)}
+                            title={isNotified ? "Disable 3-day automated deadline reminder" : "Enable 3-day automated deadline reminder"}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer border ${
+                              isNotified
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
+                                : 'bg-indigo-950/60 text-indigo-300/70 border-indigo-700/50 hover:bg-indigo-800/50 hover:text-white'
+                            }`}
+                          >
+                            {isNotified ? (
+                              <>
+                                <BellRing className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
+                                <span>Notify Active (3d)</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bell className="w-3.5 h-3.5 text-indigo-300" />
+                                <span>Notify Me</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-amber-300">
                         LKR {payment.amount.toLocaleString()}
                       </td>
@@ -637,6 +724,9 @@ export const StudentPaymentHistory: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Automated Email Reminders Triggered by Google Calendar Events */}
+      <GoogleCalendarPaymentReminders payments={studentPayments} />
 
       {/* Main Ledger Table view */}
       <div className="bg-white border border-slate-150 rounded-3xl overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.01)]">

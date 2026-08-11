@@ -18,6 +18,7 @@ import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { GoogleCalendarIntegration } from '../components/GoogleCalendarIntegration';
+import { GoogleCalendarPostClassFeedbackModal } from '../components/GoogleCalendarPostClassFeedbackModal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -1226,6 +1227,9 @@ export const StudentDashboard: React.FC = () => {
           onUpdateData={fetchDashboardData}
         />
       )}
+
+      {/* Global Google Calendar 24h Automated Post-Class Feedback Detector & Modal */}
+      <GoogleCalendarPostClassFeedbackModal onReviewSubmitted={fetchDashboardData} />
     </motion.div>
   );
 };
