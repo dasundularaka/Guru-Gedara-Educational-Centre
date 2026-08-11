@@ -769,8 +769,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         showToast(e.message || "Google Sign-in failed. Try again.", "error");
       }
-      setLoading(false);
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -830,7 +831,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Logged in successfully as ${profile.name}!`, "success");
       return profile;
     } catch (e: any) {
-      setLoading(false);
+      if (e.message && e.message.includes("pending administrator approval")) {
+        throw e;
+      }
 
       // Fallback: Check Cloud Firestore and local storage for existing profile by email across all databases
       try {
@@ -948,6 +951,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(customUser);
       showToast(`Logged in successfully with '${lowercaseEmail}'!`, "success");
       return customUser;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -972,7 +977,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Registration complete! Welcome, ${name}.`, "success");
       return profile;
     } catch (e: any) {
-      setLoading(false);
       // Fallback: If cloud auth registration rejects, create a fully dynamic offline role session!
       console.warn("Creating highly resilient local registration session.", e);
       const localId = "local_user_" + Math.random().toString(36).substr(2, 9);
@@ -990,6 +994,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(profile);
       showToast("Registered successfully (Local Dev Mode active)!", "success");
       return profile;
+    } finally {
+      setLoading(false);
     }
   };
 

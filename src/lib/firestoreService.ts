@@ -2215,24 +2215,6 @@ const firestoreServiceRaw = {
     
     this.getDirectMessages(userId1, userId2).then(callback);
     return () => {};
-  },
-
-  // -------------------------------------------------------------
-  // REAL-TIME DATABASE CONNECTION HEALTHCHECK
-  // -------------------------------------------------------------
-  async pingFirestore(): Promise<{ ok: boolean; latencyMs: number; mode: 'cloud' | 'local'; error?: string }> {
-    const start = Date.now();
-    try {
-      if (!navigator.onLine) {
-        return { ok: false, latencyMs: 0, mode: 'local', error: 'Browser is offline' };
-      }
-      const testDocRef = doc(db, '_healthcheck', 'ping');
-      await promiseWithTimeout(getDoc(testDocRef), 4000, null);
-      const latencyMs = Date.now() - start;
-      return { ok: true, latencyMs, mode: isUsingCloud ? 'cloud' : 'local' };
-    } catch (e: any) {
-      return { ok: false, latencyMs: Date.now() - start, mode: 'local', error: e.message || 'Timeout' };
-    }
   }
 };
 
