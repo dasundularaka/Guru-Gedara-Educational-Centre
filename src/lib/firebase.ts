@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 import { 
   initializeFirestore, 
+  getFirestore,
   memoryLocalCache
 } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
@@ -39,18 +40,24 @@ try {
     ? initializeFirestore(app, cacheSettings, dbId)
     : initializeFirestore(app, cacheSettings);
 } catch (e) {
-  console.warn("[Firebase] Initializing fallback Firestore instance", e);
+  console.warn("[Firebase] Initializing fallback or existing Firestore instance", e);
   try {
-    dbInstance = dbId ? initializeFirestore(app, {}, dbId) : initializeFirestore(app, {});
+    dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
   } catch (_) {
-    // If already initialized
-    dbInstance = initializeFirestore(app, {});
+    dbInstance = getFirestore(app);
   }
+}
+
+let storageInstance: any = null;
+try {
+  storageInstance = getStorage(app);
+} catch (e) {
+  console.warn("[Firebase] Storage initialization warning:", e);
 }
 
 export const db = dbInstance;
 export const auth = getAuth(app);
-export const storage = getStorage(app);
+export const storage = storageInstance;
 
 export { firebaseConfig };
 export default app;
