@@ -62,6 +62,9 @@ import {
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
 import { TutorProfileModal } from '../components/TutorProfileModal';
+import { CalendarFinishAttendancePromptModal } from '../components/CalendarFinishAttendancePromptModal';
+import { getConcludedSessionsNeedingAttendance, ConcludedCalendarSession } from '../lib/googleCalendarAttendanceUtils';
+import { fetchGoogleCalendarEvents, GoogleCalendarEvent } from '../lib/googleCalendarService';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -77,7 +80,8 @@ export const TutorDashboard: React.FC = () => {
     refreshBookings,
     notifications,
     refreshNotifications,
-    executeWriteWithRetry
+    executeWriteWithRetry,
+    googleAccessToken
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings' | 'google_calendar'>('schedule');
@@ -132,6 +136,11 @@ export const TutorDashboard: React.FC = () => {
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
+
+  // Google Calendar Concluded Sessions Prompt State
+  const [concludedSessions, setConcludedSessions] = useState<ConcludedCalendarSession[]>([]);
+  const [showCalendarFinishModal, setShowCalendarFinishModal] = useState<boolean>(false);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
 
   // Quick Attendance Widget state
   const [widgetClassId, setWidgetClassId] = useState<string>('');
@@ -352,6 +361,33 @@ export const TutorDashboard: React.FC = () => {
       loadAttendanceRecords();
     }
   }, [activeSubTab, currentUser?.uid]);
+
+  const checkConcludedCalendarSessions = async () => {
+    if (!currentUser || tutorClasses.length === 0) return;
+    let gEvents = googleEvents;
+    if (googleAccessToken && gEvents.length === 0) {
+      try {
+        gEvents = await fetchGoogleCalendarEvents(googleAccessToken);
+        setGoogleEvents(gEvents);
+      } catch (e) {
+        console.warn("Could not fetch Google Calendar events:", e);
+      }
+    }
+    const concluded = getConcludedSessionsNeedingAttendance(
+      tutorClasses,
+      bookings,
+      attendanceRecords,
+      allStudents,
+      gEvents
+    );
+    setConcludedSessions(concluded);
+  };
+
+  useEffect(() => {
+    if (currentUser && tutorClasses.length > 0) {
+      checkConcludedCalendarSessions();
+    }
+  }, [currentUser?.uid, tutorClasses.length, bookings.length, attendanceRecords.length, googleAccessToken, allStudents.length]);
 
   const fetchTutorMaterials = async () => {
     if (!currentUser) return;
@@ -1020,6 +1056,48 @@ export const TutorDashboard: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-8 animate-fade-in">
+
+            {/* Top Prompt Banner for Concluded Google Calendar Class Events */}
+            {concludedSessions.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                className="p-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white rounded-2xl shadow-xl border border-indigo-700/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="p-3 bg-amber-500/20 text-amber-300 rounded-xl border border-amber-400/30 shrink-0">
+                    <Clock className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-amber-400 text-slate-900 font-mono text-[10px] font-extrabold uppercase rounded-full">
+                        Google Calendar Event Concluded
+                      </span>
+                      <span className="text-xs text-indigo-300 font-bold">
+                        {concludedSessions.length} Session{concludedSessions.length === 1 ? '' : 's'} Pending Attendance
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-extrabold text-white mt-1">
+                      Time to mark attendance for concluded sessions!
+                    </h4>
+                    <p className="text-xs text-indigo-200 mt-0.5">
+                      Class finish time reached for: <b>{concludedSessions.map(s => `${s.classTitle} (${s.finishTimeStr})`).join(', ')}</b>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0 w-full md:w-auto justify-end">
+                  <button
+                    id="btn_top_banner_mark_attendance"
+                    onClick={() => setShowCalendarFinishModal(true)}
+                    className="w-full md:w-auto px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl text-xs transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4 text-slate-900" />
+                    Mark Session Attendance Now
+                  </button>
+                </div>
+              </motion.div>
+            )}
             
             {/* Tab 1: Schedules & Free Slots management */}
             {activeSubTab === 'schedule' && (
@@ -1755,10 +1833,15 @@ export const TutorDashboard: React.FC = () => {
                   tutorClasses={tutorClasses}
                   bookings={bookings}
                   attendanceRecords={attendanceRecords}
-                  onAttendanceUpdated={loadAttendanceRecords}
+                  onAttendanceUpdated={() => {
+                    loadAttendanceRecords();
+                    checkConcludedCalendarSessions();
+                  }}
                   showToast={showToast}
                   executeWriteWithRetry={executeWriteWithRetry}
                   currentUser={currentUser}
+                  concludedSessions={concludedSessions}
+                  onOpenFinishPrompt={() => setShowCalendarFinishModal(true)}
                 />
               </motion.div>
             )}
@@ -3055,6 +3138,21 @@ export const TutorDashboard: React.FC = () => {
           reviews={[]}
         />
       )}
+
+      {/* Google Calendar Concluded Event Attendance Prompt Modal */}
+      <CalendarFinishAttendancePromptModal
+        isOpen={showCalendarFinishModal}
+        onClose={() => setShowCalendarFinishModal(false)}
+        sessions={concludedSessions}
+        currentUser={currentUser}
+        tutorClasses={tutorClasses}
+        onAttendanceSaved={() => {
+          loadAttendanceRecords();
+          checkConcludedCalendarSessions();
+        }}
+        showToast={showToast}
+        executeWriteWithRetry={executeWriteWithRetry}
+      />
     </motion.div>
   );
 };

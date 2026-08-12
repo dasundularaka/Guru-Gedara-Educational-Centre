@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { ClassItem, Booking, AttendanceRecord, UserProfile } from '../types';
+import { ConcludedCalendarSession } from '../lib/googleCalendarAttendanceUtils';
 import { firestoreService } from '../lib/firestoreService';
 import { triggerManualAttendanceWarning } from '../lib/attendanceNotificationTrigger';
 import { sendAttendanceNotifications } from '../lib/attendanceNotification';
@@ -25,7 +26,8 @@ import {
   BarChart2,
   QrCode,
   BellRing,
-  Send
+  Send,
+  Clock
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -46,6 +48,8 @@ interface TutorAttendanceTrackerProps {
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   executeWriteWithRetry?: (actionName: string, writeFn: () => Promise<void>, verifyFn?: () => Promise<boolean>) => Promise<any>;
   currentUser?: UserProfile;
+  concludedSessions?: ConcludedCalendarSession[];
+  onOpenFinishPrompt?: () => void;
 }
 
 export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
@@ -55,7 +59,9 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
   onAttendanceUpdated,
   showToast,
   executeWriteWithRetry,
-  currentUser
+  currentUser,
+  concludedSessions = [],
+  onOpenFinishPrompt
 }) => {
   const [selectedClassId, setSelectedClassId] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -376,6 +382,39 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           </div>
         </div>
 
+        {/* Google Calendar Concluded Session Prompt Banner */}
+        {concludedSessions.length > 0 && (
+          <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 border border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+                <Clock className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-extrabold text-slate-900">
+                    Google Calendar Event Finish Prompt ({concludedSessions.length} Session{concludedSessions.length === 1 ? '' : 's'} Concluded)
+                  </h4>
+                  <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-black uppercase font-mono rounded-full">
+                    Action Needed
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Class event finish times have passed. Mark attendance for booked students for session(s):{' '}
+                  <b>{concludedSessions.map(s => `${s.classTitle} (ended ${s.finishTimeStr})`).join(', ')}</b>.
+                </p>
+              </div>
+            </div>
+
+            <button
+              id="btn_open_google_calendar_attendance_prompt"
+              onClick={onOpenFinishPrompt}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" /> Review & Mark Attendance
+            </button>
+          </div>
+        )}
+
         {/* Bulk Action Controls Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 text-xs">
           <div className="flex items-center gap-2">
@@ -383,7 +422,22 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
             <span className="text-slate-400 text-[11px]">({displayedBookings.length} scholars in view)</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {onOpenFinishPrompt && (
+              <button
+                id="btn_tutor_gcal_prompt_toolbar"
+                onClick={onOpenFinishPrompt}
+                className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-lg text-xs font-extrabold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-700" />
+                Calendar Finish Prompt
+                {concludedSessions.length > 0 && (
+                  <span className="px-1.5 py-0.2 bg-amber-600 text-white text-[9px] rounded-full font-black">
+                    {concludedSessions.length}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               id="btn_generate_tutor_qr_pass"
               onClick={() => setIsQrModalOpen(true)}
