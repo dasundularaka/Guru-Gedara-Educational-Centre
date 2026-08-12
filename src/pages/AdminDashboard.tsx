@@ -1352,6 +1352,35 @@ export const AdminDashboard: React.FC = () => {
           await firestoreService.updateUserProfile(editingId!, uProfile);
           showToast(`Student profile updated.`, "success");
         }
+
+        // Sync class enrollments (bookings) for student
+        try {
+          const targetUid = modalMode === 'add' ? uProfile.uid! : editingId!;
+          const allBookings = await firestoreService.getBookings();
+          const existingStudentBookings = allBookings.filter(b => 
+            (b.studentId === targetUid || b.studentEmail === userEmail) && b.status !== 'cancelled'
+          );
+
+          // Enroll student into newly selected classes
+          for (const cId of studentSelectedClasses) {
+            const hasBooking = existingStudentBookings.some(b => b.classId === cId);
+            if (!hasBooking) {
+              const cls = classesList.find(c => c.id === cId);
+              if (cls) {
+                await firestoreService.bookClass(targetUid, userName, cls);
+              }
+            }
+          }
+
+          // Unenroll student from unselected classes
+          for (const existingB of existingStudentBookings) {
+            if (!studentSelectedClasses.includes(existingB.classId)) {
+              await firestoreService.cancelBooking(existingB.id, existingB.classId);
+            }
+          }
+        } catch (enrollErr) {
+          console.warn("Failed syncing student class enrollments:", enrollErr);
+        }
       } else if (modalType === 'tutor') {
         const tutorDetails = {
           bio: tutorBio,
@@ -2286,7 +2315,7 @@ export const AdminDashboard: React.FC = () => {
 
                             {preferredTitles.length > 0 && (
                               <div className="pt-1">
-                                <span className="block text-[10px] font-bold text-indigo-750 uppercase tracking-wide">Preferred Classes:</span>
+                                <span className="block text-[10px] font-bold text-indigo-750 uppercase tracking-wide">Enrolled Classes:</span>
                                 <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">{preferredTitles.join(', ')}</p>
                               </div>
                             )}
@@ -4158,11 +4187,11 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Course assignment checklist */}
+                  {/* Course enrollment checklist */}
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1.5 flex items-center justify-between">
-                      <span>Assign Course Curriculums:</span>
-                      <span className="text-[9px] text-indigo-600 uppercase font-black tracking-wider">({studentSelectedClasses.length} selected)</span>
+                      <span>Enroll Student in Classes:</span>
+                      <span className="text-[9px] text-indigo-600 uppercase font-black tracking-wider">({studentSelectedClasses.length} enrolled)</span>
                     </label>
                     <div className="border border-slate-200/80 rounded-xl p-3 bg-slate-50/50 max-h-40 overflow-y-auto space-y-1.5">
                       {classesList.length === 0 ? (

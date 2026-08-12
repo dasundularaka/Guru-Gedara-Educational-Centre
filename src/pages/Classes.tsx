@@ -100,9 +100,18 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
   };
 
+  const enrolledClassIds = currentUser?.selectedClasses || [];
+  const [showEnrolledOnly, setShowEnrolledOnly] = useState<boolean>(
+    currentUser?.role === 'student' && enrolledClassIds.length > 0
+  );
+
   // Filter Tuition Classes
   useEffect(() => {
     let result = [...classes];
+
+    if (currentUser?.role === 'student' && showEnrolledOnly && enrolledClassIds.length > 0) {
+      result = result.filter(c => enrolledClassIds.includes(c.id));
+    }
 
     if (selectedSubject !== "All Subjects") {
       result = result.filter(c => c.subject.toLowerCase() === selectedSubject.toLowerCase());
@@ -166,7 +175,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
 
     setFilteredClasses(result);
-  }, [classes, searchTerm, selectedSubject, sortBy, availabilityFilter, selectedLevel, selectedDay, selectedTimeOfDay]);
+  }, [classes, searchTerm, selectedSubject, sortBy, availabilityFilter, selectedLevel, selectedDay, selectedTimeOfDay, showEnrolledOnly, enrolledClassIds.length]);
 
   // Filter Study Materials
   useEffect(() => {
@@ -318,6 +327,32 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
         {/* Render Tab Contents */}
         {activeTab === 'classes' ? (
           <div>
+            {/* Student View Toggle */}
+            {currentUser?.role === 'student' && enrolledClassIds.length > 0 && (
+              <div className="mb-6 flex items-center gap-2 bg-indigo-50/70 p-1.5 rounded-2xl border border-indigo-100/80 w-fit">
+                <button
+                  onClick={() => setShowEnrolledOnly(true)}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                    showEnrolledOnly 
+                      ? 'bg-indigo-650 text-white shadow-sm' 
+                      : 'text-indigo-900 hover:bg-indigo-100/70'
+                  }`}
+                >
+                  My Enrolled Classes ({enrolledClassIds.length})
+                </button>
+                <button
+                  onClick={() => setShowEnrolledOnly(false)}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                    !showEnrolledOnly 
+                      ? 'bg-indigo-650 text-white shadow-sm' 
+                      : 'text-indigo-900 hover:bg-indigo-100/70'
+                  }`}
+                >
+                  Browse All Available Classes
+                </button>
+              </div>
+            )}
+
             {/* Filters and search blocks */}
             <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.01)] p-5 sm:p-7 mb-8">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">

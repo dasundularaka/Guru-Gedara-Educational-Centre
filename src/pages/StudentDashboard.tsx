@@ -243,52 +243,6 @@ export const StudentDashboard: React.FC = () => {
     });
 
     let combined = [...matchedP, ...synthesizedP];
-
-    if (combined.length === 0) {
-      const defaultClasses = classes.slice(0, 2);
-      if (defaultClasses.length > 0) {
-        combined = defaultClasses.map((cls, idx) => ({
-          id: `pay_demo_${currentUser.uid}_${idx + 1}`,
-          studentId: currentUser.uid,
-          studentName: currentUser.name || currentUser.username || 'Scholar Student',
-          classId: cls.id,
-          classTitle: cls.title,
-          amount: cls.price || 1500,
-          paymentMethod: idx === 0 ? 'Visa Credit Card' : 'Online Gateway Pending',
-          status: idx === 0 ? 'paid' : 'pending',
-          date: new Date(Date.now() - idx * 86400000 * 3).toISOString(),
-          dueDate: new Date(Date.now() + 86400000 * 7).toISOString()
-        }));
-      } else {
-        combined = [
-          {
-            id: `pay_demo_1`,
-            studentId: currentUser.uid,
-            studentName: currentUser.name || currentUser.username || 'Scholar Student',
-            classId: 'class_calc_abc',
-            classTitle: 'Advanced Applied Mathematics & Physics',
-            amount: 2500,
-            paymentMethod: 'Visa Credit Card',
-            status: 'paid',
-            date: new Date(Date.now() - 86400000 * 2).toISOString(),
-            dueDate: new Date(Date.now() + 86400000 * 5).toISOString()
-          },
-          {
-            id: `pay_demo_2`,
-            studentId: currentUser.uid,
-            studentName: currentUser.name || currentUser.username || 'Scholar Student',
-            classId: 'class_physics_mechanics',
-            classTitle: 'Classical Mechanics & Quantum Fundamentals',
-            amount: 1800,
-            paymentMethod: 'Online Gateway Pending',
-            status: 'pending',
-            date: new Date().toISOString(),
-            dueDate: new Date(Date.now() + 86400000 * 7).toISOString()
-          }
-        ];
-      }
-    }
-
     return combined;
   };
 
@@ -568,34 +522,43 @@ export const StudentDashboard: React.FC = () => {
                 {/* Bookings left col */}
                 <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
                   
-                  {/* Assigned Classes (My Courses) */}
+                  {/* Enrolled Classes (My Courses) */}
                   <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-150/50 space-y-3">
                     <h3 className="text-sm font-extrabold text-indigo-900 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-indigo-500" /> My Assigned Courses (Curriculums)
+                      <BookOpen className="w-4 h-4 text-indigo-500" /> My Enrolled Classes
                     </h3>
                     
                     {(() => {
                       const assignedIds = currentUser.selectedClasses || [];
                       const assignedClasses = classes.filter(c => assignedIds.includes(c.id));
                       
-                      if (assignedClasses.length === 0) {
+                      if (assignedClasses.length === 0 && studentBookings.filter(b => b.status === 'active').length === 0) {
                         return (
                           <p className="text-slate-405 text-xs italic text-center py-4 bg-white rounded-xl border border-slate-100">
-                            No courses have been explicitly assigned to you yet by the administrator.
+                            You are not enrolled in any classes yet. An administrator can enroll you, or you can browse classes.
                           </p>
                         );
                       }
                       
+                      if (assignedClasses.length === 0) return null;
+
                       return (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {assignedClasses.map(c => (
-                            <div key={c.id} className="p-3 bg-white border border-slate-150/70 rounded-xl space-y-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                              <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-wider">{c.subject}</span>
-                              <h4 className="text-xs font-extrabold text-slate-850 leading-snug">{c.title}</h4>
-                              <p className="text-[10px] text-slate-500">Instructor Ref: <span className="font-semibold text-slate-700">{c.tutorName || "Faculty Instructor"}</span></p>
-                              <div className="pt-1.5 border-t border-slate-100 flex justify-between items-center text-[10px] mt-1 font-mono">
-                                <span className="text-slate-500 font-bold">{c.schedule}</span>
-                                <span className="text-indigo-650 font-black">LKR {c.price}</span>
+                            <div key={c.id} className="p-3 bg-white border border-slate-150/70 rounded-xl space-y-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+                              <div>
+                                <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-wider">{c.subject}</span>
+                                <h4 className="text-xs font-extrabold text-slate-850 leading-snug mt-1">{c.title}</h4>
+                                <p className="text-[10px] text-slate-500">Instructor: <span className="font-semibold text-slate-700">{c.tutorName || "Faculty Instructor"}</span></p>
+                              </div>
+                              <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] mt-1">
+                                <span className="text-slate-500 font-bold font-mono">{c.schedule}</span>
+                                <button
+                                  onClick={() => setSelectedClassForProfile(c)}
+                                  className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-[10px] rounded-lg border border-indigo-100 transition-colors cursor-pointer"
+                                >
+                                  View Details
+                                </button>
                               </div>
                             </div>
                           ))}
