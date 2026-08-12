@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord, AuditLog } from '../types';
+import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
@@ -80,8 +80,7 @@ import {
   User,
   Award,
   Percent,
-  QrCode,
-  Camera
+  QrCode
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -101,7 +100,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'photo_audit'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress'>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -112,8 +111,6 @@ export const AdminDashboard: React.FC = () => {
   const [subjectsList, setSubjectsList] = useState<SubjectItem[]>([]);
   const [bannersList, setBannersList] = useState<BannerImage[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [photoSearchQuery, setPhotoSearchQuery] = useState<string>('');
   const [selectedProgressStudentId, setSelectedProgressStudentId] = useState<string>('');
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
@@ -617,8 +614,8 @@ export const AdminDashboard: React.FC = () => {
   const fetchAdminDatasets = async () => {
     setLoading(true);
     try {
-      // Fetch users, classes, payments, bookings, pathways, subjects, banners, attendance, and audit logs in parallel
-      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects, allBanners, allAttendance, allAuditLogs] = await Promise.all([
+      // Fetch users, classes, payments, bookings, pathways, subjects, banners, and attendance in parallel
+      const [allUsers, allClass, allPays, allBook, allPathways, allSubjects, allBanners, allAttendance] = await Promise.all([
         firestoreService.getAllUsers(),
         firestoreService.getClasses(),
         firestoreService.getPayments(),
@@ -626,8 +623,7 @@ export const AdminDashboard: React.FC = () => {
         firestoreService.getPathways(),
         firestoreService.getSubjects(),
         firestoreService.getBanners(),
-        firestoreService.getAttendance(),
-        firestoreService.getAuditLogs()
+        firestoreService.getAttendance()
       ]);
 
       setUsers(allUsers);
@@ -638,66 +634,10 @@ export const AdminDashboard: React.FC = () => {
       setSubjectsList(allSubjects);
       setBannersList(allBanners);
       setAttendanceRecords(allAttendance || []);
-      setAuditLogs(allAuditLogs || []);
     } catch (e) {
       console.warn("Failed index mapping of site admin data pools", e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAcceptPhoto = async (stud: UserProfile) => {
-    try {
-      await firestoreService.updateUserProfile(stud.uid, {
-        photoURL: stud.pendingPhotoURL,
-        pendingPhotoURL: "",
-        pendingPhotoSubmittedAt: ""
-      });
-
-      await firestoreService.addAuditLog({
-        username: currentUser?.username || currentUser?.name || 'Admin',
-        action: 'PHOTO_APPROVAL_ACCEPTED',
-        details: `Approved new profile photo for scholar ${stud.name} (${stud.username || stud.uid}).`
-      });
-
-      await firestoreService.triggerNotification(
-        stud.uid,
-        "Profile Photo Approved!",
-        "Your requested profile picture update has been approved and verified by the administrator.",
-        "announcement"
-      );
-
-      await fetchAdminDatasets();
-      showToast(`Profile photo for ${stud.name} verified and approved successfully!`, "success");
-    } catch (err: any) {
-      showToast("Failed to approve photo: " + err.message, "error");
-    }
-  };
-
-  const handleRejectPhoto = async (stud: UserProfile) => {
-    try {
-      await firestoreService.updateUserProfile(stud.uid, {
-        pendingPhotoURL: "",
-        pendingPhotoSubmittedAt: ""
-      });
-
-      await firestoreService.addAuditLog({
-        username: currentUser?.username || currentUser?.name || 'Admin',
-        action: 'PHOTO_APPROVAL_REJECTED',
-        details: `Rejected profile photo change request for scholar ${stud.name} (${stud.username || stud.uid}).`
-      });
-
-      await firestoreService.triggerNotification(
-        stud.uid,
-        "Profile Photo Request Declined",
-        "Your profile photo change request was declined by the administrator. Please upload an appropriate profile picture.",
-        "announcement"
-      );
-
-      await fetchAdminDatasets();
-      showToast(`Proposed picture for ${stud.name} was rejected and removed.`, "info");
-    } catch (err: any) {
-      showToast("Failed to reject photo: " + err.message, "error");
     }
   };
 
@@ -1624,7 +1564,6 @@ export const AdminDashboard: React.FC = () => {
                   {activeTab === 'notices' && <Bell className="w-4 h-4" />}
                   {activeTab === 'admins' && <ShieldCheck className="w-4 h-4" />}
                   {activeTab === 'reviews' && <Star className="w-4 h-4" />}
-                  {activeTab === 'photo_audit' && <Camera className="w-4 h-4 text-purple-500" />}
                 </span>
                 <span className="capitalize">
                   {activeTab === 'analytics' && 'Insights & Analytics'}
@@ -1638,7 +1577,6 @@ export const AdminDashboard: React.FC = () => {
                   {activeTab === 'notices' && 'Notices & System Alerts'}
                   {activeTab === 'admins' && 'Administrative Staff'}
                   {activeTab === 'reviews' && 'Moderate Reviews'}
-                  {activeTab === 'photo_audit' && 'Photo Approval Audit Log'}
                 </span>
               </div>
               <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
@@ -1656,7 +1594,6 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                   {[
                     { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" /> },
-                    { id: 'photo_audit', label: 'Photo Approval Audit Log', icon: <Camera className="w-4 h-4 text-purple-500" />, badge: users.filter(u => u.pendingPhotoURL).length },
                     { id: 'payments', label: 'Global Ledger Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" /> },
                     { id: 'students', label: 'Scholars', icon: <Users className="w-4 h-4 text-indigo-500" /> },
                     { id: 'progress', label: 'Student Progress', icon: <GraduationCap className="w-4 h-4 text-purple-500" /> },
@@ -2365,17 +2302,9 @@ export const AdminDashboard: React.FC = () => {
                             )}
                             {stud.pendingPhotoURL && (
                               <div className="mt-3 p-3 bg-amber-50/70 border border-amber-205 rounded-xl space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="block text-[10px] font-black text-amber-800 uppercase tracking-widest font-mono">
-                                    📸 Proposed Photo Change
-                                  </span>
-                                  <span className="text-[10px] font-mono text-amber-700/90 font-bold flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-amber-600" />
-                                    {stud.pendingPhotoSubmittedAt 
-                                      ? new Date(stud.pendingPhotoSubmittedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-                                      : 'Submitted'}
-                                  </span>
-                                </div>
+                                <span className="block text-[10px] font-black text-amber-800 uppercase tracking-widest font-mono">
+                                  📸 Proposed Photo Change
+                                </span>
                                 <div className="flex items-center gap-3">
                                   <div className="relative">
                                     <img src={stud.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150"} className="w-10 h-10 rounded-full object-cover border border-slate-200" title="Current Active Photo" />
@@ -2387,20 +2316,41 @@ export const AdminDashboard: React.FC = () => {
                                     <span className="absolute -bottom-1 -right-1 text-emerald-500 bg-white rounded-full px-1 text-[8px] font-bold shadow-sm border border-slate-100">New</span>
                                   </div>
                                 </div>
-                                <div className="flex gap-2 pt-1">
+                                <div className="flex gap-2">
                                   <button
                                     id={`accept-photo-btn-${stud.uid}`}
-                                    onClick={() => handleAcceptPhoto(stud)}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                                    onClick={async () => {
+                                      try {
+                                        await firestoreService.updateUserProfile(stud.uid, {
+                                          photoURL: stud.pendingPhotoURL,
+                                          pendingPhotoURL: ""
+                                        });
+                                        await fetchAdminDatasets();
+                                        showToast("Scholar profile photo verified and saved successfully!", "success");
+                                      } catch (err: any) {
+                                        showToast("Failed to approve photo: " + err.message, "error");
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer shadow-xs"
                                   >
-                                    <Check className="w-3 h-3" /> Accept Photo
+                                    Accept Photo
                                   </button>
                                   <button
                                     id={`reject-photo-btn-${stud.uid}`}
-                                    onClick={() => handleRejectPhoto(stud)}
-                                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black transition-all cursor-pointer flex items-center gap-1"
+                                    onClick={async () => {
+                                      try {
+                                        await firestoreService.updateUserProfile(stud.uid, {
+                                          pendingPhotoURL: ""
+                                        });
+                                        await fetchAdminDatasets();
+                                        showToast("Proposed picture was rejected and removed.", "info");
+                                      } catch (err: any) {
+                                        showToast("Failed to reject: " + err.message, "error");
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 rounded-lg text-[10px] font-black transition-all cursor-pointer"
                                   >
-                                    <X className="w-3 h-3" /> Reject Photo
+                                    Reject photo
                                   </button>
                                 </div>
                               </div>
@@ -3964,304 +3914,6 @@ export const AdminDashboard: React.FC = () => {
                       ))}
                     </div>
                   )}
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'photo_audit' && (
-              <motion.div 
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="space-y-6"
-              >
-                {/* Main Audit Log Card */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-6">
-                  
-                  {/* Header */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-5">
-                    <div>
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                          <Camera className="w-5 h-5" />
-                        </span>
-                        <div>
-                          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Audit Log: Pending Profile Photo Approvals</h2>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Inspect student profile picture submissions, track precise submission timestamps, and execute administrative approvals or rejections.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pending Count Badge */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-3.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-black flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
-                        {users.filter(u => u.pendingPhotoURL).length} Pending Approval{users.filter(u => u.pendingPhotoURL).length === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Summary Metric Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider font-mono">Pending Submissions</p>
-                        <p className="text-2xl font-black text-amber-900 mt-1">{users.filter(u => u.pendingPhotoURL).length}</p>
-                      </div>
-                      <div className="p-2.5 bg-amber-100/80 rounded-xl text-amber-700">
-                        <Camera className="w-5 h-5" />
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider font-mono">Approved Active Avatars</p>
-                        <p className="text-2xl font-black text-emerald-900 mt-1">{users.filter(u => u.photoURL && !u.pendingPhotoURL).length}</p>
-                      </div>
-                      <div className="p-2.5 bg-emerald-100/80 rounded-xl text-emerald-700">
-                        <CheckCircle className="w-5 h-5" />
-                      </div>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200/80 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider font-mono">Audit Logged Actions</p>
-                        <p className="text-2xl font-black text-indigo-900 mt-1">
-                          {auditLogs.filter(l => l.action.includes('PHOTO') || l.details.toLowerCase().includes('photo')).length}
-                        </p>
-                      </div>
-                      <div className="p-2.5 bg-indigo-100/80 rounded-xl text-indigo-700">
-                        <ShieldCheck className="w-5 h-5" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Filter & Search Bar */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
-                    <div className="relative w-full sm:w-80">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                      <input 
-                        type="text"
-                        placeholder="Search student by name, student ID, or email..."
-                        value={photoSearchQuery}
-                        onChange={(e) => setPhotoSearchQuery(e.target.value)}
-                        className="w-full text-xs pl-9 pr-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-purple-500 outline-none"
-                      />
-                    </div>
-                    <span className="text-[11px] font-medium text-slate-500 font-mono">
-                      Showing {users.filter(u => u.pendingPhotoURL && (
-                        !photoSearchQuery.trim() || 
-                        u.name.toLowerCase().includes(photoSearchQuery.toLowerCase()) || 
-                        (u.username || '').toLowerCase().includes(photoSearchQuery.toLowerCase()) || 
-                        u.email.toLowerCase().includes(photoSearchQuery.toLowerCase())
-                      )).length} pending approval request(s)
-                    </span>
-                  </div>
-
-                  {/* Pending Photo Submissions Grid */}
-                  {users.filter(u => u.pendingPhotoURL && (
-                    !photoSearchQuery.trim() || 
-                    u.name.toLowerCase().includes(photoSearchQuery.toLowerCase()) || 
-                    (u.username || '').toLowerCase().includes(photoSearchQuery.toLowerCase()) || 
-                    u.email.toLowerCase().includes(photoSearchQuery.toLowerCase())
-                  )).length === 0 ? (
-                    <div className="py-12 px-4 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 space-y-3">
-                      <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                        <Check className="w-6 h-6" />
-                      </div>
-                      <h4 className="text-sm font-extrabold text-slate-800">No Pending Profile Photo Approvals</h4>
-                      <p className="text-xs text-slate-500 max-w-md mx-auto">
-                        All student profile photo update submissions have been reviewed and approved. When a student submits a new photo, it will instantly appear in this audit log queue.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      {users.filter(u => u.pendingPhotoURL && (
-                        !photoSearchQuery.trim() || 
-                        u.name.toLowerCase().includes(photoSearchQuery.toLowerCase()) || 
-                        (u.username || '').toLowerCase().includes(photoSearchQuery.toLowerCase()) || 
-                        u.email.toLowerCase().includes(photoSearchQuery.toLowerCase())
-                      )).map(stud => {
-                        const submittedTimestamp = stud.pendingPhotoSubmittedAt || stud.createdAt;
-                        const formattedSubmittedDate = submittedTimestamp 
-                          ? new Date(submittedTimestamp).toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              hour12: true
-                            })
-                          : 'Recently submitted';
-
-                        return (
-                          <div 
-                            key={stud.uid}
-                            className="p-5 rounded-2xl border border-amber-200 bg-amber-50/30 hover:shadow-md transition-all space-y-4 relative"
-                          >
-                            {/* Student Info Header */}
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <img 
-                                  src={stud.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150"} 
-                                  alt={stud.name} 
-                                  className="w-11 h-11 rounded-full object-cover border-2 border-slate-200 shadow-xs shrink-0" 
-                                />
-                                <div>
-                                  <h4 className="text-sm font-extrabold text-slate-900">{stud.name}</h4>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    {stud.username && (
-                                      <span className="px-1.5 py-0.5 bg-slate-900 text-white font-mono text-[9px] font-black rounded">
-                                        ID: {stud.username}
-                                      </span>
-                                    )}
-                                    <span className="text-[11px] text-slate-500 font-medium">
-                                      {stud.studentDetails?.grade || 'Student'} • {stud.email}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase font-mono rounded-full shrink-0">
-                                Pending Audit
-                              </span>
-                            </div>
-
-                            {/* Side by Side Comparative Preview */}
-                            <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 space-y-2">
-                              <div className="flex items-center justify-between text-[10px] font-extrabold uppercase font-mono text-slate-400">
-                                <span>Current Active</span>
-                                <span className="text-amber-700 font-bold">&rarr; Proposed New Avatar</span>
-                              </div>
-
-                              <div className="flex items-center justify-around gap-4 pt-1">
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="relative">
-                                    <img 
-                                      src={stud.photoURL || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150"} 
-                                      className="w-16 h-16 rounded-full object-cover border-2 border-slate-300 opacity-80" 
-                                      alt="Current Active"
-                                    />
-                                    <span className="absolute -bottom-1 -right-1 bg-slate-800 text-white rounded-full px-1.5 py-0.2 text-[8px] font-bold">
-                                      Current
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 font-mono">Existing</span>
-                                </div>
-
-                                <div className="text-slate-300 font-bold text-lg">&rarr;</div>
-
-                                <div className="flex flex-col items-center gap-1">
-                                  <div className="relative">
-                                    <img 
-                                      src={stud.pendingPhotoURL} 
-                                      className="w-16 h-16 rounded-full object-cover border-2 border-amber-500 ring-4 ring-amber-100 shadow-sm" 
-                                      alt="New Proposed"
-                                    />
-                                    <span className="absolute -bottom-1 -right-1 bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[8px] font-black">
-                                      Proposed
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-amber-700 font-bold font-mono">New Image</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Submission Timestamp Audit Box */}
-                            <div className="flex items-center justify-between p-2.5 bg-slate-100/80 rounded-xl border border-slate-200/80 text-xs text-slate-700 font-mono">
-                              <span className="text-[10px] uppercase font-bold text-slate-500 flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-purple-600" /> Submitted At:
-                              </span>
-                              <span className="font-extrabold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200/80 shadow-xs">
-                                {formattedSubmittedDate}
-                              </span>
-                            </div>
-
-                            {/* Decision Action Buttons */}
-                            <div className="flex items-center gap-3 pt-1">
-                              <button
-                                id={`accept-photo-audit-btn-${stud.uid}`}
-                                onClick={() => handleAcceptPhoto(stud)}
-                                className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
-                              >
-                                <Check className="w-4 h-4" /> Accept Photo
-                              </button>
-                              <button
-                                id={`reject-photo-audit-btn-${stud.uid}`}
-                                onClick={() => handleRejectPhoto(stud)}
-                                className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                              >
-                                <X className="w-4 h-4" /> Reject Photo
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Historical Audit Trail History */}
-                  <div className="pt-6 border-t border-slate-200/80 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-indigo-600" /> Photo Approval Audit Log Trail
-                      </h3>
-                      <span className="text-[11px] font-mono text-slate-500">
-                        Total Audit Logs ({auditLogs.filter(l => l.action.includes('PHOTO') || l.details.toLowerCase().includes('photo')).length})
-                      </span>
-                    </div>
-
-                    {auditLogs.filter(l => l.action.includes('PHOTO') || l.details.toLowerCase().includes('photo')).length === 0 ? (
-                      <p className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-xl text-center border border-slate-100">
-                        No historical photo approval audit logs recorded yet. Action logs will be permanently saved here whenever students submit photos or admins review them.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto rounded-xl border border-slate-200/80">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-mono font-extrabold text-slate-500">
-                            <tr>
-                              <th className="p-3">Timestamp</th>
-                              <th className="p-3">Actor / Username</th>
-                              <th className="p-3">Action Event</th>
-                              <th className="p-3">Audit Log Details</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 font-mono">
-                            {auditLogs
-                              .filter(l => l.action.includes('PHOTO') || l.details.toLowerCase().includes('photo'))
-                              .slice(0, 30)
-                              .map(log => (
-                                <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="p-3 text-slate-500 whitespace-nowrap">
-                                    {new Date(log.timestamp).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}
-                                  </td>
-                                  <td className="p-3 font-bold text-slate-800 whitespace-nowrap">
-                                    {log.username}
-                                  </td>
-                                  <td className="p-3 whitespace-nowrap">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                      log.action.includes('ACCEPTED') || log.action.includes('APPROVED')
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : log.action.includes('REJECTED')
-                                        ? 'bg-rose-100 text-rose-800'
-                                        : 'bg-amber-100 text-amber-800'
-                                    }`}>
-                                      {log.action}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-slate-600 font-sans text-xs">
-                                    {log.details}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
                 </div>
               </motion.div>
             )}

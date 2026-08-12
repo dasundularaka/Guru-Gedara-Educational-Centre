@@ -25,9 +25,6 @@ interface AppContextType {
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   hideToast: () => void;
   loginWithGoogle: () => Promise<UserProfile | null>;
-  googleAccessToken: string | null;
-  connectGoogleCalendar: () => Promise<string | null>;
-  disconnectGoogleCalendar: () => void;
   loginWithEmail: (email: string, pass: string) => Promise<UserProfile>;
   registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'tutor', details?: any) => Promise<UserProfile>;
   logout: () => Promise<void>;
@@ -167,40 +164,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [authDomainError, setAuthDomainError] = useState<string | null>(null);
   const clearAuthDomainError = () => setAuthDomainError(null);
-
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-
-  const connectGoogleCalendar = async (): Promise<string | null> => {
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/calendar');
-      provider.addScope('https://www.googleapis.com/auth/calendar.events');
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken || null;
-      if (token) {
-        setGoogleAccessToken(token);
-        showToast("Google Calendar successfully connected!", "success");
-      } else {
-        showToast("Connected to Google, but no access token was returned.", "error");
-      }
-      return token;
-    } catch (e: any) {
-      console.error("Google Calendar Auth error:", e);
-      if (e.code === 'auth/unauthorized-domain' || e.message?.includes('unauthorized-domain')) {
-        setAuthDomainError(window.location.hostname);
-        showToast("Unauthorized Domain: Add this domain to Firebase Authorized Domains.", "error");
-      } else {
-        showToast(e.message || "Failed to connect Google Calendar.", "error");
-      }
-      return null;
-    }
-  };
-
-  const disconnectGoogleCalendar = () => {
-    setGoogleAccessToken(null);
-    showToast("Google Calendar session disconnected.", "info");
-  };
 
   const [syncState, setSyncState] = useState<{
     status: 'idle' | 'syncing' | 'synced' | 'failed';
@@ -720,13 +683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/calendar');
-      provider.addScope('https://www.googleapis.com/auth/calendar.events');
       const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      if (credential?.accessToken) {
-        setGoogleAccessToken(credential.accessToken);
-      }
       const email = result.user.email || '';
       
       let profile = await firestoreService.getUserProfile(result.user.uid);
@@ -746,7 +703,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (profile) {
         setCurrentUser(profile);
         showToast(`Welcome back, ${profile.name}!`, "success");
-        setLoading(false);
         return profile;
       } else {
         const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
@@ -758,7 +714,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         setCurrentUser(newProf);
         showToast("Welcome to Guru Gedara Educational Centre! Account successfully initialized.", "success");
-        setLoading(false);
         return newProf;
       }
     } catch (e: any) {
@@ -771,8 +726,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setLoading(false);
       return null;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -782,186 +735,174 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const lowercaseEmail = email.trim().toLowerCase();
 
     try {
+      const cred = await signInWithEmailAndPassword(auth, email, pass);
+      let profile = await firestoreService.getUserProfile(cred.user.uid);
+
+      // If profile not found by Auth UID, check by EMAIL to match existing tutor/student/admin profiles
+      if (!profile && lowercaseEmail) {
+        const matchedByEmail = await firestoreService.getUserProfileByEmail(lowercaseEmail);
+        if (matchedByEmail) {
+          profile = {
+            ...matchedByEmail,
+            uid: cred.user.uid,
+            username: cred.user.uid
+          };
+          await firestoreService.createUserProfile(cred.user.uid, profile);
+        }
+      }
+
+      if (!profile) {
+        // Preset role according to specified credentials if profile is completely new
+        let role: 'student' | 'tutor' | 'admin' = 'student';
+        let name = "Enrolled Scholar";
+        const isTutorEmail = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
+        
+        if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
+          role = 'admin';
+          name = "Academy Administrator";
+        } else if (isTutorEmail) {
+          role = 'tutor';
+          name = "Faculty Tutor";
+        } else if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
+          role = 'student';
+          name = "Scholar Student";
+        }
+
+        profile = await firestoreService.createUserProfile(cred.user.uid, {
+          email: lowercaseEmail,
+          name,
+          role
+        });
+      }
+      
+      // Prevent pending student logins online
+      if (profile.role === 'student' && profile.status === 'pending') {
+        await signOut(auth);
+        throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+      }
+
+      setCurrentUser(profile);
+      showToast(`Logged in successfully as ${profile.name}!`, "success");
+      return profile;
+    } catch (e: any) {
+      setLoading(false);
+
+      // Fallback: Check Cloud Firestore and local storage for existing profile by email across all databases
       try {
-        const cred = await signInWithEmailAndPassword(auth, email, pass);
-        let profile = await firestoreService.getUserProfile(cred.user.uid);
-
-        // If profile not found by Auth UID, check by EMAIL to match existing tutor/student/admin profiles
-        if (!profile && lowercaseEmail) {
-          const matchedByEmail = await firestoreService.getUserProfileByEmail(lowercaseEmail);
-          if (matchedByEmail) {
-            profile = {
-              ...matchedByEmail,
-              uid: cred.user.uid,
-              username: cred.user.uid
-            };
-            await firestoreService.createUserProfile(cred.user.uid, profile);
+        const cloudMatch = await firestoreService.getUserProfileByEmail(lowercaseEmail);
+        if (cloudMatch) {
+          if (cloudMatch.role === 'student' && cloudMatch.status === 'pending') {
+            throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
           }
-        }
-
-        if (!profile) {
-          // Preset role according to specified credentials if profile is completely new
-          let role: 'student' | 'tutor' | 'admin' = 'student';
-          let name = "Enrolled Scholar";
-          const isTutorEmail = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
-          
-          if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
-            role = 'admin';
-            name = "Academy Administrator";
-          } else if (isTutorEmail) {
-            role = 'tutor';
-            name = "Faculty Tutor";
-          } else if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
-            role = 'student';
-            name = "Scholar Student";
-          }
-
-          profile = await firestoreService.createUserProfile(cred.user.uid, {
-            email: lowercaseEmail,
-            name,
-            role
-          });
-        }
-        
-        // Prevent pending student logins online
-        if (profile.role === 'student' && profile.status === 'pending') {
-          await signOut(auth);
-          throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
-        }
-
-        setCurrentUser(profile);
-        showToast(`Logged in successfully as ${profile.name}!`, "success");
-        setLoading(false);
-        return profile;
-      } catch (authErr: any) {
-        if (authErr.message && authErr.message.includes('pending administrator approval')) {
-          throw authErr;
-        }
-
-        // Fallback: Check Cloud Firestore and local storage for existing profile by email across all databases
-        try {
-          const cloudMatch = await firestoreService.getUserProfileByEmail(lowercaseEmail);
-          if (cloudMatch) {
-            if (cloudMatch.role === 'student' && cloudMatch.status === 'pending') {
-              throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+          if (cloudMatch.password && cloudMatch.password !== pass && pass !== 'test123') {
+            const overridesJSON = localStorage.getItem('local_password_overrides');
+            const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
+            const expectedPassword = overrides[lowercaseEmail] || cloudMatch.password || 'test123';
+            if (pass !== expectedPassword) {
+              throw new Error("Invalid password credentials.");
             }
-            if (cloudMatch.password && cloudMatch.password !== pass && pass !== 'test123') {
-              const overridesJSON = localStorage.getItem('local_password_overrides');
-              const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
-              const expectedPassword = overrides[lowercaseEmail] || cloudMatch.password || 'test123';
-              if (pass !== expectedPassword) {
-                throw new Error("Invalid password credentials.");
-              }
-            }
-            try {
-              localStorage.setItem('local_running_session', safeStringify(cloudMatch));
-            } catch (err) {
-              console.warn("Failed storing running session", err);
-            }
-            setCurrentUser(cloudMatch);
-            showToast(`Logged in successfully as ${cloudMatch.name}!`, "success");
-            setLoading(false);
-            return cloudMatch;
           }
-        } catch (cloudErr: any) {
-          if (cloudErr.message && (cloudErr.message.includes('pending administrator approval') || cloudErr.message.includes('Invalid password'))) {
-            throw cloudErr;
-          }
-          console.warn("User lookup failed during email login:", cloudErr);
-        }
-        
-        // 2. Check for password overrides for default demo credentials
-        const overridesJSON = localStorage.getItem('local_password_overrides');
-        const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
-        const expectedPassword = overrides[lowercaseEmail] || 'test123';
-
-        if (pass !== expectedPassword) {
-          throw new Error(authErr.message || "Invalid password credentials.");
-        }
-
-        // 3. Match keyword roles or handle simulated demo sessions
-        const isTutorKeyword = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
-        
-        if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
-          const dummy = await handleSimulatedDemo('student');
-          const customUser: UserProfile = {
-            ...dummy,
-            email: lowercaseEmail,
-            name: 'Scholar Student',
-            status: 'approved' as const
-          };
           try {
-            localStorage.setItem('local_running_session', safeStringify(customUser));
+            localStorage.setItem('local_running_session', safeStringify(cloudMatch));
           } catch (err) {
             console.warn("Failed storing running session", err);
           }
-          setCurrentUser(customUser);
-          showToast("Logged in successfully as Student Scholar!", "success");
-          setLoading(false);
-          return customUser;
-        } else if (isTutorKeyword) {
-          const dummy = await handleSimulatedDemo('tutor');
-          const customUser: UserProfile = {
-            ...dummy,
-            email: lowercaseEmail,
-            name: 'Faculty Tutor',
-            role: 'tutor'
-          };
-          try {
-            localStorage.setItem('local_running_session', safeStringify(customUser));
-          } catch (err) {
-            console.warn("Failed storing running session", err);
-          }
-          setCurrentUser(customUser);
-          showToast("Logged in successfully as Faculty Tutor!", "success");
-          setLoading(false);
-          return customUser;
-        } else if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
-          const dummy = await handleSimulatedDemo('admin');
-          const customUser: UserProfile = {
-            ...dummy,
-            email: lowercaseEmail,
-            name: 'Academy Administrator',
-            role: 'admin'
-          };
-          try {
-            localStorage.setItem('local_running_session', safeStringify(customUser));
-          } catch (err) {
-            console.warn("Failed storing running session", err);
-          }
-          setCurrentUser(customUser);
-          showToast("Logged in successfully as Academy Administrator!", "success");
-          setLoading(false);
-          return customUser;
+          setCurrentUser(cloudMatch);
+          showToast(`Logged in successfully as ${cloudMatch.name}!`, "success");
+          return cloudMatch;
         }
+      } catch (cloudErr: any) {
+        if (cloudErr.message && (cloudErr.message.includes('pending administrator approval') || cloudErr.message.includes('Invalid password'))) {
+          throw cloudErr;
+        }
+        console.warn("User lookup failed during email login:", cloudErr);
+      }
+      
+      // 2. Check for password overrides for default demo credentials
+      const overridesJSON = localStorage.getItem('local_password_overrides');
+      const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
+      const expectedPassword = overrides[lowercaseEmail] || 'test123';
 
-        // 4. Default Fallback for new custom domains
-        const inferredRole: 'student' | 'tutor' = isTutorKeyword ? 'tutor' : 'student';
-        const dummy = await handleSimulatedDemo(inferredRole);
-        const emailPrefix = lowercaseEmail.split('@')[0] || 'scholar';
-        const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-        
+      if (pass !== expectedPassword) {
+        throw new Error(e.message || "Invalid password credentials.");
+      }
+
+      // 3. Match keyword roles or handle simulated demo sessions
+      const isTutorKeyword = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
+      
+      if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
+        const dummy = await handleSimulatedDemo('student');
         const customUser: UserProfile = {
           ...dummy,
           email: lowercaseEmail,
-          name: inferredRole === 'tutor' ? `Prof. ${displayName}` : `${displayName} Student`,
-          displayName: displayName,
-          role: inferredRole,
+          name: 'Scholar Student',
           status: 'approved' as const
         };
-        
         try {
           localStorage.setItem('local_running_session', safeStringify(customUser));
         } catch (err) {
           console.warn("Failed storing running session", err);
         }
         setCurrentUser(customUser);
-        showToast(`Logged in successfully with '${lowercaseEmail}'!`, "success");
-        setLoading(false);
+        showToast("Logged in successfully as Student Scholar!", "success");
+        return customUser;
+      } else if (isTutorKeyword) {
+        const dummy = await handleSimulatedDemo('tutor');
+        const customUser: UserProfile = {
+          ...dummy,
+          email: lowercaseEmail,
+          name: 'Faculty Tutor',
+          role: 'tutor'
+        };
+        try {
+          localStorage.setItem('local_running_session', safeStringify(customUser));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
+        setCurrentUser(customUser);
+        showToast("Logged in successfully as Faculty Tutor!", "success");
+        return customUser;
+      } else if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
+        const dummy = await handleSimulatedDemo('admin');
+        const customUser: UserProfile = {
+          ...dummy,
+          email: lowercaseEmail,
+          name: 'Academy Administrator',
+          role: 'admin'
+        };
+        try {
+          localStorage.setItem('local_running_session', safeStringify(customUser));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
+        setCurrentUser(customUser);
+        showToast("Logged in successfully as Academy Administrator!", "success");
         return customUser;
       }
-    } finally {
-      setLoading(false);
+
+      // 4. Default Fallback for new custom domains
+      const inferredRole: 'student' | 'tutor' = isTutorKeyword ? 'tutor' : 'student';
+      const dummy = await handleSimulatedDemo(inferredRole);
+      const emailPrefix = lowercaseEmail.split('@')[0] || 'scholar';
+      const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+      
+      const customUser: UserProfile = {
+        ...dummy,
+        email: lowercaseEmail,
+        name: inferredRole === 'tutor' ? `Prof. ${displayName}` : `${displayName} Student`,
+        displayName: displayName,
+        role: inferredRole,
+        status: 'approved' as const
+      };
+      
+      try {
+        localStorage.setItem('local_running_session', safeStringify(customUser));
+      } catch (err) {
+        console.warn("Failed storing running session", err);
+      }
+      setCurrentUser(customUser);
+      showToast(`Logged in successfully with '${lowercaseEmail}'!`, "success");
+      return customUser;
     }
   };
 
@@ -975,39 +916,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Promise<UserProfile> => {
     setLoading(true);
     try {
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
-        const profile = await firestoreService.createUserProfile(cred.user.uid, {
-          email,
-          name,
-          role,
-          ...additionalData
-        });
-        setCurrentUser(profile);
-        showToast(`Registration complete! Welcome, ${name}.`, "success");
-        setLoading(false);
-        return profile;
-      } catch (e: any) {
-        console.warn("Creating highly resilient local registration session.", e);
-        const localId = "local_user_" + Math.random().toString(36).substr(2, 9);
-        const profile = await firestoreService.createUserProfile(localId, {
-          email,
-          name,
-          role,
-          ...additionalData
-        });
-        try {
-          localStorage.setItem('local_running_session', safeStringify(profile));
-        } catch (err) {
-          console.warn("Failed storing running session", err);
-        }
-        setCurrentUser(profile);
-        showToast("Registered successfully (Local Dev Mode active)!", "success");
-        setLoading(false);
-        return profile;
-      }
-    } finally {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      const profile = await firestoreService.createUserProfile(cred.user.uid, {
+        email,
+        name,
+        role,
+        ...additionalData
+      });
+      setCurrentUser(profile);
+      showToast(`Registration complete! Welcome, ${name}.`, "success");
+      return profile;
+    } catch (e: any) {
       setLoading(false);
+      // Fallback: If cloud auth registration rejects, create a fully dynamic offline role session!
+      console.warn("Creating highly resilient local registration session.", e);
+      const localId = "local_user_" + Math.random().toString(36).substr(2, 9);
+      const profile = await firestoreService.createUserProfile(localId, {
+        email,
+        name,
+        role,
+        ...additionalData
+      });
+      try {
+        localStorage.setItem('local_running_session', safeStringify(profile));
+      } catch (err) {
+        console.warn("Failed storing running session", err);
+      }
+      setCurrentUser(profile);
+      showToast("Registered successfully (Local Dev Mode active)!", "success");
+      return profile;
     }
   };
 
@@ -1032,34 +969,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (role === 'tutor') dummyId = 'tutor_sarah';
     if (role === 'admin') dummyId = 'admin_demo';
 
-    try {
-      const profile = await firestoreService.getUserProfile(dummyId);
-      if (profile) {
-        try {
-          localStorage.setItem('local_running_session', safeStringify(profile));
-        } catch (err) {
-          console.warn("Failed storing running session", err);
-        }
-        setCurrentUser(profile);
-        const nots = await firestoreService.getNotifications(profile.uid);
-        setNotifications(nots);
-        showToast(`Logged into ${role} workspace as ${profile.name}! (Sandbox active)`, "success");
-        return profile;
+    const profile = await firestoreService.getUserProfile(dummyId);
+    if (profile) {
+      try {
+        localStorage.setItem('local_running_session', safeStringify(profile));
+      } catch (err) {
+        console.warn("Failed storing running session", err);
       }
-      throw new Error(`Critical: Profile for roles ${role} could not be completed.`);
-    } finally {
+      setCurrentUser(profile);
+      const nots = await firestoreService.getNotifications(profile.uid);
+      setNotifications(nots);
+      showToast(`Logged into ${role} workspace as ${profile.name}! (Sandbox active)`, "success");
       setLoading(false);
+      return profile;
     }
+    throw new Error(`Critical: Profile for roles ${role} could not be completed.`);
   };
 
   // One-click demo triggers
   const triggerDemoSession = async (role: 'student' | 'tutor' | 'admin'): Promise<UserProfile> => {
     setLoading(true);
-    try {
-      return await handleSimulatedDemo(role);
-    } finally {
-      setLoading(false);
-    }
+    return handleSimulatedDemo(role);
   };
 
   const updateNotificationSettings = (settings: Partial<NotificationSettings>) => {
@@ -1131,9 +1061,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast,
       hideToast,
       loginWithGoogle,
-      googleAccessToken,
-      connectGoogleCalendar,
-      disconnectGoogleCalendar,
       loginWithEmail,
       registerWithEmail,
       logout,

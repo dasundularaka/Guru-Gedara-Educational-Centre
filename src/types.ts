@@ -18,7 +18,6 @@ export interface UserProfile {
   classEnrollmentStatus?: { [classId: string]: 'active' | 'suspended' | 'late_payment' | 'free_card' };
   photoURL?: string;
   pendingPhotoURL?: string;
-  pendingPhotoSubmittedAt?: string;
   phone?: string;
   password?: string;
   isPasswordResetRequired?: boolean;

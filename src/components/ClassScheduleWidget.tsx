@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion } from 'motion/react';
-import { Calendar, Clock, BookOpen, Filter, User, Sparkles, Plus } from 'lucide-react';
+import { Calendar, Clock, BookOpen, Filter, User, Sparkles } from 'lucide-react';
 import { ClassItem } from '../types';
-import { buildGoogleCalendarEventFromClass, createGoogleCalendarEvent } from '../lib/googleCalendarService';
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -12,29 +11,9 @@ interface ClassScheduleWidgetProps {
 }
 
 export const ClassScheduleWidget: React.FC<ClassScheduleWidgetProps> = ({ compact = false }) => {
-  const { classes, currentUser, googleAccessToken, connectGoogleCalendar, showToast } = useApp();
+  const { classes, currentUser } = useApp();
   const [filterEnrolledOnly, setFilterEnrolledOnly] = useState<boolean>(true);
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>("All");
-  const [exportingId, setExportingId] = useState<string | null>(null);
-
-  const handleQuickExport = async (e: React.MouseEvent, item: ClassItem) => {
-    e.stopPropagation();
-    if (!googleAccessToken) {
-      showToast("Connecting Google Calendar...", "info");
-      const token = await connectGoogleCalendar();
-      if (!token) return;
-    }
-    setExportingId(item.id);
-    try {
-      const payload = buildGoogleCalendarEventFromClass(item, currentUser?.email);
-      await createGoogleCalendarEvent(googleAccessToken!, payload);
-      showToast(`Exported "${item.title}" to Google Calendar!`, "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to export class to Google Calendar.", "error");
-    } finally {
-      setExportingId(null);
-    }
-  };
 
   // Determine user context and enrolled class IDs
   const isLoggedIn = !!currentUser;

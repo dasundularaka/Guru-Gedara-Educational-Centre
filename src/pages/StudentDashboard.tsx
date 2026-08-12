@@ -17,7 +17,6 @@ import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
-import { GoogleCalendarIntegration } from '../components/GoogleCalendarIntegration';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -61,7 +60,7 @@ export const StudentDashboard: React.FC = () => {
     executeWriteWithRetry
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'google_calendar' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
@@ -493,7 +492,6 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                   {[
                     { id: 'schedule', label: 'Calendar & Timetable', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
-                    { id: 'google_calendar', label: 'Google Calendar Sync', icon: <Calendar className="w-4 h-4 text-emerald-500" /> },
                     { id: 'classes', label: 'Classes & Enrolled Ledger', icon: <BookOpen className="w-4 h-4 text-blue-500" /> },
                     { id: 'payments', label: 'Payment History', icon: <FileText className="w-4 h-4 text-emerald-500" /> },
                     { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" /> },
@@ -549,25 +547,12 @@ export const StudentDashboard: React.FC = () => {
               >
                 <UpcomingDeadlines />
 
-                <GoogleCalendarIntegration />
-
                 <ClassScheduleWidget />
 
                 <CalendarView 
                   userRole="student" 
                   userBookings={studentBookings} 
                 />
-              </motion.div>
-            )}
-
-            {/* Dedicated Google Calendar Tab */}
-            {activeSubTab === 'google_calendar' && (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <GoogleCalendarIntegration />
               </motion.div>
             )}
 
