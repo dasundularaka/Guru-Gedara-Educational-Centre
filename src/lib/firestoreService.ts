@@ -33,7 +33,10 @@ let isOriginalCloud = true;
 
 function getCircularReplacer() {
   const seen = new WeakSet();
-  return (_key: string, value: any) => {
+  return (key: string, value: any) => {
+    if (key === 'toJSON' || typeof value === 'function') {
+      return undefined;
+    }
     if (typeof value === 'object' && value !== null) {
       if (seen.has(value)) {
         return undefined;
@@ -51,18 +54,21 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
   if (type === 'number' || type === 'string' || type === 'boolean') return val;
   if (type === 'function' || type === 'symbol') return undefined;
 
-  if (depth > 8) return undefined;
+  if (depth > 6) return undefined;
 
   if (type === 'object') {
     if (seen.has(val)) return undefined;
     seen.add(val);
 
-    // Window, DOM node, or Event
+    // Window, DOM node, Event, or Element
     try {
       if (
         (typeof window !== 'undefined' && val === window) ||
         val.nodeType !== undefined ||
-        val.nativeEvent !== undefined
+        val.nativeEvent !== undefined ||
+        (typeof Element !== 'undefined' && val instanceof Element) ||
+        (typeof Event !== 'undefined' && val instanceof Event) ||
+        (typeof HTMLImageElement !== 'undefined' && val instanceof HTMLImageElement)
       ) {
         return undefined;
       }
@@ -81,7 +87,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
 
     // Check for Firebase/Firestore internal delegates or complex internal SDK properties
     try {
-      if (val._delegate || val._firestore || val._databaseId || val._query || val._key) {
+      if (val._delegate || val._firestore || val._databaseId || val._query || val._key || val.auth) {
         if (val.message && typeof val.message === 'string') return val.message;
         if (val.code && typeof val.code === 'string') return val.code;
         if (val.id && typeof val.id === 'string') return val.id;
@@ -97,7 +103,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
       const cName = val?.constructor?.name;
       if (cName && cName !== 'Object' && cName !== 'Array') {
         if (
-          cName.length <= 3 ||
+          cName.length <= 4 ||
           cName.startsWith('Y2') ||
           cName.startsWith('Ka') ||
           cName.includes('Firestore') ||
@@ -109,7 +115,8 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
           cName.includes('Reference') ||
           cName.includes('Query') ||
           cName.includes('Document') ||
-          cName.includes('Collection')
+          cName.includes('Collection') ||
+          cName.includes('User')
         ) {
           if (val.message && typeof val.message === 'string') return val.message;
           if (val.code && typeof val.code === 'string') return val.code;
@@ -134,7 +141,7 @@ function cleanObjectForSerialization(val: any, seen = new WeakSet(), depth = 0):
 
     const cleanObj: Record<string, any> = {};
     for (const key of Object.keys(val)) {
-      if (key.startsWith('$$') || key.startsWith('_v')) continue;
+      if (key.startsWith('$$') || key.startsWith('_v') || key === 'toJSON') continue;
       try {
         const item = cleanObjectForSerialization(val[key], seen, depth + 1);
         if (item !== undefined) {
@@ -163,8 +170,9 @@ export function safeStringify(obj: any): string {
     try {
       if (typeof obj === 'object') {
         if (Array.isArray(obj)) return '[]';
-        if (obj.message) return String(obj.message);
-        if (obj.name) return String(obj.name);
+        if (obj.message && typeof obj.message === 'string') return obj.message;
+        if (obj.name && typeof obj.name === 'string') return obj.name;
+        if (obj.id && typeof obj.id === 'string') return obj.id;
         return '{}';
       }
       return String(obj);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, BookOpen, AlertCircle, Plus, Check } from 'lucide-react';
-import { ClassItem, Booking, UserProfile } from '../types';
+import { Calendar, Clock, BookOpen, AlertCircle, Plus, Check, Users, ShieldCheck, Activity } from 'lucide-react';
+import { ClassItem, Booking, UserProfile, AttendanceRecord } from '../types';
 
 interface CalendarViewProps {
   userRole: 'student' | 'tutor' | 'admin';
@@ -8,6 +8,7 @@ interface CalendarViewProps {
   tutorClasses?: ClassItem[];
   tutorAvailability?: { day: string; slots: string[] }[];
   onAddAvailability?: (day: string, slot: string) => void;
+  attendanceRecords?: AttendanceRecord[];
 }
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -17,7 +18,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   userBookings = [], 
   tutorClasses = [],
   tutorAvailability = [],
-  onAddAvailability
+  onAddAvailability,
+  attendanceRecords = []
 }) => {
   const [selectedDay, setSelectedDay] = useState("Monday");
   const [newSlotTime, setNewSlotTime] = useState("04:00 PM");
@@ -103,19 +105,58 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               
               <div className="flex-1 space-y-2">
                 {/* Booked Events Render */}
-                {events.map((ev: any) => (
-                  <div 
-                    key={ev.id} 
-                    className="p-2 rounded-lg text-[11px] bg-blue-600 text-white font-sans shadow-sm leading-tight hover:scale-102 transition-transform"
-                  >
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <Clock className="w-2.5 h-2.5 flex-shrink-0" />
-                      <span className="font-mono font-medium">{ev.timeSlot || '9:00 AM'}</span>
+                {events.map((ev: any) => {
+                  const classId = ev.classId || ev.id;
+                  const classRecords = attendanceRecords.filter(r => r.classId === classId);
+                  const presentCount = classRecords.filter(r => r.status === 'Present').length;
+                  const totalRecorded = classRecords.length;
+                  const attendanceRate = totalRecorded > 0 ? Math.round((presentCount / totalRecorded) * 100) : null;
+
+                  return (
+                    <div 
+                      key={ev.id} 
+                      className="p-2 rounded-xl bg-blue-600 text-white font-sans shadow-sm leading-tight hover:scale-102 transition-transform space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5 flex-shrink-0" />
+                          <span className="font-mono font-medium text-[10px]">{ev.timeSlot || '9:00 AM'}</span>
+                        </div>
+                        {userRole === 'tutor' && attendanceRate !== null && (
+                          <span className={`text-[8.5px] font-mono font-extrabold px-1.5 py-0.2 rounded-full flex items-center gap-0.5 ${
+                            attendanceRate >= 85 
+                              ? 'bg-emerald-400/30 text-emerald-100 border border-emerald-300/40' 
+                              : attendanceRate >= 60 
+                              ? 'bg-amber-400/30 text-amber-100 border border-amber-300/40' 
+                              : 'bg-rose-400/30 text-rose-100 border border-rose-300/40'
+                          }`}>
+                            <Activity className="w-2 h-2" />
+                            {attendanceRate}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold truncate text-xs">{ev.classTitle || ev.title}</p>
+                      <div className="flex items-center justify-between text-[9px] opacity-90">
+                        <span className="truncate">Tutor: {ev.tutorName}</span>
+                        {ev.bookedSlots !== undefined && (
+                          <span className="font-mono">{ev.bookedSlots}/{ev.maxSlots} Seats</span>
+                        )}
+                      </div>
+
+                      {/* Visual Mini Progress Bar for Tutor */}
+                      {userRole === 'tutor' && attendanceRate !== null && (
+                        <div className="w-full bg-black/20 rounded-full h-1 overflow-hidden">
+                          <div 
+                            style={{ width: `${attendanceRate}%` }} 
+                            className={`h-full rounded-full ${
+                              attendanceRate >= 85 ? 'bg-emerald-300' : attendanceRate >= 60 ? 'bg-amber-300' : 'bg-rose-300'
+                            }`}
+                          />
+                        </div>
+                      )}
                     </div>
-                    <p className="font-bold truncate">{ev.classTitle || ev.title}</p>
-                    <p className="text-[9px] opacity-90 truncate">Tutor: {ev.tutorName}</p>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Tutor Availability Hours indicators */}
                 {userRole === 'tutor' && events.length === 0 && isTutorAvailable.length > 0 && (

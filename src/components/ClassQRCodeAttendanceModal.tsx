@@ -20,7 +20,7 @@ import {
   History
 } from 'lucide-react';
 import { ClassItem, Booking, AttendanceRecord, UserProfile } from '../types';
-import { firestoreService } from '../lib/firestoreService';
+import { firestoreService, safeStringify } from '../lib/firestoreService';
 import { sendAttendanceNotifications } from '../lib/attendanceNotification';
 import { validateQRAttendanceWindow, getActiveExtraClassSession } from '../lib/classScheduleUtils';
 import { AttendanceScanHistory } from './AttendanceScanHistory';
@@ -109,7 +109,7 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
 
   // Construct Dynamic Payload
   const activeClass = tutorClasses.find(c => c.id === selectedClassId);
-  const payloadData = JSON.stringify({
+  const payloadData = safeStringify({
     type: 'CLASS_ATTENDANCE_PASS',
     classId: selectedClassId,
     classTitle: activeClass?.title || 'Class Session',
@@ -703,7 +703,7 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
                       {/* Instant Demo Pass Button */}
                       <button
                         onClick={() => {
-                          const demoPayload = JSON.stringify({
+                          const demoPayload = safeStringify({
                             classId: selectedClassId || 'demo_math',
                             classTitle: activeClass?.title || 'AP Calculus AB',
                             tutorId: 'tutor_jenkins',
@@ -722,7 +722,7 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
                       <div className="flex items-center gap-3">
                         <div id="class_attendance_qr_box" className="p-2 bg-white rounded-xl shadow-xs border border-slate-200 shrink-0 relative">
                           <QRCodeSVG
-                            value={JSON.stringify({ studentId: currentUser.uid, studentName: currentUser.name, date: selectedDate })}
+                            value={safeStringify({ studentId: currentUser.uid, studentName: currentUser.name, date: selectedDate })}
                             size={64}
                             level="M"
                           />

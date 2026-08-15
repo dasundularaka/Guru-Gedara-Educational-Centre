@@ -25,7 +25,9 @@ import {
   BarChart2,
   QrCode,
   BellRing,
-  Send
+  Send,
+  Activity,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -37,6 +39,7 @@ import {
   ResponsiveContainer, 
   Cell 
 } from 'recharts';
+import { AttendanceHealthProgressBar } from './AttendanceHealthProgressBar';
 
 interface TutorAttendanceTrackerProps {
   tutorClasses: ClassItem[];
@@ -128,6 +131,53 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
       avgRate
     };
   }, [activeBookings, attendanceRecords, selectedDate]);
+
+  // Session-by-session health breakdown for the chosen date
+  const sessionsAttendanceHealth = useMemo(() => {
+    return tutorClasses.map(c => {
+      const classBookings = activeBookings.filter(b => b.classId === c.id);
+      const totalEnrolled = classBookings.length;
+      const sessionRecords = attendanceRecords.filter(r => r.classId === c.id && r.date === selectedDate);
+      const presentCount = sessionRecords.filter(r => r.status === 'Present').length;
+      const absentCount = sessionRecords.filter(r => r.status === 'Absent').length;
+      const unmarkedCount = Math.max(0, totalEnrolled - presentCount - absentCount);
+      const rate = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
+
+      return {
+        classItem: c,
+        totalEnrolled,
+        presentCount,
+        absentCount,
+        unmarkedCount,
+        rate
+      };
+    });
+  }, [tutorClasses, activeBookings, attendanceRecords, selectedDate]);
+
+  // Current view stats for the active filter selection
+  const currentViewSessionStats = useMemo(() => {
+    const presentCount = displayedBookings.filter(b => {
+      const r = attendanceRecords.find(rec => rec.id === `${b.classId}_${b.studentId || b.id}_${selectedDate}`);
+      return r?.status === 'Present';
+    }).length;
+
+    const absentCount = displayedBookings.filter(b => {
+      const r = attendanceRecords.find(rec => rec.id === `${b.classId}_${b.studentId || b.id}_${selectedDate}`);
+      return r?.status === 'Absent';
+    }).length;
+
+    const totalCount = displayedBookings.length;
+    const unmarkedCount = Math.max(0, totalCount - presentCount - absentCount);
+    const presentPercent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+
+    return {
+      presentCount,
+      absentCount,
+      unmarkedCount,
+      totalCount,
+      presentPercent
+    };
+  }, [displayedBookings, attendanceRecords, selectedDate]);
 
   // Mark single student attendance
   const handleMarkStatus = async (booking: Booking, status: 'Present' | 'Absent') => {
@@ -235,41 +285,138 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wider">Present Today ({selectedDate})</p>
-            <p className="text-2xl font-black text-emerald-600 mt-1">{stats.presentToday}</p>
-            <p className="text-[10px] text-slate-400 font-medium mt-1">Confirmed in attendance registry</p>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wider">Present Today ({selectedDate})</p>
+              <p className="text-2xl font-black text-emerald-600 mt-1">{stats.presentToday}</p>
+              <p className="text-[10px] text-slate-400 font-medium mt-1">Confirmed in attendance registry</p>
+            </div>
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+              <UserCheck className="w-6 h-6" />
+            </div>
           </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
-            <UserCheck className="w-6 h-6" />
-          </div>
+          {stats.totalStudents > 0 && (
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+              <div 
+                style={{ width: `${Math.min(100, Math.round((stats.presentToday / stats.totalStudents) * 100))}%` }} 
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+              />
+            </div>
+          )}
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wider">Absent Today</p>
-            <p className="text-2xl font-black text-rose-500 mt-1">{stats.absentToday}</p>
-            <p className="text-[10px] text-slate-400 font-medium mt-1">Marked absent or pending</p>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wider">Absent Today</p>
+              <p className="text-2xl font-black text-rose-500 mt-1">{stats.absentToday}</p>
+              <p className="text-[10px] text-slate-400 font-medium mt-1">Marked absent or pending</p>
+            </div>
+            <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl">
+              <UserX className="w-6 h-6" />
+            </div>
           </div>
-          <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl">
-            <UserX className="w-6 h-6" />
-          </div>
+          {stats.totalStudents > 0 && (
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+              <div 
+                style={{ width: `${Math.min(100, Math.round((stats.absentToday / stats.totalStudents) * 100))}%` }} 
+                className="bg-rose-500 h-full rounded-full transition-all duration-500" 
+              />
+            </div>
+          )}
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wider">Avg Engagement Rate</p>
-            <p className="text-2xl font-black text-indigo-650 mt-1">{stats.avgRate}%</p>
-            <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" /> High engagement standing
-            </p>
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wider">Avg Engagement Rate</p>
+              <p className="text-2xl font-black text-indigo-650 mt-1">{stats.avgRate}%</p>
+              <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" /> High engagement standing
+              </p>
+            </div>
+            <div className="p-3 bg-indigo-50 text-indigo-650 rounded-2xl">
+              <Award className="w-6 h-6" />
+            </div>
           </div>
-          <div className="p-3 bg-indigo-50 text-indigo-650 rounded-2xl">
-            <Award className="w-6 h-6" />
+          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
+            <div 
+              style={{ width: `${stats.avgRate}%` }} 
+              className={`h-full rounded-full transition-all duration-500 ${
+                stats.avgRate >= 85 ? 'bg-indigo-600' : stats.avgRate >= 70 ? 'bg-sky-500' : 'bg-rose-500'
+              }`} 
+            />
           </div>
         </div>
       </div>
+
+      {/* Session Attendance Health & Progress Matrix Section */}
+      {tutorClasses.length > 0 && (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-4" id="session_attendance_health_matrix">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-sm font-black text-slate-900 tracking-tight">
+                  Session Attendance Health & Progress Overview ({selectedDate})
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Real-time percentage of students marked present for each session on this date.
+              </p>
+            </div>
+            <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+              {sessionsAttendanceHealth.filter(s => s.rate >= 80).length} of {sessionsAttendanceHealth.length} Sessions Healthy
+            </span>
+          </div>
+
+          {/* Grid of Session Attendance Health Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sessionsAttendanceHealth.map((session) => (
+              <div 
+                key={session.classItem.id} 
+                onClick={() => setSelectedClassId(session.classItem.id)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md ${
+                  selectedClassId === session.classItem.id 
+                    ? 'border-indigo-500 bg-indigo-50/20 ring-2 ring-indigo-200' 
+                    : 'border-slate-100 bg-slate-50/40 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[9px] font-bold font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase">
+                    {session.classItem.subject}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {session.classItem.dayOfWeek} • {session.classItem.timeSlot || 'Day Session'}
+                  </span>
+                </div>
+
+                <h4 className="font-extrabold text-slate-900 text-xs truncate mb-3" title={session.classItem.title}>
+                  {session.classItem.title}
+                </h4>
+
+                {/* Progress bar visualizer */}
+                <AttendanceHealthProgressBar
+                  presentCount={session.presentCount}
+                  absentCount={session.absentCount}
+                  unmarkedCount={session.unmarkedCount}
+                  totalCount={session.totalEnrolled}
+                  size="sm"
+                  compact
+                  label="Present Rate"
+                />
+
+                <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-3 pt-2.5 border-t border-slate-100">
+                  <span>Enrolled: <b>{session.totalEnrolled}</b></span>
+                  <span>Present: <b className="text-emerald-600">{session.presentCount}</b></span>
+                  <span>Absent: <b className="text-rose-500">{session.absentCount}</b></span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Class Engagement Recharts Bar Chart */}
       {tutorClasses.length > 0 && (
@@ -277,12 +424,12 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
             <div>
               <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-indigo-650" /> Engagement & Attendance by Registered Class
+                <BarChart2 className="w-4 h-4 text-indigo-650" /> Long-Term Engagement & Attendance by Registered Class
               </h3>
               <p className="text-[11px] text-slate-400">Comparing average attendance rates across all your registered teaching courses.</p>
             </div>
             <span className="text-[10px] font-mono font-bold text-indigo-650 bg-indigo-50 px-2.5 py-1 rounded-lg">
-              Recharts Visualizer
+              Historical Visualizer
             </span>
           </div>
 
@@ -375,6 +522,16 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Dynamic Visual Progress Indicator for Current Session Attendance Health */}
+        <AttendanceHealthProgressBar
+          presentCount={currentViewSessionStats.presentCount}
+          absentCount={currentViewSessionStats.absentCount}
+          unmarkedCount={currentViewSessionStats.unmarkedCount}
+          totalCount={currentViewSessionStats.totalCount}
+          label={selectedClassId === 'all' ? `All Classes Attendance Health (${selectedDate})` : `${tutorClasses.find(c => c.id === selectedClassId)?.title || 'Class'} Session Attendance Health`}
+          sessionDate={selectedDate}
+        />
 
         {/* Bulk Action Controls Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 text-xs">

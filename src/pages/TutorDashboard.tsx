@@ -61,6 +61,7 @@ import {
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
 import { TutorProfileModal } from '../components/TutorProfileModal';
+import { AttendanceHealthProgressBar } from '../components/AttendanceHealthProgressBar';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -1034,6 +1035,7 @@ export const TutorDashboard: React.FC = () => {
                     tutorClasses={tutorClasses}
                     tutorAvailability={tutorAvailability}
                     onAddAvailability={handleAddAvailability}
+                    attendanceRecords={attendanceRecords}
                   />
                 </div>
 
@@ -1097,6 +1099,29 @@ export const TutorDashboard: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Visual Progress Indicator for Session Attendance Health */}
+                    {widgetClassId && (
+                      <div className="border-t border-slate-50 pt-3">
+                        {(() => {
+                          const enrolled = bookings.filter(b => b.classId === widgetClassId && b.status === "active");
+                          const present = enrolled.filter(b => attendanceRecords.find(r => r.id === `${widgetClassId}_${b.studentId || b.id}_${widgetDate}`)?.status === 'Present').length;
+                          const absent = enrolled.filter(b => attendanceRecords.find(r => r.id === `${widgetClassId}_${b.studentId || b.id}_${widgetDate}`)?.status === 'Absent').length;
+                          const selectedClass = tutorClasses.find(c => c.id === widgetClassId);
+                          
+                          return (
+                            <AttendanceHealthProgressBar
+                              presentCount={present}
+                              absentCount={absent}
+                              totalCount={enrolled.length}
+                              sessionTitle={selectedClass?.title}
+                              sessionDate={widgetDate}
+                              label="Session Attendance Health"
+                            />
+                          );
+                        })()}
+                      </div>
+                    )}
 
                     {/* Enrolled Students & Checklist Section */}
                     <div className="border-t border-slate-50 pt-4 space-y-3">
@@ -1246,6 +1271,29 @@ export const TutorDashboard: React.FC = () => {
                               </button>
                             </div>
                             <h4 className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors leading-tight block pt-0.5">{item.title}</h4>
+                            
+                            {/* Attendance Progress Indicator */}
+                            {(() => {
+                              const classBookings = bookings.filter(b => b.classId === item.id && b.status === 'active');
+                              const classRecords = attendanceRecords.filter(r => r.classId === item.id);
+                              const present = classRecords.filter(r => r.status === 'Present').length;
+                              const absent = classRecords.filter(r => r.status === 'Absent').length;
+                              const totalExpected = Math.max(classBookings.length, classRecords.length);
+
+                              return (
+                                <div className="pt-1">
+                                  <AttendanceHealthProgressBar
+                                    compact
+                                    size="sm"
+                                    presentCount={present}
+                                    absentCount={absent}
+                                    totalCount={totalExpected}
+                                    label="Attendance"
+                                  />
+                                </div>
+                              );
+                            })()}
+
                             <div className="flex justify-between items-center text-[10px] text-gray-500 mt-2 font-mono">
                               <span>Seats: {item.bookedSlots}/{item.maxSlots}</span>
                               <span>Cost: LKR {item.price}/Mo</span>
