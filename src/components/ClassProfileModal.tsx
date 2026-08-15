@@ -27,10 +27,16 @@ import {
   History,
   CheckSquare,
   Square,
-  Lock
+  Lock,
+  Timer,
+  AlertTriangle,
+  Sliders,
+  Save
 } from 'lucide-react';
 import { ClassItem, Booking, UserProfile, Payment, StudyMaterial, AttendanceRecord, ResourceType } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { calculateStudentPunctuality } from '../lib/punctualityUtils';
+import { StudentProfileModal } from './StudentProfileModal';
 
 interface ClassProfileModalProps {
   isOpen: boolean;
@@ -76,6 +82,45 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const [newUrl, setNewUrl] = useState('');
   const [newType, setNewType] = useState<ResourceType>('link');
   const [savingMaterial, setSavingMaterial] = useState(false);
+
+  // Grace Period Configuration State
+  const [gracePeriod, setGracePeriod] = useState<number>(classItem?.gracePeriod ?? 5);
+  const [showGraceConfig, setShowGraceConfig] = useState<boolean>(false);
+  const [savingGrace, setSavingGrace] = useState<boolean>(false);
+
+  // Student Profile Inspection Modal
+  const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (classItem) {
+      setGracePeriod(classItem.gracePeriod !== undefined ? classItem.gracePeriod : 5);
+    }
+  }, [classItem?.id, classItem?.gracePeriod]);
+
+  const handleSaveGracePeriod = async (newGrace: number) => {
+    if (!classItem) return;
+    setSavingGrace(true);
+    try {
+      await firestoreService.updateClass(classItem.id, {
+        gracePeriod: Number(newGrace)
+      });
+      setGracePeriod(Number(newGrace));
+      showToast(`Grace period updated to ${newGrace} minutes for '${classItem.title}'!`, 'success');
+      
+      await firestoreService.addAuditLog({
+        username: currentUser.name || currentUser.username || 'Tutor',
+        action: 'CLASS_GRACE_PERIOD_UPDATED',
+        details: `Updated attendance grace period to ${newGrace} mins for class ${classItem.title} (${classItem.id})`
+      });
+
+      if (onUpdateData) onUpdateData();
+      setShowGraceConfig(false);
+    } catch (err) {
+      showToast('Failed to update grace period.', 'error');
+    } finally {
+      setSavingGrace(false);
+    }
+  };
 
   // Clear bulk selections whenever class or search changes
   useEffect(() => {
@@ -409,9 +454,9 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Modal Navigation Tabs */}
-          <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex items-center justify-between gap-2 overflow-x-auto">
-            <div className="flex gap-2 text-xs font-bold">
+          {/* Modal Navigation Tabs & Controls */}
+          <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex items-center justify-between gap-3 overflow-x-auto shrink-0">
+            <div className="flex gap-2 text-xs font-bold shrink-0">
               <button
                 onClick={() => setActiveTab('roster')}
                 className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
@@ -446,7 +491,76 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                 <History className="w-4 h-4" /> Attendance Logs ({classAttendanceLogs.length})
               </button>
             </div>
+
+            {/* Right side of Nav Bar: Grace Period Configuration Trigger for Tutors/Admins */}
+            {isTutorOrAdmin && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setShowGraceConfig(!showGraceConfig)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
+                    showGraceConfig 
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 font-extrabold' 
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                  }`}
+                  id="btn_toggle_grace_period_config"
+                  title="Configure class attendance grace period"
+                >
+                  <Timer className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Grace Period: <b>{gracePeriod} min</b></span>
+                  <Sliders className="w-3 h-3 text-slate-400" />
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Grace Period Configuration Banner Drawer */}
+          {showGraceConfig && isTutorOrAdmin && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-amber-50 border-b border-amber-200 p-4 shrink-0"
+              id="panel_grace_period_configuration"
+            >
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-amber-200 rounded-lg text-amber-800">
+                      <Timer className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-xs font-black text-amber-950">
+                      Attendance Grace Period Setting
+                    </h4>
+                    <span className="text-[10px] font-mono font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
+                      Active: {gracePeriod} Minutes
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed max-w-xl">
+                    Define the arrival grace window. Students who check in / scan after <strong>class start time + {gracePeriod} minutes</strong> will be automatically marked as <strong>'Late'</strong> instead of 'On Time' and receive a Late alert.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-amber-900">Set Window:</span>
+                  {[0, 5, 10, 15, 20, 30].map(mins => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => handleSaveGracePeriod(mins)}
+                      disabled={savingGrace}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer shadow-2xs ${
+                        gracePeriod === mins
+                          ? 'bg-amber-600 text-white ring-2 ring-amber-400'
+                          : 'bg-white hover:bg-amber-100 text-amber-950 border border-amber-300'
+                      }`}
+                    >
+                      {mins}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* Modal Tab Content Body */}
           <div className="p-6 overflow-y-auto flex-1 space-y-6">
@@ -564,9 +678,30 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {filteredStudents.map(({ studentId, studentName, photoURL, email, classStatus, paymentCategory, lastPaymentMonth }) => {
+                    {filteredStudents.map(({ studentId, studentName, photoURL, email, classStatus, paymentCategory, lastPaymentMonth, user }) => {
                       const isSuspended = classStatus === 'suspended';
                       const isSelected = selectedStudentIds.includes(studentId);
+
+                      // Calculate punctuality metrics for this student
+                      const studentPunctuality = calculateStudentPunctuality(
+                        studentId,
+                        attendanceRecords,
+                        [classItem]
+                      );
+
+                      const handleOpenProfile = () => {
+                        const targetUser: UserProfile = user || {
+                          uid: studentId,
+                          name: studentName,
+                          email: email !== 'N/A' ? email : '',
+                          role: 'student',
+                          photoURL: photoURL,
+                          status: isSuspended ? 'suspended' : 'active',
+                          classEnrollmentStatus: { [classItem.id]: classStatus as any },
+                          createdAt: new Date().toISOString()
+                        };
+                        setSelectedStudentForProfile(targetUser);
+                      };
 
                       return (
                         <div 
@@ -601,24 +736,49 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                                   referrerPolicy="no-referrer"
                                   src={photoURL} 
                                   alt={studentName} 
-                                  className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                                  onClick={handleOpenProfile}
+                                  className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all"
+                                  title="Click to view student profile"
                                 />
                               ) : (
-                                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-extrabold flex items-center justify-center text-sm shrink-0">
+                                <div 
+                                  onClick={handleOpenProfile}
+                                  className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-extrabold flex items-center justify-center text-sm shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-all"
+                                  title="Click to view student profile"
+                                >
                                   {studentName.charAt(0).toUpperCase()}
                                 </div>
                               )}
                               <div>
-                                <h4 className="text-xs font-extrabold text-slate-900 leading-tight">
-                                  {studentName}
-                                </h4>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 
+                                    onClick={handleOpenProfile}
+                                    className="text-xs font-extrabold text-slate-900 leading-tight hover:text-indigo-600 cursor-pointer transition-colors"
+                                  >
+                                    {studentName}
+                                  </h4>
+
+                                  {/* LATE ARRIVAL BADGE */}
+                                  {studentPunctuality.isConsistentlyLate && (
+                                    <span 
+                                      onClick={handleOpenProfile}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-950 shadow-2xs border border-amber-300 cursor-pointer hover:bg-amber-400"
+                                      title={studentPunctuality.badgeDescription}
+                                      id={`badge_roster_late_${studentId}`}
+                                    >
+                                      <AlertTriangle className="w-2.5 h-2.5 fill-slate-950 text-amber-500" />
+                                      Late Arrival ({studentPunctuality.lateRate}%)
+                                    </span>
+                                  )}
+                                </div>
+
                                 <p className="text-[11px] text-slate-500 truncate max-w-[160px]">{email}</p>
                                 <p className="text-[10px] font-mono text-slate-400">UID: {studentId}</p>
                               </div>
                             </div>
 
                             {/* Class Status Badge */}
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase font-mono ${
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase font-mono shrink-0 ${
                               isSuspended ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             }`}>
                               {isSuspended ? 'Suspended' : 'Active'}
@@ -643,27 +803,39 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Admin / Tutor Single Status Toggle Control */}
-                          {isTutorOrAdmin && (
+                          {/* Action Buttons: Inspect Profile & Single Status Toggle Control */}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
                             <button
-                              onClick={() => handleToggleStudentStatus(studentId, classStatus, studentName)}
-                              className={`w-full py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                                isSuspended 
-                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs' 
-                                  : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
-                              }`}
+                              type="button"
+                              onClick={handleOpenProfile}
+                              className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                              id={`btn_inspect_student_${studentId}`}
                             >
-                              {isSuspended ? (
-                                <>
-                                  <UserCheck className="w-3.5 h-3.5" /> Reactivate Student Enrollment
-                                </>
-                              ) : (
-                                <>
-                                  <UserX className="w-3.5 h-3.5" /> Suspend Student from Class
-                                </>
-                              )}
+                              <FileText className="w-3.5 h-3.5" /> View Profile
                             </button>
-                          )}
+
+                            {isTutorOrAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStudentStatus(studentId, classStatus, studentName)}
+                                className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                  isSuspended 
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs' 
+                                    : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                                }`}
+                              >
+                                {isSuspended ? (
+                                  <>
+                                    <UserCheck className="w-3.5 h-3.5" /> Reactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserX className="w-3.5 h-3.5" /> Suspend
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -922,6 +1094,20 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
           </div>
         </motion.div>
       </div>
+
+      {/* Student Profile Modal for Tutors/Admins */}
+      {selectedStudentForProfile && (
+        <StudentProfileModal
+          isOpen={!!selectedStudentForProfile}
+          onClose={() => setSelectedStudentForProfile(null)}
+          student={selectedStudentForProfile}
+          currentUser={currentUser}
+          classes={[classItem]}
+          attendanceRecords={attendanceRecords}
+          bookings={bookings}
+          showToast={showToast}
+        />
+      )}
     </AnimatePresence>
   );
 };

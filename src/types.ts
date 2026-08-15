@@ -75,6 +75,7 @@ export interface ClassItem {
   tags?: string[];
   imageUrl?: string;
   isFeatured?: boolean;
+  gracePeriod?: number; // Grace period in minutes before attendance is flagged as Late (e.g. 5, 10, 15)
 }
 
 export interface Booking {
@@ -169,6 +170,9 @@ export interface AttendanceRecord {
   isExtraClass?: boolean;
   extraClassTimeSlot?: string;
   notes?: string;
+  isLate?: boolean;
+  delayMinutes?: number;
+  gracePeriodApplied?: number;
 }
 
 export type ResourceType = 'announcement' | 'link' | 'image' | 'video' | 'file' | 'note' | 'quiz';

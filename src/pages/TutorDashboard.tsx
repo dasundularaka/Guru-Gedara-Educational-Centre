@@ -56,12 +56,15 @@ import {
   Clock,
   Briefcase,
   Award,
-  Eye
+  Eye,
+  Timer
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
 import { TutorProfileModal } from '../components/TutorProfileModal';
 import { AttendanceHealthProgressBar } from '../components/AttendanceHealthProgressBar';
+import { StudentProfileModal } from '../components/StudentProfileModal';
+import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -148,9 +151,11 @@ export const TutorDashboard: React.FC = () => {
   const [newTime, setNewTime] = useState("10:00 AM");
   const [newPrice, setNewPrice] = useState("80");
   const [newLimit, setNewLimit] = useState("15");
+  const [newGracePeriod, setNewGracePeriod] = useState("5");
   const [newDesc, setNewDesc] = useState("");
   const [newImageUrl, setNewImageUrl] = useState("");
   const [generatingBanner, setGeneratingBanner] = useState(false);
+  const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
 
   // Custom state-driven delete confirmation modal
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -548,6 +553,7 @@ export const TutorDashboard: React.FC = () => {
     setNewTime(c.timeSlot);
     setNewPrice(String(c.price));
     setNewLimit(String(c.maxSlots));
+    setNewGracePeriod(String(c.gracePeriod !== undefined ? c.gracePeriod : 5));
     setNewDesc(c.description);
     setNewImageUrl(c.imageUrl || "");
     setShowAddClass(true);
@@ -758,7 +764,8 @@ export const TutorDashboard: React.FC = () => {
               price: Number(newPrice),
               description: newDesc,
               maxSlots: Number(newLimit),
-              imageUrl: newImageUrl
+              imageUrl: newImageUrl,
+              gracePeriod: parseInt(newGracePeriod, 10) || 5
             });
           },
           async () => {
@@ -793,7 +800,8 @@ export const TutorDashboard: React.FC = () => {
               maxSlots: Number(newLimit),
               bookedSlots: 0,
               tags: ["Interactive", newSubject],
-              imageUrl: newImageUrl
+              imageUrl: newImageUrl,
+              gracePeriod: parseInt(newGracePeriod, 10) || 5
             });
             createdId = item.id;
 
@@ -830,6 +838,7 @@ export const TutorDashboard: React.FC = () => {
       setNewDesc("");
       setNewPrice("80");
       setNewLimit("15");
+      setNewGracePeriod("5");
       setNewImageUrl("");
       setClassFormMode('create');
       setEditingClassId(null);
@@ -1342,21 +1351,70 @@ export const TutorDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {rosterBookings.map((b) => (
-                        <div 
-                          key={b.id} 
-                          className="p-4 border border-emerald-50 bg-emerald-50/10 rounded-2xl flex justify-between items-start transition-all hover:border-emerald-100"
-                        >
-                          <div>
-                            <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-emerald-600 bg-emerald-100/40 px-1.5 rounded">Intake Student</span>
-                            <h4 className="text-xs font-bold text-gray-900 mt-2 leading-tight">{b.studentName}</h4>
-                            <p className="text-[11px] text-gray-500 mt-1">Booked: <span className="font-semibold text-gray-700 truncate">{b.classTitle}</span></p>
-                            <p className="text-[10px] text-emerald-600 font-mono mt-1 font-semibold flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5" /> Booked Slot: {b.dayOfWeek} at {b.timeSlot}
-                            </p>
+                      {rosterBookings.map((b) => {
+                        const punctuality = calculateStudentPunctuality(
+                          b.studentId,
+                          attendanceRecords,
+                          tutorClasses
+                        );
+
+                        const handleOpenProfile = () => {
+                          const studentUser = allStudents.find(s => s.uid === b.studentId) || {
+                            uid: b.studentId,
+                            name: b.studentName,
+                            email: b.studentEmail || '',
+                            role: 'student',
+                            status: 'active',
+                            createdAt: new Date().toISOString()
+                          };
+                          setSelectedStudentForProfile(studentUser);
+                        };
+
+                        return (
+                          <div 
+                            key={b.id} 
+                            className="p-4 border border-slate-200 bg-white rounded-2xl flex justify-between items-start transition-all hover:border-indigo-300 hover:shadow-xs"
+                          >
+                            <div className="space-y-1.5 flex-1 pr-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-150">
+                                  Enrolled Scholar
+                                </span>
+                                {punctuality.isConsistentlyLate && (
+                                  <button
+                                    onClick={handleOpenProfile}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-950 shadow-2xs border border-amber-300 cursor-pointer hover:bg-amber-400 transition-colors"
+                                    title={punctuality.badgeDescription}
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5 fill-slate-950 text-amber-500" />
+                                    Late Arrival ({punctuality.lateRate}%)
+                                  </button>
+                                )}
+                              </div>
+                              <h4 
+                                onClick={handleOpenProfile}
+                                className="text-xs font-bold text-gray-900 leading-tight hover:text-indigo-600 cursor-pointer transition-colors"
+                              >
+                                {b.studentName}
+                              </h4>
+                              <p className="text-[11px] text-gray-500">
+                                Course: <span className="font-semibold text-gray-700 truncate">{b.classTitle}</span>
+                              </p>
+                              <p className="text-[10px] text-emerald-600 font-mono font-semibold flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" /> Booked Slot: {b.dayOfWeek} at {b.timeSlot}
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={handleOpenProfile}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-slate-200"
+                              title="Inspect full student profile & attendance history"
+                            >
+                              <FileText className="w-3 h-3" /> Profile
+                            </button>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2735,7 +2793,7 @@ export const TutorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">Course fees billing ($ / Mo):</label>
                   <input
@@ -2757,6 +2815,23 @@ export const TutorDashboard: React.FC = () => {
                     placeholder="15"
                     className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-amber-900 mb-1.5 flex items-center gap-1">
+                    <Timer className="w-3.5 h-3.5 text-amber-600" /> Grace Window:
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={newGracePeriod}
+                    onChange={(e) => setNewGracePeriod(e.target.value)}
+                    placeholder="5"
+                    className="w-full text-xs px-3 py-2 border border-amber-300 bg-amber-50/50 rounded-xl outline-none focus:border-amber-500 font-mono font-bold"
+                    title="Grace period in minutes after scheduled start before marking Late Arrival"
+                  />
+                  <p className="text-[9px] text-amber-700 mt-0.5 font-sans">mins after start</p>
                 </div>
               </div>
 
@@ -3084,6 +3159,20 @@ export const TutorDashboard: React.FC = () => {
           isOpen={showSelfProfileModal}
           onClose={() => setShowSelfProfileModal(false)}
           reviews={[]}
+        />
+      )}
+
+      {/* Student Profile & Attendance History Inspector Modal */}
+      {selectedStudentForProfile && (
+        <StudentProfileModal
+          isOpen={!!selectedStudentForProfile}
+          onClose={() => setSelectedStudentForProfile(null)}
+          student={selectedStudentForProfile}
+          currentUser={currentUser}
+          classes={tutorClasses}
+          attendanceRecords={attendanceRecords}
+          bookings={rosterBookings.length > 0 ? rosterBookings : bookings}
+          showToast={showToast}
         />
       )}
     </motion.div>

@@ -18,16 +18,18 @@ import {
   TrendingUp, 
   Award, 
   AlertCircle, 
-  Sparkles,
-  Filter,
-  CheckSquare,
-  Users,
-  BarChart2,
-  QrCode,
-  BellRing,
-  Send,
-  Activity,
-  ShieldCheck
+  Sparkles, 
+  Filter, 
+  CheckSquare, 
+  Users, 
+  BarChart2, 
+  QrCode, 
+  BellRing, 
+  Send, 
+  Activity, 
+  ShieldCheck,
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -40,6 +42,8 @@ import {
   Cell 
 } from 'recharts';
 import { AttendanceHealthProgressBar } from './AttendanceHealthProgressBar';
+import { StudentProfileModal } from './StudentProfileModal';
+import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 
 interface TutorAttendanceTrackerProps {
   tutorClasses: ClassItem[];
@@ -66,6 +70,7 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
   const [savingStatus, setSavingStatus] = useState<Record<string, boolean>>({});
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
+  const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
 
   // Active bookings for this tutor
   const activeBookings = useMemo(() => {
@@ -591,17 +596,59 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
                     const currentRecord = attendanceRecords.find(r => r.id === recordId);
                     const isSaving = savingStatus[recordId];
 
+                    // Calculate student punctuality
+                    const punctuality = calculateStudentPunctuality(
+                      b.studentId,
+                      attendanceRecords,
+                      tutorClasses
+                    );
+
+                    const handleOpenStudentProfile = () => {
+                      const studentObj: UserProfile = {
+                        uid: b.studentId,
+                        name: b.studentName,
+                        email: '',
+                        role: 'student',
+                        status: 'active',
+                        createdAt: new Date().toISOString()
+                      };
+                      setSelectedStudentForProfile(studentObj);
+                    };
+
                     return (
                       <tr key={b.id} className="hover:bg-slate-50/60 transition-colors">
                         
                         {/* Student Name & Avatar */}
                         <td className="py-3.5 px-4 font-bold text-slate-900">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-extrabold text-xs">
+                            <div 
+                              onClick={handleOpenStudentProfile}
+                              className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 flex items-center justify-center font-extrabold text-xs shrink-0 cursor-pointer transition-colors"
+                              title="Click to view student profile"
+                            >
                               {b.studentName.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <span>{b.studentName}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span 
+                                  onClick={handleOpenStudentProfile}
+                                  className="hover:text-indigo-650 cursor-pointer transition-colors"
+                                >
+                                  {b.studentName}
+                                </span>
+
+                                {/* LATE ARRIVAL BADGE */}
+                                {punctuality.isConsistentlyLate && (
+                                  <span 
+                                    onClick={handleOpenStudentProfile}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500 text-slate-950 shadow-2xs border border-amber-300 cursor-pointer hover:bg-amber-400"
+                                    title={punctuality.badgeDescription}
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5 fill-slate-950 text-amber-500" />
+                                    Late Arrival ({punctuality.lateRate}%)
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-slate-400 font-mono font-normal">Slot: {b.dayOfWeek} @ {b.timeSlot}</p>
                             </div>
                           </div>
@@ -748,6 +795,20 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
         onAttendanceMarked={onAttendanceUpdated}
         showToast={showToast}
       />
+
+      {/* Student Profile & Late Arrival Inspection Modal */}
+      {selectedStudentForProfile && (
+        <StudentProfileModal
+          isOpen={!!selectedStudentForProfile}
+          onClose={() => setSelectedStudentForProfile(null)}
+          student={selectedStudentForProfile}
+          currentUser={currentUser || { uid: 'tutor', role: 'tutor', name: 'Instructor', email: 'tutor@school.edu', createdAt: '' }}
+          classes={tutorClasses}
+          attendanceRecords={attendanceRecords}
+          bookings={bookings}
+          showToast={showToast}
+        />
+      )}
 
     </div>
   );

@@ -43,7 +43,8 @@
         "bookedSlots": { "type": "number" },
         "tags": { "type": "array" },
         "imageUrl": { "type": "string" },
-        "isFeatured": { "type": "boolean" }
+        "isFeatured": { "type": "boolean" },
+        "gracePeriod": { "type": "number" }
       },
       "required": ["id", "title", "subject", "tutorId", "tutorName", "schedule", "price", "description"]
     },
@@ -145,7 +146,10 @@
         "date": { "type": "string" },
         "status": { "type": "string", "enum": ["Present", "Absent"] },
         "markedAt": { "type": "string" },
-        "tutorId": { "type": "string" }
+        "tutorId": { "type": "string" },
+        "isLate": { "type": "boolean" },
+        "delayMinutes": { "type": "number" },
+        "gracePeriodApplied": { "type": "number" }
       },
       "required": ["id", "classId", "classTitle", "studentId", "studentName", "date", "status", "markedAt", "tutorId"]
     }

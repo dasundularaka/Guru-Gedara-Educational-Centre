@@ -11,6 +11,15 @@ export interface AttendanceNotificationResult {
   notificationMessage: string;
 }
 
+export interface PunctualityCalculationResult {
+  statusText: string;
+  isLate: boolean;
+  delayMinutes: number;
+  gracePeriodApplied: number;
+  markedTimeFormatted: string;
+  classTimesFormatted: string;
+}
+
 export function parseClassScheduleTimes(scheduleStr?: string): { startTimeStr: string; endTimeStr: string } {
   let startTimeStr = "09:00 AM";
   let endTimeStr = "11:00 AM";
@@ -30,23 +39,31 @@ export function parseClassScheduleTimes(scheduleStr?: string): { startTimeStr: s
 export function calculatePunctualityStatus(
   scheduleStr: string | undefined,
   markedAtIso: string,
-  recordStatus: 'Present' | 'Absent' | string
-): { statusText: string; markedTimeFormatted: string; classTimesFormatted: string } {
+  recordStatus: 'Present' | 'Absent' | string,
+  gracePeriodMinutes?: number
+): PunctualityCalculationResult {
   const markedDate = new Date(markedAtIso);
   const markedTimeFormatted = markedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const { startTimeStr, endTimeStr } = parseClassScheduleTimes(scheduleStr);
   const classTimesFormatted = `${startTimeStr} - ${endTimeStr}`;
+  const effectiveGrace = typeof gracePeriodMinutes === 'number' ? gracePeriodMinutes : 5;
 
   if (recordStatus === 'Absent') {
     return {
       statusText: 'Absent',
+      isLate: false,
+      delayMinutes: 0,
+      gracePeriodApplied: effectiveGrace,
       markedTimeFormatted,
       classTimesFormatted
     };
   }
 
   let statusText = 'On Time';
+  let isLate = false;
+  let delayMinutes = 0;
+
   try {
     const timeMatch = startTimeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
     if (timeMatch) {
@@ -62,19 +79,26 @@ export function calculatePunctualityStatus(
 
       const diffMs = markedDate.getTime() - classStart.getTime();
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      delayMinutes = Math.max(0, diffMinutes);
 
-      if (diffMinutes > 5) {
-        statusText = `Late (Late by ${diffMinutes} minutes)`;
+      if (diffMinutes > effectiveGrace) {
+        isLate = true;
+        statusText = `Late (by ${diffMinutes} min • Grace ${effectiveGrace}m exceeded)`;
       } else {
+        isLate = false;
         statusText = 'On Time';
       }
     }
   } catch (e) {
     statusText = 'On Time';
+    isLate = false;
   }
 
   return {
     statusText,
+    isLate,
+    delayMinutes,
+    gracePeriodApplied: effectiveGrace,
     markedTimeFormatted,
     classTimesFormatted
   };
@@ -85,25 +109,32 @@ export async function sendAttendanceNotifications(
   classItem: ClassItem,
   studentUser: UserProfile | undefined | null,
   senderUser?: UserProfile
-): Promise<AttendanceNotificationResult> {
+): Promise<AttendanceNotificationResult & { isLate: boolean; delayMinutes: number }> {
   const rawName = studentUser?.name || record.studentName || 'Student';
   const firstName = rawName.trim().split(' ')[0] || 'Student';
   const username = studentUser?.username || studentUser?.uid || record.studentId || 'N/A';
   const studentFullIdentifier = `${firstName} (${username})`;
 
-  const { statusText, markedTimeFormatted, classTimesFormatted } = calculatePunctualityStatus(
+  const effectiveGrace = classItem.gracePeriod !== undefined ? classItem.gracePeriod : 5;
+
+  const { statusText, isLate, delayMinutes, markedTimeFormatted, classTimesFormatted } = calculatePunctualityStatus(
     classItem.schedule,
     record.markedAt || new Date().toISOString(),
-    record.status
+    record.status,
+    effectiveGrace
   );
 
-  const notificationTitle = `Class Attendance Alert: ${classItem.title}`;
+  const notificationTitle = isLate 
+    ? `⚠️ Late Attendance Notice: ${classItem.title}`
+    : `✅ Class Attendance Marked: ${classItem.title}`;
+  
   const notificationMessage = `📌 Class Attendance Notification
-Class Name: ${classItem.title}
+Class: ${classItem.title}
 Student: ${studentFullIdentifier}
 Status: ${statusText}
-Marked Time: ${markedTimeFormatted}
-Class Schedule: ${classTimesFormatted}`;
+Check-in Time: ${markedTimeFormatted}
+Class Schedule: ${classTimesFormatted}
+Configured Grace Period: ${effectiveGrace} minutes`;
 
   const studentUid = studentUser?.uid || record.studentId;
 
@@ -120,7 +151,7 @@ Class Schedule: ${classTimesFormatted}`;
         studentUid,
         notificationTitle,
         notificationMessage,
-        'announcement'
+        isLate ? 'reminder' : 'announcement'
       );
 
       // 2. Send Direct Messaging System Message
@@ -137,8 +168,8 @@ Class Schedule: ${classTimesFormatted}`;
       const studentEmail = studentUser?.email || 'N/A';
       await firestoreService.addAuditLog({
         username: senderName,
-        action: 'ATTENDANCE_EMAIL_SENT',
-        details: `Automated Email/Notification dispatched to ${studentFullIdentifier} (${studentEmail}): ${statusText} for ${classItem.title} at ${markedTimeFormatted}`
+        action: isLate ? 'LATE_ATTENDANCE_NOTIFICATION_SENT' : 'ATTENDANCE_EMAIL_SENT',
+        details: `Automated ${isLate ? 'Late' : 'On-Time'} Notification dispatched to ${studentFullIdentifier} (${studentEmail}): ${statusText} for ${classItem.title} at ${markedTimeFormatted}`
       });
     } catch (err) {
       console.warn("Failed sending attendance notification / message", err);
@@ -150,6 +181,8 @@ Class Schedule: ${classTimesFormatted}`;
     studentUsername: username,
     studentFullIdentifier,
     punctualityStatus: statusText,
+    isLate,
+    delayMinutes,
     markedTimeFormatted,
     classStartEndTimeFormatted: classTimesFormatted,
     notificationMessage
