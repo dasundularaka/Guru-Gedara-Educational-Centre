@@ -15,7 +15,8 @@ import {
   limit,
   onSnapshot
 } from 'firebase/firestore';
-import { db, auth, firebaseConfig } from './firebase';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, auth, storage, firebaseConfig } from './firebase';
 import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType } from '../types';
 import { 
   INITIAL_CLASSES, 
@@ -1969,14 +1970,127 @@ const firestoreServiceRaw = {
     }
   },
 
+  async uploadResourceFile(
+    file: File,
+    classId: string,
+    tutorId: string,
+    onProgress?: (progress: number) => void
+  ): Promise<{ url: string; fileName: string; fileSize: number; fileType: string; storagePath: string }> {
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const timestamp = Date.now();
+    const storagePath = `resources/classes/${classId || 'general'}/${timestamp}_${sanitizedName}`;
+    
+    try {
+      if (isUsingCloud && storage) {
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, file, {
+          contentType: file.type || 'application/octet-stream',
+          customMetadata: {
+            classId: classId || 'general',
+            tutorId: tutorId,
+            originalName: file.name
+          }
+        });
+
+        return new Promise((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              if (onProgress) onProgress(Math.round(progress));
+            },
+            (error) => {
+              console.warn('Firebase storage upload encountered issue, using reliable fallback', error);
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (onProgress) onProgress(100);
+                resolve({
+                  url: reader.result as string,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                  storagePath
+                });
+              };
+              reader.onerror = () => reject(error);
+              reader.readAsDataURL(file);
+            },
+            async () => {
+              try {
+                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                if (onProgress) onProgress(100);
+                resolve({
+                  url: downloadUrl,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                  storagePath
+                });
+              } catch (err) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (onProgress) onProgress(100);
+                  resolve({
+                    url: reader.result as string,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                    storagePath
+                  });
+                };
+                reader.readAsDataURL(file);
+              }
+            }
+          );
+        });
+      }
+    } catch (e) {
+      console.warn("Storage upload caught exception, generating fallback data url", e);
+    }
+
+    // Fallback if cloud disabled or storage unavailable
+    return new Promise((resolve) => {
+      if (onProgress) onProgress(50);
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (onProgress) onProgress(100);
+        resolve({
+          url: reader.result as string,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          storagePath
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  },
+
+  async deleteResourceFile(storagePath: string): Promise<void> {
+    if (!storagePath) return;
+    try {
+      if (isUsingCloud && storage) {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+      }
+    } catch (e) {
+      console.warn("Failed deleting storage object", e);
+    }
+  },
+
   async deleteStudyMaterial(id: string): Promise<void> {
+    const list = handleFallback<StudyMaterial>('local_materials', []);
+    const existing = list.find(m => m.id === id);
+    if (existing?.storagePath) {
+      await this.deleteResourceFile(existing.storagePath);
+    }
+
     if (isUsingCloud) {
       try {
         await deleteDoc(doc(db, 'materials', id));
         await deleteDoc(doc(db, 'study_materials', id));
       } catch (e) {}
     }
-    const list = handleFallback<StudyMaterial>('local_materials', []);
     saveFallback('local_materials', list.filter(m => m.id !== id));
   },
 

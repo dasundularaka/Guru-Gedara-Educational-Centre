@@ -200,6 +200,10 @@ export interface StudyMaterial {
   classTitle?: string;
   createdAt: string;
   isVisible?: boolean;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
+  storagePath?: string;
 }
 
 export interface AuditLog {

@@ -53,6 +53,13 @@ import {
   Copy,
   FolderOpen,
   Upload,
+  UploadCloud,
+  Download,
+  Loader2,
+  HardDrive,
+  FolderPlus,
+  FileUp,
+  FileCheck,
   Clock,
   Briefcase,
   Award,
@@ -107,8 +114,20 @@ export const TutorDashboard: React.FC = () => {
   const [resType, setResType] = useState<ResourceType>('note');
   const [resUrl, setResUrl] = useState('');
   const [resIsVisible, setResIsVisible] = useState<boolean>(true);
+  const [resUploadMode, setResUploadMode] = useState<'file' | 'link'>('file');
+  const [resFile, setResFile] = useState<File | null>(null);
+  const [resUploadProgress, setResUploadProgress] = useState<number>(0);
   const [savingResource, setSavingResource] = useState(false);
   const [expandedClassResourceId, setExpandedClassResourceId] = useState<string | null>(null);
+
+  // Quick Inline Upload Card state
+  const [quickUploadClassId, setQuickUploadClassId] = useState<string>('');
+  const [quickUploadType, setQuickUploadType] = useState<ResourceType>('note');
+  const [quickUploadTitle, setQuickUploadTitle] = useState<string>('');
+  const [quickUploadFile, setQuickUploadFile] = useState<File | null>(null);
+  const [quickUploadProgress, setQuickUploadProgress] = useState<number>(0);
+  const [isQuickUploading, setIsQuickUploading] = useState<boolean>(false);
+  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
 
   // Resource Delete Modal state
   const [deleteResourceConfirm, setDeleteResourceConfirm] = useState<{
@@ -381,11 +400,25 @@ export const TutorDashboard: React.FC = () => {
     }
   }, [currentUser?.uid, activeSubTab, classes.length]);
 
-  const handleOpenAddResourceModal = (preselectedClassId?: string, defaultType: ResourceType = 'note') => {
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleOpenAddResourceModal = (
+    preselectedClassId?: string, 
+    defaultType: ResourceType = 'note',
+    defaultMode: 'file' | 'link' = 'file'
+  ) => {
     setEditingResource(null);
     setResTitle('');
     setResDescription('');
     setResUrl('');
+    setResFile(null);
+    setResUploadProgress(0);
+    setResUploadMode(defaultMode);
     setResType(defaultType);
     const targetClassId = preselectedClassId || (tutorClasses.length > 0 ? tutorClasses[0].id : '');
     setResClassId(targetClassId);
@@ -396,7 +429,7 @@ export const TutorDashboard: React.FC = () => {
   };
 
   const handleQuickAddResource = (classId: string, type: ResourceType) => {
-    handleOpenAddResourceModal(classId, type);
+    handleOpenAddResourceModal(classId, type, 'file');
   };
 
   const handleEditResourceModal = (mat: StudyMaterial) => {
@@ -404,11 +437,82 @@ export const TutorDashboard: React.FC = () => {
     setResTitle(mat.title);
     setResDescription(mat.description || '');
     setResUrl(mat.referenceUrl);
+    setResFile(null);
+    setResUploadProgress(0);
+    setResUploadMode(mat.storagePath || mat.fileName ? 'file' : 'link');
     setResType(mat.type || 'note');
     setResClassId(mat.classId || '');
     setResSubject(mat.subject || 'Mathematics');
     setResIsVisible(mat.isVisible !== false);
     setShowResourceModal(true);
+  };
+
+  const handleQuickUploadSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentUser) return;
+    if (!quickUploadFile && !quickUploadTitle.trim()) {
+      showToast("Please select a file to upload or enter a title.", "error");
+      return;
+    }
+    const targetClassId = quickUploadClassId || (tutorClasses.length > 0 ? tutorClasses[0].id : '');
+    if (!targetClassId) {
+      showToast("Please select an assigned course to link this file to.", "error");
+      return;
+    }
+    const targetClass = tutorClasses.find(c => c.id === targetClassId);
+    const title = quickUploadTitle.trim() || (quickUploadFile ? quickUploadFile.name.replace(/\.[^/.]+$/, "") : "Course Material");
+
+    setIsQuickUploading(true);
+    setQuickUploadProgress(0);
+
+    try {
+      let fileUrl = "";
+      let fileName = "";
+      let fileSize = 0;
+      let fileType = "";
+      let storagePath = "";
+
+      if (quickUploadFile) {
+        const uploadRes = await firestoreService.uploadResourceFile(
+          quickUploadFile,
+          targetClassId,
+          currentUser.uid,
+          (progress) => setQuickUploadProgress(progress)
+        );
+        fileUrl = uploadRes.url;
+        fileName = uploadRes.fileName;
+        fileSize = uploadRes.fileSize;
+        fileType = uploadRes.fileType;
+        storagePath = uploadRes.storagePath;
+      }
+
+      await firestoreService.saveStudyMaterial({
+        title,
+        description: `Uploaded for ${targetClass?.title || 'course'}. Category: ${quickUploadType}`,
+        subject: targetClass?.subject || "General",
+        referenceUrl: fileUrl,
+        type: quickUploadType,
+        tutorId: currentUser.uid,
+        tutorName: currentUser.name,
+        classId: targetClassId,
+        classTitle: targetClass?.title || undefined,
+        isVisible: true,
+        fileName,
+        fileSize,
+        fileType,
+        storagePath
+      });
+
+      showToast(`Resource '${title}' uploaded and stored in Firebase Storage!`, "success");
+      setQuickUploadFile(null);
+      setQuickUploadTitle('');
+      setQuickUploadProgress(0);
+      await fetchTutorMaterials();
+    } catch (err: any) {
+      showToast(err?.message || "Failed uploading resource to storage.", "error");
+    } finally {
+      setIsQuickUploading(false);
+    }
   };
 
   const handleToggleResourceVisibility = async (mat: StudyMaterial) => {
@@ -425,31 +529,67 @@ export const TutorDashboard: React.FC = () => {
   const handleSaveResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
-    if (!resTitle.trim() || !resUrl.trim()) {
-      showToast("Please provide both a Title and Reference URL for the resource.", "error");
+
+    if (!resTitle.trim()) {
+      showToast("Please enter a title for the resource.", "error");
       return;
     }
 
-    let formattedUrl = resUrl.trim();
-    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
-      formattedUrl = "https://" + formattedUrl;
+    if (resUploadMode === 'file' && !resFile && !editingResource?.referenceUrl) {
+      showToast("Please choose a file (PDF, notes, quiz, document) to upload.", "error");
+      return;
+    }
+
+    if (resUploadMode === 'link' && !resUrl.trim()) {
+      showToast("Please provide a valid reference URL.", "error");
+      return;
     }
 
     setSavingResource(true);
+    setResUploadProgress(0);
+
     try {
       const targetClass = tutorClasses.find(c => c.id === resClassId);
       const subjectName = targetClass?.subject || resSubject || "General";
+
+      let finalUrl = resUrl.trim();
+      let finalFileName = editingResource?.fileName;
+      let finalFileSize = editingResource?.fileSize;
+      let finalFileType = editingResource?.fileType;
+      let finalStoragePath = editingResource?.storagePath;
+
+      if (resUploadMode === 'file' && resFile) {
+        const uploadRes = await firestoreService.uploadResourceFile(
+          resFile,
+          resClassId || 'general',
+          currentUser.uid,
+          (progress) => setResUploadProgress(progress)
+        );
+        finalUrl = uploadRes.url;
+        finalFileName = uploadRes.fileName;
+        finalFileSize = uploadRes.fileSize;
+        finalFileType = uploadRes.fileType;
+        finalStoragePath = uploadRes.storagePath;
+      } else if (resUploadMode === 'link') {
+        if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
+          finalUrl = "https://" + finalUrl;
+        }
+      }
 
       if (editingResource) {
         await firestoreService.updateStudyMaterial(editingResource.id, {
           title: resTitle.trim(),
           description: resDescription.trim(),
           subject: subjectName,
-          referenceUrl: formattedUrl,
+          referenceUrl: finalUrl,
           type: resType,
           classId: resClassId || undefined,
           classTitle: targetClass?.title || undefined,
-          isVisible: resIsVisible
+          isVisible: resIsVisible,
+          fileName: finalFileName,
+          fileSize: finalFileSize,
+          fileType: finalFileType,
+          storagePath: finalStoragePath
         });
         showToast(`Resource '${resTitle.trim()}' updated successfully!`, "success");
       } else {
@@ -457,13 +597,17 @@ export const TutorDashboard: React.FC = () => {
           title: resTitle.trim(),
           description: resDescription.trim(),
           subject: subjectName,
-          referenceUrl: formattedUrl,
+          referenceUrl: finalUrl,
           type: resType,
           tutorId: currentUser.uid,
           tutorName: currentUser.name,
           classId: resClassId || undefined,
           classTitle: targetClass?.title || undefined,
-          isVisible: resIsVisible
+          isVisible: resIsVisible,
+          fileName: finalFileName,
+          fileSize: finalFileSize,
+          fileType: finalFileType,
+          storagePath: finalStoragePath
         });
         showToast(`Resource '${resTitle.trim()}' published to course!`, "success");
       }
@@ -473,11 +617,13 @@ export const TutorDashboard: React.FC = () => {
       setResTitle('');
       setResDescription('');
       setResUrl('');
+      setResFile(null);
+      setResUploadProgress(0);
       setResClassId('');
 
       await fetchTutorMaterials();
-    } catch (err) {
-      showToast("Failed to save resource. Try again.", "error");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to save resource. Try again.", "error");
     } finally {
       setSavingResource(false);
     }
@@ -1443,7 +1589,7 @@ export const TutorDashboard: React.FC = () => {
               </motion.div>
             )}
 
-            {/* Tab: Course Resources & Class Management */}
+            {/* Tab: Course Resources & Resource Manager */}
             {activeSubTab === 'resources' && (
               <motion.div
                 initial={{ opacity: 0, y: 15 }}
@@ -1451,34 +1597,43 @@ export const TutorDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-8"
               >
-                {/* Section 1: Assigned Classes Directory & Direct Resource Controls */}
-                <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-6">
+                {/* Header & Firebase Cloud Storage Status Banner */}
+                <div className="bg-white rounded-3xl border border-gray-150 p-6 shadow-sm space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                          <BookOpen className="w-5 h-5" />
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
+                          <FolderOpen className="w-6 h-6" />
                         </div>
                         <div>
-                          <h2 className="text-base font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
-                            Assigned Courses & Teaching Materials
-                            <span className="bg-blue-50 text-blue-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-150 font-mono">
-                              {tutorClasses.length} Active Courses
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg font-black text-gray-900 tracking-tight">
+                              Resource Manager & Course Materials
+                            </h2>
+                            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-200 inline-flex items-center gap-1 font-mono">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Firebase Storage Active
                             </span>
-                          </h2>
+                          </div>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            Directly upload and manage lecture notes, quiz assessments, reference links, and documents for each course.
+                            Upload, categorize, and link PDFs, lecture notes, quiz assessments, worksheets, and links to your assigned courses.
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button
-                        onClick={() => handleOpenAddResourceModal()}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer shrink-0"
+                        onClick={() => handleOpenAddResourceModal(undefined, 'note', 'file')}
+                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer shrink-0"
                       >
-                        <Plus className="w-4 h-4" /> Add New Resource
+                        <UploadCloud className="w-4 h-4" /> Upload File to Cloud
+                      </button>
+                      <button
+                        onClick={() => handleOpenAddResourceModal(undefined, 'link', 'link')}
+                        className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                      >
+                        <LinkIcon className="w-3.5 h-3.5 text-slate-500" /> Add Web Link
                       </button>
                     </div>
                   </div>
@@ -1486,7 +1641,7 @@ export const TutorDashboard: React.FC = () => {
                   {/* Top Stats Overview Ribbon */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Assigned Classes</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Assigned Courses</span>
                       <p className="text-lg font-black text-slate-800">{tutorClasses.length}</p>
                     </div>
                     <div className="bg-blue-50/60 border border-blue-200/70 rounded-xl p-3 text-center">
@@ -1494,7 +1649,7 @@ export const TutorDashboard: React.FC = () => {
                       <p className="text-lg font-black text-blue-800">{rosterBookings.length}</p>
                     </div>
                     <div className="bg-indigo-50/60 border border-indigo-200/70 rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider font-mono">Lecture Notes</span>
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider font-mono">Lecture Notes (PDF)</span>
                       <p className="text-lg font-black text-indigo-800">{tutorMaterials.filter(m => m.type === 'note').length}</p>
                     </div>
                     <div className="bg-amber-50/60 border border-amber-200/70 rounded-xl p-3 text-center">
@@ -1502,13 +1657,229 @@ export const TutorDashboard: React.FC = () => {
                       <p className="text-lg font-black text-amber-800">{tutorMaterials.filter(m => m.type === 'quiz').length}</p>
                     </div>
                     <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider font-mono">Reference Links</span>
-                      <p className="text-lg font-black text-emerald-800">{tutorMaterials.filter(m => m.type === 'link' || !m.type).length}</p>
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider font-mono">Files & Worksheets</span>
+                      <p className="text-lg font-black text-emerald-800">{tutorMaterials.filter(m => m.type === 'file' || m.type === 'video').length}</p>
                     </div>
                     <div className="bg-purple-50/60 border border-purple-200/70 rounded-xl p-3 text-center">
-                      <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider font-mono">Total Materials</span>
+                      <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider font-mono">Total Resources</span>
                       <p className="text-lg font-black text-purple-800">{tutorMaterials.length}</p>
                     </div>
+                  </div>
+
+                  {/* Quick Inline Upload & Categorization Zone */}
+                  <div className="bg-gradient-to-r from-blue-50/40 via-indigo-50/30 to-purple-50/30 rounded-2xl border border-blue-150 p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-blue-600 text-white rounded-lg">
+                          <UploadCloud className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                            Direct Cloud Upload & Class Assigner
+                          </h3>
+                          <p className="text-[11px] text-gray-500">
+                            Select or drop any study file to upload directly to Firebase Storage and bind to a course ID.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-md font-bold">
+                        PDF • DOCX • QUIZ • PPTX • ZIP • MP4
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleQuickUploadSubmit} className="space-y-3">
+                      {/* Target Class & Category Pickers */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            1. Select Assigned Course:
+                          </label>
+                          <select
+                            value={quickUploadClassId}
+                            onChange={(e) => setQuickUploadClassId(e.target.value)}
+                            className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none font-bold text-gray-800 focus:border-blue-500 shadow-2xs cursor-pointer"
+                          >
+                            <option value="">-- Choose Course to Link --</option>
+                            {tutorClasses.map(c => (
+                              <option key={c.id} value={c.id}>
+                                {c.title} ({c.subject})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            2. Categorize Resource:
+                          </label>
+                          <select
+                            value={quickUploadType}
+                            onChange={(e) => setQuickUploadType(e.target.value as ResourceType)}
+                            className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none font-bold text-gray-800 focus:border-blue-500 shadow-2xs cursor-pointer"
+                          >
+                            <option value="note">📑 Lecture Note / PDF Document</option>
+                            <option value="quiz">📝 Quiz Assessment / Test Sheet</option>
+                            <option value="file">📁 Worksheet / Study File</option>
+                            <option value="link">🔗 Reference Web Portal</option>
+                            <option value="video">🎥 Video Session / Recording</option>
+                            <option value="announcement">📢 Course Bulletin / Notice</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                            3. Title / Label (Optional):
+                          </label>
+                          <input
+                            type="text"
+                            value={quickUploadTitle}
+                            onChange={(e) => setQuickUploadTitle(e.target.value)}
+                            placeholder="Defaults to uploaded file name..."
+                            className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-2xs text-gray-800"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dropzone Area */}
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingFile(true);
+                        }}
+                        onDragLeave={() => setIsDraggingFile(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingFile(false);
+                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            setQuickUploadFile(e.dataTransfer.files[0]);
+                          }
+                        }}
+                        className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all cursor-pointer ${
+                          isDraggingFile
+                            ? 'border-blue-600 bg-blue-50/80 scale-[1.01]'
+                            : quickUploadFile
+                            ? 'border-emerald-400 bg-emerald-50/30'
+                            : 'border-slate-300 bg-white/70 hover:bg-white hover:border-blue-400'
+                        }`}
+                        onClick={() => {
+                          const input = document.getElementById('quick-file-input') as HTMLInputElement;
+                          if (input) input.click();
+                        }}
+                      >
+                        <input
+                          id="quick-file-input"
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setQuickUploadFile(e.target.files[0]);
+                            }
+                          }}
+                        />
+
+                        {quickUploadFile ? (
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2">
+                            <div className="flex items-center gap-3 text-left">
+                              <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+                                <FileCheck className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-gray-900 truncate max-w-[280px]">
+                                    {quickUploadFile.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                                    {formatFileSize(quickUploadFile.size)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-gray-500">
+                                  Ready to upload to Firebase Storage & link to course ID
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickUploadFile(null);
+                              }}
+                              className="px-2.5 py-1 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 text-xs font-bold rounded-lg transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="py-2 space-y-1">
+                            <UploadCloud className="w-7 h-7 text-blue-500 mx-auto animate-bounce" />
+                            <p className="text-xs font-bold text-gray-800">
+                              Drag and drop lecture note PDF, quiz document, or worksheet here
+                            </p>
+                            <p className="text-[11px] text-gray-400">
+                              or <span className="text-blue-600 underline font-bold">browse from computer</span> (Max recommended size: 50MB)
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Upload Progress Bar if active */}
+                      {isQuickUploading && (
+                        <div className="space-y-1.5 p-3 bg-white rounded-xl border border-blue-150">
+                          <div className="flex justify-between text-xs font-bold text-blue-800">
+                            <span className="flex items-center gap-1.5">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Uploading to Firebase Storage...
+                            </span>
+                            <span className="font-mono">{quickUploadProgress}%</span>
+                          </div>
+                          <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-200"
+                              style={{ width: `${quickUploadProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Submit Action */}
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="submit"
+                          disabled={isQuickUploading || (!quickUploadFile && !quickUploadTitle.trim())}
+                          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition-colors flex items-center gap-1.5"
+                        >
+                          {isQuickUploading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Uploading to Cloud...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Upload & Link to Course</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Section 1: Assigned Classes Hub (Course-by-Course Access & Management) */}
+                <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-100 pb-4">
+                    <div>
+                      <h3 className="text-base font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-blue-600" />
+                        Assigned Courses & Associated Materials
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Directly manage and upload resources associated with each specific course syllabus.
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono text-gray-400">
+                      {tutorClasses.length} Courses Assigned
+                    </span>
                   </div>
 
                   {/* Grid of Assigned Classes with In-Card Resource Controls */}
@@ -1570,7 +1941,7 @@ export const TutorDashboard: React.FC = () => {
                               <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-gray-100">
                                 <span className="text-[10px] font-bold text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                                   <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
-                                  {classMaterials.length} Total Materials
+                                  {classMaterials.length} Items
                                 </span>
                                 <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded-md flex items-center gap-1">
                                   <FileText className="w-3 h-3" />
@@ -1595,29 +1966,37 @@ export const TutorDashboard: React.FC = () => {
                               {/* Direct Quick-Add Bar on Each Class Card */}
                               <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-150 flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
-                                  Quick Upload:
+                                  Upload For Course:
                                 </span>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <button
                                     onClick={() => handleQuickAddResource(cls.id, 'note')}
                                     className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                    title="Add Lecture Note for this course"
+                                    title="Upload PDF Lecture Note for this course"
                                   >
-                                    <FileText className="w-3 h-3 text-indigo-600" />
-                                    <span>+ Note</span>
+                                    <FileUp className="w-3 h-3 text-indigo-600" />
+                                    <span>+ PDF Note</span>
                                   </button>
                                   <button
                                     onClick={() => handleQuickAddResource(cls.id, 'quiz')}
                                     className="px-2.5 py-1 bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                    title="Upload Quiz / Assignment Link for this course"
+                                    title="Upload Quiz Assessment for this course"
                                   >
                                     <HelpCircle className="w-3 h-3 text-amber-600" />
                                     <span>+ Quiz</span>
                                   </button>
                                   <button
-                                    onClick={() => handleQuickAddResource(cls.id, 'link')}
+                                    onClick={() => handleOpenAddResourceModal(cls.id, 'file', 'file')}
+                                    className="px-2.5 py-1 bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                    title="Upload Worksheet / Document"
+                                  >
+                                    <FileSpreadsheet className="w-3 h-3 text-purple-600" />
+                                    <span>+ File</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenAddResourceModal(cls.id, 'link', 'link')}
                                     className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                    title="Attach Web Resource / Portal Link"
+                                    title="Attach Web Reference / URL"
                                   >
                                     <LinkIcon className="w-3 h-3 text-emerald-600" />
                                     <span>+ Link</span>
@@ -1689,7 +2068,7 @@ export const TutorDashboard: React.FC = () => {
                                       onClick={() => handleOpenAddResourceModal(cls.id)}
                                       className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                                     >
-                                      <Plus className="w-3.5 h-3.5" /> New Item
+                                      <Plus className="w-3.5 h-3.5" /> Upload File to Course
                                     </button>
                                   </div>
 
@@ -1703,7 +2082,7 @@ export const TutorDashboard: React.FC = () => {
                                           onClick={() => handleQuickAddResource(cls.id, 'note')}
                                           className="px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 cursor-pointer"
                                         >
-                                          + Add Note
+                                          + Upload PDF Note
                                         </button>
                                         <button
                                           onClick={() => handleQuickAddResource(cls.id, 'quiz')}
@@ -1731,25 +2110,33 @@ export const TutorDashboard: React.FC = () => {
                                         return (
                                           <div
                                             key={mat.id}
-                                            className="p-3 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-blue-300 transition-all"
+                                            className="p-3.5 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-blue-300 transition-all"
                                           >
                                             <div className="space-y-1 flex-1 min-w-0">
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex items-center gap-2 flex-wrap">
                                                 <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 ${
-                                                  resType === 'note' ? 'bg-indigo-50 text-indigo-700' :
-                                                  resType === 'quiz' ? 'bg-amber-50 text-amber-700' :
-                                                  resType === 'link' ? 'bg-emerald-50 text-emerald-700' :
-                                                  'bg-blue-50 text-blue-700'
+                                                  resType === 'note' ? 'bg-indigo-50 text-indigo-700 border border-indigo-150' :
+                                                  resType === 'quiz' ? 'bg-amber-50 text-amber-700 border border-amber-150' :
+                                                  resType === 'link' ? 'bg-emerald-50 text-emerald-700 border border-emerald-150' :
+                                                  'bg-blue-50 text-blue-700 border border-blue-150'
                                                 }`}>
                                                   <IconC className="w-3 h-3" />
                                                   <span className="capitalize">{resType}</span>
                                                 </span>
+
+                                                {mat.fileName && (
+                                                  <span className="text-[9px] font-bold font-mono text-purple-700 bg-purple-50 border border-purple-150 px-2 py-0.5 rounded-md">
+                                                    📁 {mat.fileName} {mat.fileSize ? `(${formatFileSize(mat.fileSize)})` : ''}
+                                                  </span>
+                                                )}
+
                                                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${
                                                   isVisible ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
                                                 }`}>
-                                                  {isVisible ? '● Visible to Students' : '○ Draft Only'}
+                                                  {isVisible ? '● Visible' : '○ Draft'}
                                                 </span>
                                               </div>
+
                                               <h5 className="text-xs font-bold text-gray-900 truncate" title={mat.title}>
                                                 {mat.title}
                                               </h5>
@@ -1766,10 +2153,10 @@ export const TutorDashboard: React.FC = () => {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
-                                                title="Open resource link in new tab"
+                                                title="Open or download resource file"
                                               >
-                                                <span>Open</span>
-                                                <ExternalLink className="w-3 h-3" />
+                                                {mat.storagePath ? <Download className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
+                                                <span>{mat.storagePath ? 'Download' : 'Open'}</span>
                                               </a>
 
                                               <button
@@ -1831,10 +2218,10 @@ export const TutorDashboard: React.FC = () => {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-100 pb-3">
                     <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
                       <Layers className="w-5 h-5 text-indigo-600" />
-                      Course Resources Library & Global Filter
+                      Course Resources Library & Categorized Explorer
                     </h3>
                     <span className="text-xs text-gray-400 font-mono">
-                      Showing {tutorMaterials.length} materials across all assigned courses
+                      Showing {tutorMaterials.length} total resources across all courses
                     </span>
                   </div>
                   
@@ -1850,7 +2237,7 @@ export const TutorDashboard: React.FC = () => {
                           type="text"
                           value={resourceSearchQuery}
                           onChange={(e) => setResourceSearchQuery(e.target.value)}
-                          placeholder="Search materials, notes, quizzes, links..."
+                          placeholder="Search materials, notes, quizzes, links, files..."
                           className="w-full text-xs pl-9 pr-8 py-2 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-2xs"
                         />
                         {resourceSearchQuery && (
@@ -1884,10 +2271,10 @@ export const TutorDashboard: React.FC = () => {
                     <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 scrollbar-none text-xs font-bold">
                       {[
                         { id: 'all', label: 'All', icon: Layers },
-                        { id: 'note', label: 'Notes', icon: FileText },
+                        { id: 'note', label: 'Notes (PDF)', icon: FileText },
                         { id: 'quiz', label: 'Quizzes', icon: HelpCircle },
+                        { id: 'file', label: 'Files / Docs', icon: FileSpreadsheet },
                         { id: 'link', label: 'Links', icon: LinkIcon },
-                        { id: 'file', label: 'Files', icon: FileSpreadsheet },
                         { id: 'video', label: 'Videos', icon: Video },
                         { id: 'announcement', label: 'Notices', icon: Megaphone }
                       ].map(typeTab => {
@@ -1936,7 +2323,8 @@ export const TutorDashboard: React.FC = () => {
                         m.title.toLowerCase().includes(q) ||
                         (m.description || '').toLowerCase().includes(q) ||
                         (m.classTitle || '').toLowerCase().includes(q) ||
-                        (m.subject || '').toLowerCase().includes(q)
+                        (m.subject || '').toLowerCase().includes(q) ||
+                        (m.fileName || '').toLowerCase().includes(q)
                       );
                     }
 
@@ -1971,7 +2359,7 @@ export const TutorDashboard: React.FC = () => {
                               onClick={() => handleOpenAddResourceModal()}
                               className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                             >
-                              <Plus className="w-4 h-4" /> Add Resource Now
+                              <Plus className="w-4 h-4" /> Upload Resource Now
                             </button>
                           </div>
                         </div>
@@ -1988,7 +2376,7 @@ export const TutorDashboard: React.FC = () => {
                             note: {
                               badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
                               icon: FileText,
-                              label: 'Lecture Note'
+                              label: 'Lecture Note (PDF)'
                             },
                             quiz: {
                               badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -2052,6 +2440,23 @@ export const TutorDashboard: React.FC = () => {
                                   {mat.title}
                                 </h3>
 
+                                {/* File Metadata Chip if uploaded */}
+                                {mat.fileName && (
+                                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <HardDrive className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                      <span className="text-[11px] font-bold text-slate-800 truncate" title={mat.fileName}>
+                                        {mat.fileName}
+                                      </span>
+                                    </div>
+                                    {mat.fileSize ? (
+                                      <span className="text-[10px] font-mono font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+                                        {formatFileSize(mat.fileSize)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                )}
+
                                 {/* Course Badge */}
                                 {mat.classTitle && (
                                   <div className="text-[11px] text-blue-800 font-bold bg-blue-50/80 border border-blue-150 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 max-w-full">
@@ -2076,8 +2481,8 @@ export const TutorDashboard: React.FC = () => {
                                   rel="noopener noreferrer"
                                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
                                 >
-                                  <span>Open Link</span>
-                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  {mat.storagePath ? <Download className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                                  <span>{mat.storagePath ? 'Download File' : 'Open Resource'}</span>
                                 </a>
 
                                 <div className="flex items-center gap-1">
@@ -3252,14 +3657,14 @@ export const TutorDashboard: React.FC = () => {
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
-                  <BookOpen className="w-5 h-5" />
+                  <FolderOpen className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-gray-900">
-                    {editingResource ? 'Edit Course Resource' : 'Publish Course Resource'}
+                    {editingResource ? 'Edit Course Resource' : 'Publish Course Resource to Storage'}
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Provide lecture notes, online quizzes, reference links, or study docs for your students.
+                    Upload lecture notes, quiz sheets, files, or reference links linked to an assigned course ID.
                   </p>
                 </div>
               </div>
@@ -3274,6 +3679,34 @@ export const TutorDashboard: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveResource} className="space-y-4">
+              {/* Mode Switcher: Upload File vs Web Link */}
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setResUploadMode('file')}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    resUploadMode === 'file'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Upload File to Storage</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResUploadMode('link')}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    resUploadMode === 'link'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  <span>External Web Link / URL</span>
+                </button>
+              </div>
+
               {/* Target Course Selection */}
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Target Assigned Course:</label>
@@ -3305,10 +3738,10 @@ export const TutorDashboard: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: 'note', label: 'Lecture Note', icon: FileText, desc: 'PDF, Slide, Notes' },
-                    { id: 'quiz', label: 'Quiz / Exam', icon: HelpCircle, desc: 'Google Form, Quizizz' },
-                    { id: 'link', label: 'Reference Link', icon: LinkIcon, desc: 'Web Portal, Drive' },
+                    { id: 'quiz', label: 'Quiz / Exam', icon: HelpCircle, desc: 'Assessment / Sheet' },
                     { id: 'file', label: 'Document File', icon: FileSpreadsheet, desc: 'Worksheet, Exercise' },
-                    { id: 'video', label: 'Video Session', icon: Video, desc: 'Recording, Zoom replay' },
+                    { id: 'link', label: 'Reference Link', icon: LinkIcon, desc: 'Web Portal, Drive' },
+                    { id: 'video', label: 'Video Session', icon: Video, desc: 'Recording, Zoom' },
                     { id: 'announcement', label: 'Course Notice', icon: Megaphone, desc: 'Class update' },
                   ].map(t => {
                     const IconC = t.icon;
@@ -3335,6 +3768,91 @@ export const TutorDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* File Upload Mode Controls */}
+              {resUploadMode === 'file' && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-gray-700">Choose Resource File (PDF, DOCX, PPTX, MP4, ZIP):</label>
+                  
+                  <div
+                    onClick={() => {
+                      const input = document.getElementById('modal-file-input') as HTMLInputElement;
+                      if (input) input.click();
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all cursor-pointer ${
+                      resFile
+                        ? 'border-emerald-400 bg-emerald-50/30'
+                        : 'border-slate-300 bg-slate-50/50 hover:bg-blue-50/20 hover:border-blue-400'
+                    }`}
+                  >
+                    <input
+                      id="modal-file-input"
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          setResFile(file);
+                          if (!resTitle.trim()) {
+                            setResTitle(file.name.replace(/\.[^/.]+$/, ""));
+                          }
+                        }
+                      }}
+                    />
+
+                    {resFile ? (
+                      <div className="flex items-center justify-between gap-3 text-left">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                            <FileCheck className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900 truncate max-w-xs">{resFile.name}</p>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold">
+                              Size: {formatFileSize(resFile.size)} • Type: {resFile.type || 'Document'}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setResFile(null);
+                          }}
+                          className="px-2.5 py-1 text-xs font-bold bg-white text-gray-600 hover:text-red-600 rounded-lg border border-gray-200"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : editingResource?.fileName ? (
+                      <div className="flex items-center justify-between gap-3 text-left">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                            <HardDrive className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-900 truncate max-w-xs">Current: {editingResource.fileName}</p>
+                            <span className="text-[10px] font-mono text-blue-700 font-bold">
+                              {editingResource.fileSize ? formatFileSize(editingResource.fileSize) : 'Stored in cloud'} • Click to replace file
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-blue-600 font-bold underline">Replace</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <UploadCloud className="w-8 h-8 text-blue-500 mx-auto" />
+                        <p className="text-xs font-bold text-gray-800">
+                          Click to select a file from your computer
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          File will be safely saved in Firebase Cloud Storage and shared with students.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Resource Title & Subject */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
@@ -3347,7 +3865,7 @@ export const TutorDashboard: React.FC = () => {
                     placeholder={
                       resType === 'quiz' ? 'e.g., Weekly Calculus Assessment #4' :
                       resType === 'note' ? 'e.g., Module 2 Lecture Slides & Formulas' :
-                      'e.g., Chemistry Periodic Table Portal'
+                      'e.g., Chemistry Periodic Table Worksheet'
                     }
                     className="w-full text-xs px-3.5 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
                   />
@@ -3364,37 +3882,39 @@ export const TutorDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* URL / Link with Test Link Action */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-gray-700">Access URL / Resource Link:</label>
-                  {resUrl.trim() && (
-                    <a
-                      href={resUrl.trim().startsWith('http') ? resUrl.trim() : `https://${resUrl.trim()}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                    >
-                      <ExternalLink className="w-3 h-3" /> Test Link
-                    </a>
-                  )}
+              {/* Web Link Input if in Link Mode */}
+              {resUploadMode === 'link' && (
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-gray-700">Access URL / Resource Link:</label>
+                    {resUrl.trim() && (
+                      <a
+                        href={resUrl.trim().startsWith('http') ? resUrl.trim() : `https://${resUrl.trim()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Test Link
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    required={resUploadMode === 'link'}
+                    value={resUrl}
+                    onChange={(e) => setResUrl(e.target.value)}
+                    placeholder={
+                      resType === 'quiz' ? 'e.g., https://forms.gle/... or https://quizizz.com/...' :
+                      resType === 'note' ? 'e.g., https://drive.google.com/file/d/...' :
+                      'e.g., https://khanacademy.org/...'
+                    }
+                    className="w-full text-xs px-3.5 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono text-gray-800"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Provide Google Drive, Google Forms, Dropbox, Quizlet, YouTube, or external LMS link.
+                  </p>
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={resUrl}
-                  onChange={(e) => setResUrl(e.target.value)}
-                  placeholder={
-                    resType === 'quiz' ? 'e.g., https://forms.gle/... or https://quizizz.com/...' :
-                    resType === 'note' ? 'e.g., https://drive.google.com/file/d/...' :
-                    'e.g., https://khanacademy.org/...'
-                  }
-                  className="w-full text-xs px-3.5 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono text-gray-800"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Provide Google Drive, Google Forms, Dropbox, Quizlet, YouTube, or external LMS link.
-                </p>
-              </div>
+              )}
 
               {/* Description / Instructions */}
               <div>
@@ -3412,12 +3932,31 @@ export const TutorDashboard: React.FC = () => {
                 ></textarea>
               </div>
 
+              {/* Upload Progress Bar if Saving File */}
+              {savingResource && resUploadMode === 'file' && resFile && (
+                <div className="space-y-1.5 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                  <div className="flex justify-between text-xs font-bold text-blue-800">
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Uploading file to Firebase Storage...
+                    </span>
+                    <span className="font-mono">{resUploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-200"
+                      style={{ width: `${resUploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Visibility Toggle */}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
                 <div>
                   <span className="text-xs font-bold text-gray-800 block">Immediate Student Visibility</span>
                   <span className="text-[11px] text-gray-500">
-                    {resIsVisible ? 'Students enrolled in this course can view this immediately.' : 'Hidden as draft until you publish.'}
+                    {resIsVisible ? 'Students enrolled in this course can view and download this immediately.' : 'Hidden as draft until you publish.'}
                   </span>
                 </div>
                 <button
@@ -3447,9 +3986,18 @@ export const TutorDashboard: React.FC = () => {
                 <button
                   type="submit"
                   disabled={savingResource}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
                 >
-                  {savingResource ? 'Saving...' : editingResource ? 'Update Resource' : 'Publish Resource'}
+                  {savingResource ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving to Storage...</span>
+                    </>
+                  ) : editingResource ? (
+                    'Update Resource'
+                  ) : (
+                    'Publish Resource'
+                  )}
                 </button>
               </div>
             </form>

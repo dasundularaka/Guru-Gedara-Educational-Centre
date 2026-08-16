@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, useMotionValue, useSpring } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 
 interface ResponsiveBreakpoints {
@@ -15,7 +15,7 @@ interface SmoothCarouselProps<T> {
   renderItem: (item: T, index: number) => React.ReactNode;
   keyExtractor?: (item: T, index: number) => string | number;
   itemsPerView?: ResponsiveBreakpoints;
-  gap?: number; // Gap in px, default 24 (6 in tailwind)
+  gap?: number;
   autoPlay?: boolean;
   autoPlayInterval?: number; // ms, default 4500
   pauseOnHover?: boolean;
@@ -63,10 +63,9 @@ export function SmoothCarousel<T>({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchDelta, setTouchDelta] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const isDraggingRef = useRef(false);
 
   // Responsive items count computation
   const [visibleCount, setVisibleCount] = useState(() => {
@@ -102,7 +101,6 @@ export function SmoothCarousel<T>({
     return () => window.removeEventListener('resize', updateDimensions);
   }, [itemsPerView]);
 
-  // Update container width on mount and changes
   useEffect(() => {
     if (containerRef.current) {
       setContainerWidth(containerRef.current.offsetWidth);
@@ -110,7 +108,6 @@ export function SmoothCarousel<T>({
   }, [items.length, visibleCount]);
 
   const totalItems = items.length;
-  // Maximum starting slide index so we don't scroll past the end
   const maxIndex = Math.max(0, totalItems - visibleCount);
 
   // Clamp current index if visibleCount or items change
@@ -148,7 +145,21 @@ export function SmoothCarousel<T>({
     setIsPaused(p => !p);
   }, []);
 
-  // Auto play effect with hover detection
+  // Keyboard navigation when hovered
+  useEffect(() => {
+    if (!isHovered) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        prev();
+      } else if (e.key === 'ArrowRight') {
+        next();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isHovered, prev, next]);
+
+  // Auto-play effect with hover detection
   useEffect(() => {
     if (!autoPlay || isPaused || (pauseOnHover && isHovered) || totalItems <= visibleCount) {
       return;
@@ -160,32 +171,6 @@ export function SmoothCarousel<T>({
 
     return () => clearInterval(timer);
   }, [autoPlay, autoPlayInterval, isPaused, pauseOnHover, isHovered, totalItems, visibleCount, next]);
-
-  // Touch Swipe gestures for smooth mobile interaction
-  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    setTouchStart(clientX);
-    setTouchDelta(0);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
-    if (touchStart === null) return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const delta = clientX - touchStart;
-    setTouchDelta(delta);
-  };
-
-  const handleTouchEnd = () => {
-    if (touchStart === null) return;
-    const threshold = 45; // pixels
-    if (touchDelta < -threshold) {
-      next();
-    } else if (touchDelta > threshold) {
-      prev();
-    }
-    setTouchStart(null);
-    setTouchDelta(0);
-  };
 
   if (totalItems === 0) {
     return emptyState ? <>{emptyState}</> : null;
@@ -219,7 +204,6 @@ export function SmoothCarousel<T>({
     }
   }[accentColor];
 
-  // Number of pages/steps for dots
   const totalSteps = maxIndex + 1;
 
   // Custom Controls Provider
@@ -238,9 +222,12 @@ export function SmoothCarousel<T>({
 
   return (
     <div 
-      className={`relative w-full ${className}`}
+      className={`relative w-full select-none ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      tabIndex={0}
+      role="region"
+      aria-label="Carousel"
     >
       {/* Custom Controls Header if passed */}
       {customControls}
@@ -250,7 +237,7 @@ export function SmoothCarousel<T>({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-1.5">
             {showDots && totalSteps > 1 && (
-              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-full border border-slate-200/60">
+              <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-full border border-slate-200/60 shadow-2xs">
                 {Array.from({ length: totalSteps }).map((_, i) => (
                   <button
                     key={i}
@@ -272,7 +259,7 @@ export function SmoothCarousel<T>({
             <button
               type="button"
               onClick={prev}
-              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
               title="Previous"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -280,7 +267,7 @@ export function SmoothCarousel<T>({
             <button
               type="button"
               onClick={next}
-              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+              className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
               title="Next"
             >
               <ChevronRight className="w-4 h-4" />
@@ -289,24 +276,40 @@ export function SmoothCarousel<T>({
         </div>
       )}
 
-      {/* Main Track Viewport Container */}
+      {/* Main Track Viewport Container with Smooth Spring & Drag Inertia */}
       <div 
         ref={containerRef}
-        className="overflow-hidden relative w-full py-4 -my-4 px-1 -mx-1 select-none touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        className="overflow-hidden relative w-full py-4 -my-4 px-1 -mx-1 touch-pan-y cursor-grab active:cursor-grabbing"
       >
         <motion.div
-          className="flex"
+          className="flex items-stretch"
+          drag={totalItems > visibleCount ? "x" : false}
+          dragConstraints={{
+            left: containerWidth ? -((totalItems - visibleCount) * (containerWidth / visibleCount)) : 0,
+            right: 0
+          }}
+          dragElastic={0.12}
+          onDragStart={() => { isDraggingRef.current = true; }}
+          onDragEnd={(_, info) => {
+            setTimeout(() => { isDraggingRef.current = false; }, 50);
+            const offset = info.offset.x;
+            const velocity = info.velocity.x;
+            const threshold = 40;
+
+            if (offset < -threshold || velocity < -300) {
+              next();
+            } else if (offset > threshold || velocity > 300) {
+              prev();
+            }
+          }}
           animate={{
             x: `-${currentIndex * (100 / visibleCount)}%`,
           }}
           transition={{
             type: "spring",
-            stiffness: 280,
-            damping: 32,
-            mass: 0.85,
+            stiffness: 220,
+            damping: 28,
+            mass: 0.65,
           }}
           style={{
             display: 'flex',
@@ -320,7 +323,7 @@ export function SmoothCarousel<T>({
             return (
               <div
                 key={key}
-                className={`shrink-0 px-3 box-border ${cardClassName}`}
+                className={`shrink-0 px-3 box-border flex flex-col ${cardClassName}`}
                 style={{
                   width: `${itemWidthPercent}%`,
                 }}
@@ -360,13 +363,13 @@ export function SmoothCarousel<T>({
           <button
             type="button"
             onClick={prev}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer mr-2"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer mr-2 active:scale-95"
             title="Previous"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           
-          <div className="flex items-center gap-1 bg-slate-100/90 p-1.5 rounded-full border border-slate-200/70">
+          <div className="flex items-center gap-1 bg-slate-100/90 p-1.5 rounded-full border border-slate-200/70 shadow-2xs">
             {Array.from({ length: totalSteps }).map((_, i) => (
               <button
                 key={i}
@@ -385,7 +388,7 @@ export function SmoothCarousel<T>({
           <button
             type="button"
             onClick={next}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ml-2"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ml-2 active:scale-95"
             title="Next"
           >
             <ChevronRight className="w-4 h-4" />

@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager,
   setLogLevel
 } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
 // Silence non-fatal Firestore network timeout and offline mode warnings in console
@@ -44,6 +45,18 @@ export const db = dbId
   : initializeFirestore(app, cacheSettings);
 
 export const auth = getAuth(app);
+
+let storageInstance: any = null;
+try {
+  if (firebaseConfig.storageBucket) {
+    storageInstance = getStorage(app);
+  }
+} catch (err) {
+  console.warn("Firebase Storage service is not available, falling back to local storage handler.", err);
+  storageInstance = null;
+}
+
+export const storage = storageInstance;
 
 export { firebaseConfig };
 export default app;
