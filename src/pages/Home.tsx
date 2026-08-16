@@ -4,6 +4,7 @@ import { firestoreService } from '../lib/firestoreService';
 import { ClassItem, UserProfile, BannerImage, Review } from '../types';
 import { ClassCard } from '../components/ClassCard';
 import { TutorCard } from '../components/TutorCard';
+import { SmoothCarousel } from '../components/SmoothCarousel';
 import { 
   Sparkles, 
   GraduationCap, 
@@ -12,14 +13,16 @@ import {
   ShieldCheck, 
   Users, 
   School, 
-  ArrowRight,
+  ArrowRight, 
   TrendingUp,
   ChevronLeft,
   ChevronRight,
   Star,
   MessageSquare,
   Send,
-  CheckCircle2
+  CheckCircle2,
+  Layers,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -33,11 +36,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
   const [topTutors, setTopTutors] = useState<UserProfile[]>([]);
   const [banners, setBanners] = useState<BannerImage[]>([]);
   const [currentBannerIdx, setCurrentBannerIdx] = useState(0);
-
-  // Carousels active indexes
-  const [tutorSlideIdx, setTutorSlideIdx] = useState(0);
-  const [classSlideIdx, setClassSlideIdx] = useState(0);
-  const [reviewSlideIdx, setReviewSlideIdx] = useState(0);
+  const [isBannerHovered, setIsBannerHovered] = useState(false);
 
   // Comment submission state
   const [commentName, setCommentName] = useState('');
@@ -102,14 +101,14 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
     }
   }, [currentUser]);
 
-  // Auto rotate banner carousel
+  // Auto rotate banner carousel with hover pause
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (banners.length <= 1 || isBannerHovered) return;
     const interval = setInterval(() => {
       setCurrentBannerIdx(prev => (prev + 1) % banners.length);
-    }, 5000);
+    }, 5500);
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [banners.length, isBannerHovered]);
 
   const handleNextBanner = () => {
     if (banners.length === 0) return;
@@ -148,101 +147,6 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       setSubmittingComment(false);
     }
   };
-
-  // Screen size detection for responsive carousel items
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Carousel helpers
-  const visibleTutorsCount = isMobile ? 1 : 3;
-  const visibleClassesCount = isMobile ? 1 : 3;
-  const visibleReviewsCount = isMobile ? 1 : 3;
-
-  // Auto rotate tutors carousel
-  useEffect(() => {
-    if (topTutors.length <= visibleTutorsCount) return;
-    const interval = setInterval(() => {
-      setTutorSlideIdx(prev => (prev + 1) % topTutors.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [topTutors.length, visibleTutorsCount]);
-
-  // Auto rotate classes carousel
-  useEffect(() => {
-    if (highlightedClasses.length <= visibleClassesCount) return;
-    const interval = setInterval(() => {
-      setClassSlideIdx(prev => (prev + 1) % highlightedClasses.length);
-    }, 4500);
-    return () => clearInterval(interval);
-  }, [highlightedClasses.length, visibleClassesCount]);
-
-  // Auto rotate reviews carousel
-  useEffect(() => {
-    if (approvedReviews.length <= visibleReviewsCount) return;
-    const interval = setInterval(() => {
-      setReviewSlideIdx(prev => (prev + 1) % approvedReviews.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [approvedReviews.length, visibleReviewsCount]);
-
-  const nextTutors = () => {
-    setTutorSlideIdx(prev => (prev + 1) % Math.max(1, topTutors.length));
-  };
-  const prevTutors = () => {
-    setTutorSlideIdx(prev => (prev - 1 + topTutors.length) % Math.max(1, topTutors.length));
-  };
-
-  const nextClasses = () => {
-    setClassSlideIdx(prev => (prev + 1) % Math.max(1, highlightedClasses.length));
-  };
-  const prevClasses = () => {
-    setClassSlideIdx(prev => (prev - 1 + highlightedClasses.length) % Math.max(1, highlightedClasses.length));
-  };
-
-  const nextReviews = () => {
-    setReviewSlideIdx(prev => (prev + 1) % Math.max(1, approvedReviews.length));
-  };
-  const prevReviews = () => {
-    setReviewSlideIdx(prev => (prev - 1 + approvedReviews.length) % Math.max(1, approvedReviews.length));
-  };
-
-  // Slice displayed items for carousels
-  const displayedTutors = useMemo(() => {
-    if (topTutors.length === 0) return [];
-    const count = Math.min(topTutors.length, visibleTutorsCount);
-    const result = [];
-    for (let i = 0; i < count; i++) {
-      result.push(topTutors[(tutorSlideIdx + i) % topTutors.length]);
-    }
-    return result;
-  }, [topTutors, tutorSlideIdx, visibleTutorsCount]);
-
-  const displayedClasses = useMemo(() => {
-    if (highlightedClasses.length === 0) return [];
-    const count = Math.min(highlightedClasses.length, visibleClassesCount);
-    const result = [];
-    for (let i = 0; i < count; i++) {
-      result.push(highlightedClasses[(classSlideIdx + i) % highlightedClasses.length]);
-    }
-    return result;
-  }, [highlightedClasses, classSlideIdx, visibleClassesCount]);
-
-  const displayedReviews = useMemo(() => {
-    if (approvedReviews.length === 0) return [];
-    const count = Math.min(approvedReviews.length, visibleReviewsCount);
-    const result = [];
-    for (let i = 0; i < count; i++) {
-      result.push(approvedReviews[(reviewSlideIdx + i) % approvedReviews.length]);
-    }
-    return result;
-  }, [approvedReviews, reviewSlideIdx, visibleReviewsCount]);
 
   return (
     <div className="bg-slate-50/20" id="homepage_container">
@@ -351,22 +255,26 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
 
       {/* 2. ADVERTISING BANNERS CAROUSEL */}
       {banners.length > 0 && (
-        <div className="py-8 bg-slate-900 text-white relative overflow-hidden">
+        <div 
+          className="py-8 bg-slate-900 text-white relative overflow-hidden"
+          onMouseEnter={() => setIsBannerHovered(true)}
+          onMouseLeave={() => setIsBannerHovered(false)}
+        >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 p-6 sm:p-10 min-h-[220px] flex items-center justify-between">
+            <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 p-6 sm:p-10 min-h-[220px] flex items-center justify-between shadow-2xl">
               
               <AnimatePresence mode="wait">
                 {banners[currentBannerIdx] && (
                   <motion.div
                     key={banners[currentBannerIdx].id}
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 25 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.4 }}
+                    exit={{ opacity: 0, x: -25 }}
+                    transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
                     className="flex flex-col md:flex-row items-center justify-between gap-6 w-full"
                   >
                     <div className="space-y-3 max-w-xl">
-                      <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-bold font-mono tracking-widest uppercase">
+                      <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-bold font-mono tracking-widest uppercase inline-block">
                         Featured Highlight
                       </span>
                       <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -388,7 +296,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     </div>
 
                     {banners[currentBannerIdx].imageUrl && (
-                      <div className="w-full md:w-80 h-44 rounded-2xl overflow-hidden border border-slate-800 shrink-0">
+                      <div className="w-full md:w-80 h-44 rounded-2xl overflow-hidden border border-slate-800 shrink-0 shadow-lg">
                         <img 
                           referrerPolicy="no-referrer"
                           src={banners[currentBannerIdx].imageUrl} 
@@ -402,10 +310,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </AnimatePresence>
 
               {/* Controls */}
-              <div className="absolute bottom-4 right-6 flex items-center gap-2">
+              <div className="absolute bottom-4 right-6 flex items-center gap-2 z-10">
                 <button 
                   onClick={handlePrevBanner}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer"
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
                   title="Previous banner"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -415,13 +323,14 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     <button
                       key={i}
                       onClick={() => setCurrentBannerIdx(i)}
-                      className={`h-2 rounded-full transition-all cursor-pointer ${i === currentBannerIdx ? 'w-6 bg-indigo-500' : 'w-2 bg-slate-700'}`}
+                      className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${i === currentBannerIdx ? 'w-6 bg-indigo-500' : 'w-2 bg-slate-700'}`}
+                      title={`Go to banner ${i + 1}`}
                     />
                   ))}
                 </div>
                 <button 
                   onClick={handleNextBanner}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer"
+                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
                   title="Next banner"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -436,116 +345,154 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       {/* 3. LECTURERS / FACULTY CAROUSEL */}
       <div className="py-16 bg-blue-50/50 border-t border-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-            <div>
-              <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Respected Instructors</h2>
-              <p className="text-xs text-gray-500 mt-1">Accredited professors, Ph.D. researchers, and industrial professionals</p>
-            </div>
+          <SmoothCarousel
+            items={topTutors}
+            keyExtractor={(tutor) => tutor.uid}
+            itemsPerView={{ base: 1, sm: 1, md: 2, lg: 3, xl: 3 }}
+            autoPlay={true}
+            autoPlayInterval={4200}
+            pauseOnHover={true}
+            accentColor="indigo"
+            renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Respected Instructors</h2>
+                  <p className="text-xs text-gray-500 mt-1">Accredited professors, Ph.D. researchers, and industrial professionals</p>
+                </div>
 
-            <div className="flex items-center gap-2">
-              {topTutors.length > 1 && (
-                <div className="flex items-center gap-1.5 mr-2">
-                  <button
-                    onClick={prevTutors}
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
-                    title="Previous faculty"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
-                    {topTutors.map((_, i) => (
+                <div className="flex items-center gap-2">
+                  {total > 1 && (
+                    <div className="flex items-center gap-1.5 mr-2">
                       <button
-                        key={i}
-                        onClick={() => setTutorSlideIdx(i)}
-                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                          i === (tutorSlideIdx % topTutors.length) ? 'w-5 bg-indigo-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
-                        }`}
-                        title={`Go to slide ${i + 1}`}
-                      />
-                    ))}
-                  </div>
+                        type="button"
+                        onClick={prev}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        title="Previous faculty"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
+                        {Array.from({ length: maxIndex + 1 }).map((_, i) => (
+                          <button
+                            type="button"
+                            key={i}
+                            onClick={() => goTo(i)}
+                            className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                              i === currentIndex ? 'w-6 bg-indigo-600 shadow-xs' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                            }`}
+                            title={`Go to slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={next}
+                        className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        title="Next faculty"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                   <button
-                    onClick={nextTutors}
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors shadow-xs cursor-pointer"
-                    title="Next faculty"
+                    type="button"
+                    onClick={() => onNavigateTab('tutors')}
+                    className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-xs hover:shadow-md cursor-pointer"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    View All Faculty ({topTutors.length})
                   </button>
                 </div>
-              )}
-              <button
-                onClick={() => onNavigateTab('tutors')}
-                className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors cursor-pointer"
-              >
-                View All Faculty ({topTutors.length})
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {displayedTutors.map(tut => (
-              <TutorCard key={tut.uid} tutor={tut} onContactClick={() => onNavigateTab('tutors')} />
-            ))}
-          </div>
+              </div>
+            )}
+            renderItem={(tut) => (
+              <div className="h-full">
+                <TutorCard tutor={tut} onContactClick={() => onNavigateTab('tutors')} />
+              </div>
+            )}
+            emptyState={
+              <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 text-slate-400 text-xs">
+                No active tutors available at the moment.
+              </div>
+            }
+          />
         </div>
       </div>
 
       {/* 4. CLASSES CAROUSEL */}
       <div className="py-16 bg-white border-t border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-            <div>
-              <span className="text-xs font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">Featured Subject Classes</h2>
-              <p className="text-xs text-slate-500 mt-1">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
-            </div>
+          <SmoothCarousel
+            items={highlightedClasses}
+            keyExtractor={(cls) => cls.id}
+            itemsPerView={{ base: 1, sm: 1, md: 2, lg: 3, xl: 3 }}
+            autoPlay={true}
+            autoPlayInterval={4600}
+            pauseOnHover={true}
+            accentColor="slate"
+            renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">Featured Subject Classes</h2>
+                  <p className="text-xs text-slate-500 mt-1">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
+                </div>
 
-            <div className="flex items-center gap-2">
-              {highlightedClasses.length > 1 && (
-                <div className="flex items-center gap-1.5 mr-2">
-                  <button
-                    onClick={prevClasses}
-                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                    title="Previous class"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
-                    {highlightedClasses.map((_, i) => (
+                <div className="flex items-center gap-2">
+                  {total > 1 && (
+                    <div className="flex items-center gap-1.5 mr-2">
                       <button
-                        key={i}
-                        onClick={() => setClassSlideIdx(i)}
-                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                          i === (classSlideIdx % highlightedClasses.length) ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300 hover:bg-slate-400'
-                        }`}
-                        title={`Go to slide ${i + 1}`}
-                      />
-                    ))}
-                  </div>
+                        type="button"
+                        onClick={prev}
+                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        title="Previous class"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
+                        {Array.from({ length: maxIndex + 1 }).map((_, i) => (
+                          <button
+                            type="button"
+                            key={i}
+                            onClick={() => goTo(i)}
+                            className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                              i === currentIndex ? 'w-6 bg-slate-900 shadow-xs' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                            }`}
+                            title={`Go to slide ${i + 1}`}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={next}
+                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        title="Next class"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                   <button
-                    onClick={nextClasses}
-                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                    title="Next class"
+                    type="button"
+                    onClick={() => onNavigateTab('classes')}
+                    className="px-4 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-950 transition-colors shadow-xs hover:shadow-md cursor-pointer"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    All Curriculums ({highlightedClasses.length})
                   </button>
                 </div>
-              )}
-              <button
-                onClick={() => onNavigateTab('classes')}
-                className="px-4 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-950 transition-colors cursor-pointer"
-              >
-                All Curriculums ({highlightedClasses.length})
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {displayedClasses.map(cls => (
-              <ClassCard key={cls.id} item={cls} onBookClick={() => onNavigateTab('classes')} />
-            ))}
-          </div>
+              </div>
+            )}
+            renderItem={(cls) => (
+              <div className="h-full">
+                <ClassCard item={cls} onBookClick={() => onNavigateTab('classes')} />
+              </div>
+            )}
+            emptyState={
+              <div className="text-center py-12 bg-slate-50 rounded-3xl border border-slate-200 text-slate-400 text-xs">
+                No active classes available at the moment.
+              </div>
+            }
+          />
         </div>
       </div>
 
@@ -553,68 +500,90 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       <div className="py-16 bg-slate-50 border-t border-slate-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-10 gap-4">
-            <div>
-              <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Parent & Student Reviews</h2>
-              <p className="text-xs text-gray-500 mt-1">Real feedback approved by academy administration</p>
-            </div>
+          <SmoothCarousel
+            items={approvedReviews}
+            keyExtractor={(rev) => rev.id}
+            itemsPerView={{ base: 1, sm: 1, md: 2, lg: 3, xl: 3 }}
+            autoPlay={true}
+            autoPlayInterval={5000}
+            pauseOnHover={true}
+            accentColor="blue"
+            className="mb-12"
+            renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Parent & Student Reviews</h2>
+                  <p className="text-xs text-gray-500 mt-1">Real feedback approved by academy administration</p>
+                </div>
 
-            {approvedReviews.length > visibleReviewsCount && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={prevReviews}
-                  className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shadow-xs"
-                  title="Previous review"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={nextReviews}
-                  className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shadow-xs"
-                  title="Next review"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Approved reviews grid/carousel */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            {displayedReviews.length > 0 ? (
-              displayedReviews.map((rev) => (
-                <div key={rev.id} className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-1 mb-3">
-                      {[...Array(5)].map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`w-3.5 h-3.5 ${i < rev.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
+                {total > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={prev}
+                      className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      title="Previous review"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
+                      {Array.from({ length: maxIndex + 1 }).map((_, i) => (
+                        <button
+                          type="button"
+                          key={i}
+                          onClick={() => goTo(i)}
+                          className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                            i === currentIndex ? 'w-6 bg-blue-600 shadow-xs' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                          }`}
+                          title={`Go to slide ${i + 1}`}
                         />
                       ))}
                     </div>
-                    <p className="text-xs text-slate-650 leading-relaxed font-sans italic">
-                      "{rev.comment}"
-                    </p>
+                    <button
+                      type="button"
+                      onClick={next}
+                      className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      title="Next review"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="mt-5 border-t border-slate-100 pt-4 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 block">{rev.studentName}</span>
-                      <span className="text-[10px] text-slate-400 block font-mono">{rev.classTitle || rev.tutorName || 'Academy Feedback'}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {new Date(rev.createdAt).toLocaleDateString()}
-                    </span>
+                )}
+              </div>
+            )}
+            renderItem={(rev) => (
+              <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative flex flex-col justify-between h-full">
+                <div>
+                  <div className="flex items-center gap-1 mb-3">
+                    {[...Array(5)].map((_, i) => (
+                      <Star 
+                        key={i} 
+                        className={`w-3.5 h-3.5 ${i < rev.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
+                      />
+                    ))}
                   </div>
+                  <p className="text-xs text-slate-650 leading-relaxed font-sans italic">
+                    "{rev.comment}"
+                  </p>
                 </div>
-              ))
-            ) : (
+                <div className="mt-5 border-t border-slate-100 pt-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">{rev.studentName}</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">{rev.classTitle || rev.tutorName || 'Academy Feedback'}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {new Date(rev.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            )}
+            emptyState={
               <div className="col-span-3 text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
                 No approved reviews yet. Be the first to submit feedback below!
               </div>
-            )}
-          </div>
+            }
+          />
 
           {/* Interactive Comment Submission Box */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-md max-w-3xl mx-auto">
