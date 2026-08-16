@@ -106,7 +106,9 @@ export const TutorDashboard: React.FC = () => {
   const [resSubject, setResSubject] = useState('Mathematics');
   const [resType, setResType] = useState<ResourceType>('note');
   const [resUrl, setResUrl] = useState('');
+  const [resIsVisible, setResIsVisible] = useState<boolean>(true);
   const [savingResource, setSavingResource] = useState(false);
+  const [expandedClassResourceId, setExpandedClassResourceId] = useState<string | null>(null);
 
   // Resource Delete Modal state
   const [deleteResourceConfirm, setDeleteResourceConfirm] = useState<{
@@ -379,17 +381,22 @@ export const TutorDashboard: React.FC = () => {
     }
   }, [currentUser?.uid, activeSubTab, classes.length]);
 
-  const handleOpenAddResourceModal = (preselectedClassId?: string) => {
+  const handleOpenAddResourceModal = (preselectedClassId?: string, defaultType: ResourceType = 'note') => {
     setEditingResource(null);
     setResTitle('');
     setResDescription('');
     setResUrl('');
-    setResType('note');
+    setResType(defaultType);
     const targetClassId = preselectedClassId || (tutorClasses.length > 0 ? tutorClasses[0].id : '');
     setResClassId(targetClassId);
     const targetClass = tutorClasses.find(c => c.id === targetClassId) || tutorClasses[0];
     setResSubject(targetClass?.subject || 'Mathematics');
+    setResIsVisible(true);
     setShowResourceModal(true);
+  };
+
+  const handleQuickAddResource = (classId: string, type: ResourceType) => {
+    handleOpenAddResourceModal(classId, type);
   };
 
   const handleEditResourceModal = (mat: StudyMaterial) => {
@@ -400,7 +407,19 @@ export const TutorDashboard: React.FC = () => {
     setResType(mat.type || 'note');
     setResClassId(mat.classId || '');
     setResSubject(mat.subject || 'Mathematics');
+    setResIsVisible(mat.isVisible !== false);
     setShowResourceModal(true);
+  };
+
+  const handleToggleResourceVisibility = async (mat: StudyMaterial) => {
+    const nextVisible = !(mat.isVisible !== false);
+    try {
+      await firestoreService.updateStudyMaterial(mat.id, { isVisible: nextVisible });
+      showToast(`Resource '${mat.title}' is now ${nextVisible ? 'Visible to students' : 'Hidden as draft'}.`, "info");
+      await fetchTutorMaterials();
+    } catch {
+      showToast("Failed to update visibility status.", "error");
+    }
   };
 
   const handleSaveResource = async (e: React.FormEvent) => {
@@ -429,7 +448,8 @@ export const TutorDashboard: React.FC = () => {
           referenceUrl: formattedUrl,
           type: resType,
           classId: resClassId || undefined,
-          classTitle: targetClass?.title || undefined
+          classTitle: targetClass?.title || undefined,
+          isVisible: resIsVisible
         });
         showToast(`Resource '${resTitle.trim()}' updated successfully!`, "success");
       } else {
@@ -442,7 +462,8 @@ export const TutorDashboard: React.FC = () => {
           tutorId: currentUser.uid,
           tutorName: currentUser.name,
           classId: resClassId || undefined,
-          classTitle: targetClass?.title || undefined
+          classTitle: targetClass?.title || undefined,
+          isVisible: resIsVisible
         });
         showToast(`Resource '${resTitle.trim()}' published to course!`, "success");
       }
@@ -1430,125 +1451,374 @@ export const TutorDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-8"
               >
-                {/* Section 1: Assigned Classes Directory */}
-                <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-5">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+                {/* Section 1: Assigned Classes Directory & Direct Resource Controls */}
+                <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
                     <div>
                       <div className="flex items-center gap-2">
-                        <BookOpen className="w-5 h-5 text-blue-600" />
-                        <h2 className="text-base font-extrabold text-gray-900 tracking-tight">Assigned Courses Directory</h2>
-                        <span className="bg-blue-50 text-blue-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-150 font-mono">
-                          {tutorClasses.length} Active Courses
-                        </span>
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                          <BookOpen className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-base font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+                            Assigned Courses & Teaching Materials
+                            <span className="bg-blue-50 text-blue-700 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-blue-150 font-mono">
+                              {tutorClasses.length} Active Courses
+                            </span>
+                          </h2>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Directly upload and manage lecture notes, quiz assessments, reference links, and documents for each course.
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Directly manage study notes, quiz uploads, reference links, and assignment sheets for your specific courses.
-                      </p>
                     </div>
 
-                    <button
-                      onClick={() => handleOpenAddResourceModal()}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-sm transition-colors cursor-pointer shrink-0"
-                    >
-                      <Plus className="w-4 h-4" /> Add Course Resource
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenAddResourceModal()}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4" /> Add New Resource
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Grid of Assigned Classes */}
+                  {/* Top Stats Overview Ribbon */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 text-center">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Assigned Classes</span>
+                      <p className="text-lg font-black text-slate-800">{tutorClasses.length}</p>
+                    </div>
+                    <div className="bg-blue-50/60 border border-blue-200/70 rounded-xl p-3 text-center">
+                      <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider font-mono">Total Scholars</span>
+                      <p className="text-lg font-black text-blue-800">{rosterBookings.length}</p>
+                    </div>
+                    <div className="bg-indigo-50/60 border border-indigo-200/70 rounded-xl p-3 text-center">
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider font-mono">Lecture Notes</span>
+                      <p className="text-lg font-black text-indigo-800">{tutorMaterials.filter(m => m.type === 'note').length}</p>
+                    </div>
+                    <div className="bg-amber-50/60 border border-amber-200/70 rounded-xl p-3 text-center">
+                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider font-mono">Quizzes & Tests</span>
+                      <p className="text-lg font-black text-amber-800">{tutorMaterials.filter(m => m.type === 'quiz').length}</p>
+                    </div>
+                    <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3 text-center">
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider font-mono">Reference Links</span>
+                      <p className="text-lg font-black text-emerald-800">{tutorMaterials.filter(m => m.type === 'link' || !m.type).length}</p>
+                    </div>
+                    <div className="bg-purple-50/60 border border-purple-200/70 rounded-xl p-3 text-center">
+                      <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider font-mono">Total Materials</span>
+                      <p className="text-lg font-black text-purple-800">{tutorMaterials.length}</p>
+                    </div>
+                  </div>
+
+                  {/* Grid of Assigned Classes with In-Card Resource Controls */}
                   {tutorClasses.length === 0 ? (
                     <div className="p-8 text-center bg-gray-50/50 rounded-xl border border-dashed border-gray-200 space-y-2">
                       <BookOpen className="w-8 h-8 text-gray-300 mx-auto" />
                       <p className="text-xs font-bold text-gray-700">No assigned courses programmed yet</p>
-                      <p className="text-[11px] text-gray-400">Click 'Launch Tuition Class' at the top of your workspace to create your first class.</p>
+                      <p className="text-[11px] text-gray-400">Click 'Launch Tuition Class' at the top of your workspace to create your first course.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                       {tutorClasses.map((cls) => {
                         const classMaterials = tutorMaterials.filter(m => m.classId === cls.id);
                         const classBookings = rosterBookings.filter(b => b.classId === cls.id);
                         const notesCount = classMaterials.filter(m => m.type === 'note').length;
                         const quizzesCount = classMaterials.filter(m => m.type === 'quiz').length;
                         const linksCount = classMaterials.filter(m => m.type === 'link' || !m.type).length;
+                        const filesCount = classMaterials.filter(m => m.type === 'file' || m.type === 'video').length;
+                        const isExpanded = expandedClassResourceId === cls.id;
                         const isSelected = selectedResourceClassId === cls.id;
 
                         return (
                           <div
                             key={cls.id}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                            className={`rounded-2xl border transition-all flex flex-col justify-between overflow-hidden ${
                               isSelected
-                                ? 'border-blue-500 bg-blue-50/20 shadow-md ring-2 ring-blue-500/20'
-                                : 'border-gray-200 bg-gray-50/30 hover:border-blue-200 hover:bg-white shadow-2xs'
+                                ? 'border-blue-500 bg-white shadow-md ring-2 ring-blue-500/20'
+                                : 'border-gray-200 bg-white hover:border-blue-200 shadow-2xs'
                             }`}
                           >
-                            <div className="space-y-2">
+                            {/* Class Card Top Info */}
+                            <div className="p-5 space-y-4">
                               <div className="flex justify-between items-start gap-2">
-                                <span className="text-[9px] font-extrabold font-mono text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                  {cls.subject}
-                                </span>
-                                <span className="text-[10px] font-bold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[9px] font-extrabold font-mono text-blue-700 bg-blue-100/60 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
+                                    {cls.subject}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md font-mono">
+                                    {cls.dayOfWeek} • {cls.timeSlot}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
                                   {classBookings.length}/{cls.maxSlots} Enrolled
                                 </span>
                               </div>
 
-                              <h3 className="text-sm font-extrabold text-gray-900 line-clamp-1" title={cls.title}>
-                                {cls.title}
-                              </h3>
+                              <div>
+                                <h3 className="text-base font-extrabold text-gray-900 leading-snug" title={cls.title}>
+                                  {cls.title}
+                                </h3>
+                                {cls.description && (
+                                  <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                                    {cls.description}
+                                  </p>
+                                )}
+                              </div>
 
-                              <p className="text-[11px] text-gray-500 flex items-center gap-1 font-mono">
-                                <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                                {cls.dayOfWeek} • {cls.timeSlot}
-                              </p>
-
-                              {/* Resource count indicators */}
-                              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-200/60">
-                                <span className="text-[10px] font-bold text-slate-700 bg-white border border-gray-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              {/* Class Resource Counts Breakdown */}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-3 border-t border-gray-100">
+                                <span className="text-[10px] font-bold text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                                   <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
-                                  {classMaterials.length} Items
+                                  {classMaterials.length} Total Materials
                                 </span>
-                                {notesCount > 0 && (
-                                  <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 px-1.5 py-0.5 rounded">
-                                    {notesCount} Notes
-                                  </span>
-                                )}
-                                {quizzesCount > 0 && (
-                                  <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-150 px-1.5 py-0.5 rounded">
-                                    {quizzesCount} Quizzes
-                                  </span>
-                                )}
-                                {linksCount > 0 && (
-                                  <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-150 px-1.5 py-0.5 rounded">
-                                    {linksCount} Links
+                                <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                  <FileText className="w-3 h-3" />
+                                  {notesCount} Notes
+                                </span>
+                                <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-150 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                  <HelpCircle className="w-3 h-3" />
+                                  {quizzesCount} Quizzes
+                                </span>
+                                <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                  <LinkIcon className="w-3 h-3" />
+                                  {linksCount} Links
+                                </span>
+                                {filesCount > 0 && (
+                                  <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 border border-purple-150 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                    <FileSpreadsheet className="w-3 h-3" />
+                                    {filesCount} Files
                                   </span>
                                 )}
                               </div>
+
+                              {/* Direct Quick-Add Bar on Each Class Card */}
+                              <div className="bg-slate-50/80 rounded-xl p-2.5 border border-slate-150 flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                                  Quick Upload:
+                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <button
+                                    onClick={() => handleQuickAddResource(cls.id, 'note')}
+                                    className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                    title="Add Lecture Note for this course"
+                                  >
+                                    <FileText className="w-3 h-3 text-indigo-600" />
+                                    <span>+ Note</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleQuickAddResource(cls.id, 'quiz')}
+                                    className="px-2.5 py-1 bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                    title="Upload Quiz / Assignment Link for this course"
+                                  >
+                                    <HelpCircle className="w-3 h-3 text-amber-600" />
+                                    <span>+ Quiz</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleQuickAddResource(cls.id, 'link')}
+                                    className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                    title="Attach Web Resource / Portal Link"
+                                  >
+                                    <LinkIcon className="w-3 h-3 text-emerald-600" />
+                                    <span>+ Link</span>
+                                  </button>
+                                </div>
+                              </div>
                             </div>
 
-                            {/* Card Action Buttons */}
-                            <div className="flex items-center gap-2 pt-3 mt-1 border-t border-gray-100">
-                              <button
-                                onClick={() => {
-                                  if (selectedResourceClassId === cls.id) {
-                                    setSelectedResourceClassId('all');
-                                  } else {
-                                    setSelectedResourceClassId(cls.id);
-                                  }
-                                }}
-                                className={`flex-1 text-xs py-1.5 px-2 font-bold rounded-xl transition-colors cursor-pointer text-center ${
-                                  isSelected
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
-                                }`}
-                              >
-                                {isSelected ? 'Selected Course' : 'Filter Resources'}
-                              </button>
-                              <button
-                                onClick={() => handleOpenAddResourceModal(cls.id)}
-                                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-150 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                                title="Attach new note, quiz, or link to this course"
-                              >
-                                <Plus className="w-3.5 h-3.5" /> Resource
-                              </button>
+                            {/* Class Actions Bar */}
+                            <div className="px-5 py-3 bg-gray-50/70 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setExpandedClassResourceId(isExpanded ? null : cls.id);
+                                    if (!isExpanded) {
+                                      setSelectedResourceClassId(cls.id);
+                                    }
+                                  }}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  <FolderOpen className="w-3.5 h-3.5" />
+                                  <span>{isExpanded ? 'Hide Materials' : `Manage Materials (${classMaterials.length})`}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setSelectedClassForProfile(cls)}
+                                  className="p-1.5 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                                  title="View Course Profile & Full Roster"
+                                >
+                                  <User className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setSelectedClassForScanner(cls);
+                                    setShowClassScannerModal(true);
+                                  }}
+                                  className="px-2.5 py-1.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                  title="Launch QR Attendance Scanner"
+                                >
+                                  <QrCode className="w-3.5 h-3.5 text-indigo-600" />
+                                  <span>QR Check-in</span>
+                                </button>
+                              </div>
                             </div>
+
+                            {/* Expanded In-Line Resource Manager Drawer */}
+                            <AnimatePresence>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.3 }}
+                                  className="border-t-2 border-blue-500/30 bg-slate-50/50 p-5 space-y-4"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                                      <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                                      Attached Materials for '{cls.title}'
+                                    </h4>
+                                    <button
+                                      onClick={() => handleOpenAddResourceModal(cls.id)}
+                                      className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" /> New Item
+                                    </button>
+                                  </div>
+
+                                  {classMaterials.length === 0 ? (
+                                    <div className="p-6 bg-white rounded-xl border border-dashed border-gray-200 text-center space-y-2">
+                                      <FileText className="w-6 h-6 text-gray-300 mx-auto" />
+                                      <p className="text-xs font-bold text-gray-700">No resources attached to this course yet</p>
+                                      <p className="text-[11px] text-gray-400">Use the quick upload buttons above to add notes, quiz links, or documents.</p>
+                                      <div className="flex justify-center gap-2 pt-2">
+                                        <button
+                                          onClick={() => handleQuickAddResource(cls.id, 'note')}
+                                          className="px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 cursor-pointer"
+                                        >
+                                          + Add Note
+                                        </button>
+                                        <button
+                                          onClick={() => handleQuickAddResource(cls.id, 'quiz')}
+                                          className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 cursor-pointer"
+                                        >
+                                          + Upload Quiz
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                                      {classMaterials.map(mat => {
+                                        const resType = mat.type || 'link';
+                                        const typeIcon = {
+                                          note: FileText,
+                                          quiz: HelpCircle,
+                                          link: LinkIcon,
+                                          file: FileSpreadsheet,
+                                          video: Video,
+                                          announcement: Megaphone
+                                        }[resType] || LinkIcon;
+                                        const IconC = typeIcon;
+                                        const isVisible = mat.isVisible !== false;
+
+                                        return (
+                                          <div
+                                            key={mat.id}
+                                            className="p-3 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs hover:border-blue-300 transition-all"
+                                          >
+                                            <div className="space-y-1 flex-1 min-w-0">
+                                              <div className="flex items-center gap-2">
+                                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                                  resType === 'note' ? 'bg-indigo-50 text-indigo-700' :
+                                                  resType === 'quiz' ? 'bg-amber-50 text-amber-700' :
+                                                  resType === 'link' ? 'bg-emerald-50 text-emerald-700' :
+                                                  'bg-blue-50 text-blue-700'
+                                                }`}>
+                                                  <IconC className="w-3 h-3" />
+                                                  <span className="capitalize">{resType}</span>
+                                                </span>
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-mono ${
+                                                  isVisible ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                                                }`}>
+                                                  {isVisible ? '● Visible to Students' : '○ Draft Only'}
+                                                </span>
+                                              </div>
+                                              <h5 className="text-xs font-bold text-gray-900 truncate" title={mat.title}>
+                                                {mat.title}
+                                              </h5>
+                                              {mat.description && (
+                                                <p className="text-[11px] text-gray-500 line-clamp-1">
+                                                  {mat.description}
+                                                </p>
+                                              )}
+                                            </div>
+
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <a
+                                                href={mat.referenceUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
+                                                title="Open resource link in new tab"
+                                              >
+                                                <span>Open</span>
+                                                <ExternalLink className="w-3 h-3" />
+                                              </a>
+
+                                              <button
+                                                onClick={() => {
+                                                  navigator.clipboard.writeText(mat.referenceUrl);
+                                                  showToast("Resource URL copied to clipboard!", "info");
+                                                }}
+                                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                                                title="Copy link"
+                                              >
+                                                <Share2 className="w-3.5 h-3.5" />
+                                              </button>
+
+                                              <button
+                                                onClick={() => handleToggleResourceVisibility(mat)}
+                                                className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                  isVisible 
+                                                    ? 'text-emerald-600 hover:bg-emerald-50' 
+                                                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                                                }`}
+                                                title={isVisible ? 'Hide from students (Draft)' : 'Make visible to students'}
+                                              >
+                                                <Eye className="w-3.5 h-3.5" />
+                                              </button>
+
+                                              <button
+                                                onClick={() => handleEditResourceModal(mat)}
+                                                className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                                                title="Edit resource details"
+                                              >
+                                                <Edit className="w-3.5 h-3.5" />
+                                              </button>
+
+                                              <button
+                                                onClick={() => setDeleteResourceConfirm({ isOpen: true, id: mat.id, title: mat.title })}
+                                                className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                                title="Delete resource"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         );
                       })}
@@ -1556,8 +1826,17 @@ export const TutorDashboard: React.FC = () => {
                   )}
                 </div>
 
-                {/* Section 2: Course Resources Hub */}
+                {/* Section 2: Global Course Resources Search & Filter Hub */}
                 <div className="bg-white rounded-2xl border border-gray-150 p-6 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-gray-100 pb-3">
+                    <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-600" />
+                      Course Resources Library & Global Filter
+                    </h3>
+                    <span className="text-xs text-gray-400 font-mono">
+                      Showing {tutorMaterials.length} materials across all assigned courses
+                    </span>
+                  </div>
                   
                   {/* Search & Filter Toolbar */}
                   <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 bg-gray-50/80 p-4 rounded-2xl border border-gray-200">
@@ -1577,7 +1856,7 @@ export const TutorDashboard: React.FC = () => {
                         {resourceSearchQuery && (
                           <button
                             onClick={() => setResourceSearchQuery('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold cursor-pointer"
                           >
                             ✕
                           </button>
@@ -1703,6 +1982,7 @@ export const TutorDashboard: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {filtered.map((mat) => {
                           const resType = mat.type || 'link';
+                          const isVisible = mat.isVisible !== false;
                           
                           const typeConfig = {
                             note: {
@@ -1749,12 +2029,19 @@ export const TutorDashboard: React.FC = () => {
                               className="bg-white border border-gray-200 rounded-2xl p-5 hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
                             >
                               <div className="space-y-3">
-                                {/* Header: Badge & Date */}
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${typeConfig.badgeBg}`}>
-                                    <IconComp className="w-3.5 h-3.5" />
-                                    {typeConfig.label}
-                                  </span>
+                                {/* Header: Badge, Visibility & Date */}
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${typeConfig.badgeBg}`}>
+                                      <IconComp className="w-3.5 h-3.5" />
+                                      {typeConfig.label}
+                                    </span>
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                                      isVisible ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {isVisible ? 'Visible' : 'Draft'}
+                                    </span>
+                                  </div>
                                   <span className="text-[10px] text-gray-400 font-mono">
                                     {new Date(mat.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                   </span>
@@ -1789,7 +2076,7 @@ export const TutorDashboard: React.FC = () => {
                                   rel="noopener noreferrer"
                                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
                                 >
-                                  <span>Open Resource</span>
+                                  <span>Open Link</span>
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </a>
 
@@ -1803,6 +2090,18 @@ export const TutorDashboard: React.FC = () => {
                                     title="Copy resource URL"
                                   >
                                     <Share2 className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleToggleResourceVisibility(mat)}
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      isVisible 
+                                        ? 'text-emerald-600 hover:bg-emerald-50' 
+                                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                    title={isVisible ? 'Hide from students (Draft)' : 'Make visible to students'}
+                                  >
+                                    <Eye className="w-4 h-4" />
                                   </button>
 
                                   <button
@@ -2949,18 +3248,18 @@ export const TutorDashboard: React.FC = () => {
       {/* Modal for Adding or Editing Course Resource */}
       {showResourceModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-100 shadow-2xl relative animate-fade-in font-sans space-y-5">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 border border-slate-100 shadow-2xl relative animate-fade-in font-sans space-y-5">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-gray-900">
-                    {editingResource ? 'Edit Course Resource' : 'Add New Course Resource'}
+                  <h3 className="text-base font-extrabold text-gray-900">
+                    {editingResource ? 'Edit Course Resource' : 'Publish Course Resource'}
                   </h3>
-                  <p className="text-[11px] text-gray-500">
-                    Publish notes, quizzes, links, or documents for your assigned students.
+                  <p className="text-xs text-gray-500">
+                    Provide lecture notes, online quizzes, reference links, or study docs for your students.
                   </p>
                 </div>
               </div>
@@ -2968,14 +3267,14 @@ export const TutorDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowResourceModal(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 cursor-pointer"
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveResource} className="space-y-4">
-              {/* Course Selection */}
+              {/* Target Course Selection */}
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Target Assigned Course:</label>
                 <select
@@ -2988,49 +3287,71 @@ export const TutorDashboard: React.FC = () => {
                       setResSubject(selectedClass.subject);
                     }
                   }}
-                  className="w-full text-xs px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold"
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold cursor-pointer"
                   required
                 >
-                  <option value="">-- Select Assigned Class --</option>
+                  <option value="">-- Select Assigned Course --</option>
                   {tutorClasses.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.title} ({c.subject} - {c.dayOfWeek})
+                      {c.title} ({c.subject} • {c.dayOfWeek} {c.timeSlot})
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Resource Title */}
+              {/* Resource Type Selection */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Resource Title:</label>
-                <input
-                  type="text"
-                  required
-                  value={resTitle}
-                  onChange={(e) => setResTitle(e.target.value)}
-                  placeholder="e.g., Module 3 Calculus Practice Quiz or Lecture Notes PDF"
-                  className="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
-                />
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">Resource Category:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'note', label: 'Lecture Note', icon: FileText, desc: 'PDF, Slide, Notes' },
+                    { id: 'quiz', label: 'Quiz / Exam', icon: HelpCircle, desc: 'Google Form, Quizizz' },
+                    { id: 'link', label: 'Reference Link', icon: LinkIcon, desc: 'Web Portal, Drive' },
+                    { id: 'file', label: 'Document File', icon: FileSpreadsheet, desc: 'Worksheet, Exercise' },
+                    { id: 'video', label: 'Video Session', icon: Video, desc: 'Recording, Zoom replay' },
+                    { id: 'announcement', label: 'Course Notice', icon: Megaphone, desc: 'Class update' },
+                  ].map(t => {
+                    const IconC = t.icon;
+                    const isSelected = resType === t.id;
+                    return (
+                      <button
+                        type="button"
+                        key={t.id}
+                        onClick={() => setResType(t.id as ResourceType)}
+                        className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/50 text-blue-900 ring-1 ring-blue-500'
+                            : 'border-gray-200 bg-gray-50/50 text-gray-700 hover:bg-gray-100/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <IconC className={`w-3.5 h-3.5 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <span className="truncate">{t.label}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 mt-1 truncate">{t.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Resource Type & Category */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Resource Type:</label>
-                  <select
-                    value={resType}
-                    onChange={(e) => setResType(e.target.value as ResourceType)}
-                    className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-bold"
-                  >
-                    <option value="note">📝 Lecture Note / PDF</option>
-                    <option value="quiz">❓ Quiz / Exam Sheet</option>
-                    <option value="link">🔗 Reference Link / Web URL</option>
-                    <option value="file">📄 Document / Spreadsheet</option>
-                    <option value="video">🎥 Video Session Link</option>
-                    <option value="announcement">📢 Course Notice</option>
-                  </select>
+              {/* Resource Title & Subject */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Resource Title:</label>
+                  <input
+                    type="text"
+                    required
+                    value={resTitle}
+                    onChange={(e) => setResTitle(e.target.value)}
+                    placeholder={
+                      resType === 'quiz' ? 'e.g., Weekly Calculus Assessment #4' :
+                      resType === 'note' ? 'e.g., Module 2 Lecture Slides & Formulas' :
+                      'e.g., Chemistry Periodic Table Portal'
+                    }
+                    className="w-full text-xs px-3.5 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                  />
                 </div>
-
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Subject Track:</label>
                   <input
@@ -3038,37 +3359,80 @@ export const TutorDashboard: React.FC = () => {
                     value={resSubject}
                     onChange={(e) => setResSubject(e.target.value)}
                     placeholder="e.g. Mathematics"
-                    className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-gray-50"
+                    className="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 bg-gray-50 text-gray-700 font-bold"
                   />
                 </div>
               </div>
 
-              {/* URL / Link */}
+              {/* URL / Link with Test Link Action */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Access URL / Resource Link:</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-gray-700">Access URL / Resource Link:</label>
+                  {resUrl.trim() && (
+                    <a
+                      href={resUrl.trim().startsWith('http') ? resUrl.trim() : `https://${resUrl.trim()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Test Link
+                    </a>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
                   value={resUrl}
                   onChange={(e) => setResUrl(e.target.value)}
-                  placeholder="e.g., https://drive.google.com/... or https://quiz.link/..."
-                  className="w-full text-xs px-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono"
+                  placeholder={
+                    resType === 'quiz' ? 'e.g., https://forms.gle/... or https://quizizz.com/...' :
+                    resType === 'note' ? 'e.g., https://drive.google.com/file/d/...' :
+                    'e.g., https://khanacademy.org/...'
+                  }
+                  className="w-full text-xs px-3.5 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 font-mono text-gray-800"
                 />
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Provide Google Drive, Dropbox, Quizlet, YouTube, or external LMS URL.
+                  Provide Google Drive, Google Forms, Dropbox, Quizlet, YouTube, or external LMS link.
                 </p>
               </div>
 
-              {/* Description */}
+              {/* Description / Instructions */}
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">Instructions / Description (Optional):</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={resDescription}
                   onChange={(e) => setResDescription(e.target.value)}
-                  placeholder="Provide guidance on completing this quiz or reading notes before class..."
+                  placeholder={
+                    resType === 'quiz' ? 'Please complete this 20-minute timed quiz before Friday class...' :
+                    resType === 'note' ? 'Read chapters 4 & 5 before Tuesday\'s lecture...' :
+                    'Supplementary materials and practice problems...'
+                  }
                   className="w-full text-xs p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
                 ></textarea>
+              </div>
+
+              {/* Visibility Toggle */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <div>
+                  <span className="text-xs font-bold text-gray-800 block">Immediate Student Visibility</span>
+                  <span className="text-[11px] text-gray-500">
+                    {resIsVisible ? 'Students enrolled in this course can view this immediately.' : 'Hidden as draft until you publish.'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResIsVisible(!resIsVisible)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    resIsVisible ? 'bg-emerald-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
+                      resIsVisible ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
 
               {/* Action Buttons */}
