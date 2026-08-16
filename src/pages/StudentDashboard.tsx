@@ -38,7 +38,11 @@ import {
   FileText,
   QrCode,
   Download,
-  ChevronDown
+  ChevronDown,
+  Mail,
+  Link as LinkIcon,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 
 export const StudentDashboard: React.FC = () => {
@@ -91,6 +95,83 @@ export const StudentDashboard: React.FC = () => {
     classId: '',
     classTitle: ''
   });
+
+  // Parent Email Linking & CC Settings State
+  const [parentEmailInput, setParentEmailInput] = useState<string>(currentUser?.parentEmail || '');
+  const [parentCcEnabled, setParentCcEnabled] = useState<boolean>(
+    currentUser?.ccParentOnNotifications ?? currentUser?.isParentEmailLinked ?? (!!currentUser?.parentEmail)
+  );
+  const [parentCcAttendance, setParentCcAttendance] = useState<boolean>(
+    currentUser?.parentEmailCcPreferences?.attendance ?? true
+  );
+  const [parentCcPayments, setParentCcPayments] = useState<boolean>(
+    currentUser?.parentEmailCcPreferences?.payments ?? true
+  );
+  const [savingParentSettings, setSavingParentSettings] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setParentEmailInput(currentUser.parentEmail || '');
+      setParentCcEnabled(
+        currentUser.ccParentOnNotifications ?? currentUser.isParentEmailLinked ?? (!!currentUser.parentEmail)
+      );
+      setParentCcAttendance(currentUser.parentEmailCcPreferences?.attendance ?? true);
+      setParentCcPayments(currentUser.parentEmailCcPreferences?.payments ?? true);
+    }
+  }, [currentUser?.parentEmail, currentUser?.ccParentOnNotifications, currentUser?.isParentEmailLinked]);
+
+  const handleSaveParentSettings = async (overrideCc?: boolean) => {
+    if (!currentUser) return;
+    const isCcActive = overrideCc !== undefined ? overrideCc : parentCcEnabled;
+    const cleanEmail = parentEmailInput.trim();
+
+    if (isCcActive && !cleanEmail) {
+      showToast("Please provide a valid parent/guardian email address to enable automatic CC.", "info");
+      return;
+    }
+
+    if (cleanEmail && !cleanEmail.includes('@')) {
+      showToast("Please enter a valid email address containing @.", "error");
+      return;
+    }
+
+    setSavingParentSettings(true);
+    try {
+      const updatedData: Partial<typeof currentUser> = {
+        parentEmail: cleanEmail,
+        isParentEmailLinked: isCcActive && !!cleanEmail,
+        ccParentOnNotifications: isCcActive && !!cleanEmail,
+        parentEmailCcPreferences: {
+          attendance: parentCcAttendance,
+          payments: parentCcPayments,
+          general: true
+        }
+      };
+
+      await firestoreService.updateUserProfile(currentUser.uid, updatedData);
+      
+      await firestoreService.addAuditLog({
+        username: currentUser.name || currentUser.username || 'Student',
+        action: 'PARENT_EMAIL_LINK_UPDATED',
+        details: `Student updated parent email link (${cleanEmail || 'None'}) with Auto-CC=${isCcActive}`
+      });
+
+      if (refreshUserProfile) {
+        await refreshUserProfile();
+      }
+
+      showToast(
+        isCcActive && cleanEmail
+          ? `Parent email linked! Attendance check-ins and payment alerts will be automatically CC'd to ${cleanEmail}.`
+          : "Parent notification settings updated successfully.",
+        "success"
+      );
+    } catch (err) {
+      showToast("Failed to update parent link settings.", "error");
+    } finally {
+      setSavingParentSettings(false);
+    }
+  };
 
   const getRatingLabel = (rating: number) => {
     switch (rating) {
@@ -934,6 +1015,116 @@ export const StudentDashboard: React.FC = () => {
                         onChange={(e) => updateNotificationSettings({ emailSync: e.target.checked })}
                         className="w-4 h-4 rounded text-blue-600"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parent / Guardian Email Linking & Notification Auto-CC Card */}
+                <div className="bg-white border border-indigo-150 rounded-2xl p-6 shadow-xs" id="student_parent_linking_card">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-indigo-50 mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <LinkIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          Parent / Guardian Account Link
+                          {parentCcEnabled && parentEmailInput && (
+                            <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Active CC
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-slate-400">Keep parents updated with automated CC on class check-ins & fee notices</p>
+                      </div>
+                    </div>
+
+                    {/* Master Simple Toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none bg-indigo-50/60 px-3 py-1.5 rounded-xl border border-indigo-200/70 hover:bg-indigo-100/60 transition-colors">
+                      <span className="text-xs font-extrabold text-indigo-950">Auto-CC Parent</span>
+                      <input 
+                        type="checkbox"
+                        id="student_toggle_parent_cc"
+                        checked={parentCcEnabled}
+                        onChange={(e) => setParentCcEnabled(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      <div className="sm:col-span-8 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-750 flex items-center justify-between">
+                          <span>Parent / Guardian Email Address</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Used for automated Carbon Copy (CC)</span>
+                        </label>
+                        <div className="relative">
+                          <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                          <input 
+                            type="email"
+                            id="student_input_parent_email"
+                            placeholder="e.g. parent.guardian@example.com"
+                            value={parentEmailInput}
+                            onChange={(e) => setParentEmailInput(e.target.value)}
+                            className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-mono transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <button
+                          type="button"
+                          id="btn_student_save_parent_link"
+                          onClick={() => handleSaveParentSettings()}
+                          disabled={savingParentSettings}
+                          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          {savingParentSettings ? 'Saving Link...' : 'Save & Link Email'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Specific CC Notification Channels */}
+                    <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 space-y-2.5 text-xs">
+                      <span className="text-[10px] uppercase font-mono font-extrabold text-slate-500 block">
+                        Included Parent CC Notification Types:
+                      </span>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input 
+                            type="checkbox"
+                            checked={parentCcAttendance}
+                            onChange={(e) => setParentCcAttendance(e.target.checked)}
+                            disabled={!parentCcEnabled}
+                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40"
+                          />
+                          <div>
+                            <span className={`text-xs font-bold block ${parentCcEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                              Attendance & Tardiness Alerts
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">Check-ins, late arrival badges & absence notices</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input 
+                            type="checkbox"
+                            checked={parentCcPayments}
+                            onChange={(e) => setParentCcPayments(e.target.checked)}
+                            disabled={!parentCcEnabled}
+                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40"
+                          />
+                          <div>
+                            <span className={`text-xs font-bold block ${parentCcEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                              Tuition Invoices & Receipts
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">Payment receipts, due dates & monthly fee invoices</span>
+                          </div>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>

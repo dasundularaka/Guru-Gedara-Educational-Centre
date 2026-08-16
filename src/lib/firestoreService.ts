@@ -566,7 +566,15 @@ const firestoreServiceRaw = {
       createdAt: profile.createdAt || new Date().toISOString(),
       admissionFeeCollected: profile.admissionFeeCollected ?? false,
       admissionAmount: profile.admissionAmount || 0,
-      isFreeCard: profile.isFreeCard ?? false
+      isFreeCard: profile.isFreeCard ?? false,
+      parentEmail: profile.parentEmail || '',
+      isParentEmailLinked: profile.isParentEmailLinked ?? (!!profile.parentEmail),
+      ccParentOnNotifications: profile.ccParentOnNotifications ?? (!!profile.parentEmail),
+      parentEmailCcPreferences: profile.parentEmailCcPreferences || {
+        attendance: true,
+        payments: true,
+        general: true
+      }
     };
 
     if (profile.dob) baseProfile.dob = profile.dob;
@@ -950,6 +958,32 @@ const firestoreServiceRaw = {
       payments.push(newPay);
       saveFallback('local_payments', payments);
     }
+
+    // Trigger payment notification to student & automatic CC to linked parent
+    try {
+      const studentProfile = await this.getUserProfile(studentId);
+      const isParentCcActive = !!(studentProfile?.parentEmail && (studentProfile?.isParentEmailLinked || studentProfile?.ccParentOnNotifications) && studentProfile?.parentEmailCcPreferences?.payments !== false);
+      const ccNote = isParentCcActive ? `\n(CC: Parent ${studentProfile?.parentEmail})` : '';
+
+      const notifTitle = status === 'paid' ? `💳 Tuition Payment Receipt: ${classTitle}` : `⚠️ Tuition Fee Pending: ${classTitle}`;
+      const notifMsg = status === 'paid'
+        ? `Payment of LKR ${amount.toLocaleString()} for '${classTitle}' was successfully recorded.${ccNote}`
+        : `Tuition fee of LKR ${amount.toLocaleString()} for '${classTitle}' is due on ${new Date(dueDate).toLocaleDateString()}.${ccNote}`;
+
+      await this.triggerNotification(studentId, notifTitle, notifMsg, 'payment');
+
+      if (isParentCcActive && studentProfile?.parentEmail) {
+        await this.triggerNotification(
+          studentProfile.parentEmail,
+          `[Parent CC] ${notifTitle}`,
+          `Advisory for student ${studentName} (${studentProfile.username || studentId}):\n${notifMsg}`,
+          'payment'
+        );
+      }
+    } catch (payNotifErr) {
+      console.warn("Payment notification auto-dispatch warning:", payNotifErr);
+    }
+
     return newPay;
   },
 

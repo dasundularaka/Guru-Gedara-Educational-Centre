@@ -29,6 +29,16 @@ export interface UserProfile {
   admissionAmount?: number;
   isFreeCard?: boolean;
 
+  // Parent / Guardian Email Linking & Notification CC
+  parentEmail?: string;
+  isParentEmailLinked?: boolean;
+  ccParentOnNotifications?: boolean;
+  parentEmailCcPreferences?: {
+    attendance?: boolean;
+    payments?: boolean;
+    general?: boolean;
+  };
+
   // Specific properties
   studentDetails?: {
     grade: string;

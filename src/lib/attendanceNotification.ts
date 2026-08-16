@@ -128,13 +128,21 @@ export async function sendAttendanceNotifications(
     ? `⚠️ Late Attendance Notice: ${classItem.title}`
     : `✅ Class Attendance Marked: ${classItem.title}`;
   
+  // Check parent email link & CC configuration
+  const hasParentEmailLinked = !!(studentUser?.parentEmail && (studentUser?.isParentEmailLinked || studentUser?.ccParentOnNotifications));
+  const isParentAttendanceCcEnabled = hasParentEmailLinked && (studentUser?.parentEmailCcPreferences?.attendance !== false);
+
+  const parentCcNote = isParentAttendanceCcEnabled 
+    ? `\n📧 Parent CC: Auto-dispatched to ${studentUser?.parentEmail}` 
+    : '';
+
   const notificationMessage = `📌 Class Attendance Notification
 Class: ${classItem.title}
 Student: ${studentFullIdentifier}
 Status: ${statusText}
 Check-in Time: ${markedTimeFormatted}
 Class Schedule: ${classTimesFormatted}
-Configured Grace Period: ${effectiveGrace} minutes`;
+Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
 
   const studentUid = studentUser?.uid || record.studentId;
 
@@ -146,7 +154,7 @@ Configured Grace Period: ${effectiveGrace} minutes`;
 
   if (isStudentActiveInClass && studentUid) {
     try {
-      // 1. Send System Notification
+      // 1. Send System Notification to Student
       await firestoreService.triggerNotification(
         studentUid,
         notificationTitle,
@@ -164,12 +172,26 @@ Configured Grace Period: ${effectiveGrace} minutes`;
         notificationMessage
       );
 
-      // 3. Log Automated Email / SMS Delivery in Audit Logs & System
+      // 3. Automated Parent Email CC Notification Dispatch
+      if (isParentAttendanceCcEnabled && studentUser?.parentEmail) {
+        try {
+          await firestoreService.triggerNotification(
+            studentUser.parentEmail,
+            `[Parent CC] ${notificationTitle}`,
+            `Advisory for ${studentFullIdentifier}:\n${notificationMessage}`,
+            isLate ? 'reminder' : 'announcement'
+          );
+        } catch (parentNotifErr) {
+          console.warn("Parent CC notification dispatch warning:", parentNotifErr);
+        }
+      }
+
+      // 4. Log Automated Email / SMS Delivery in Audit Logs & System
       const studentEmail = studentUser?.email || 'N/A';
       await firestoreService.addAuditLog({
         username: senderName,
         action: isLate ? 'LATE_ATTENDANCE_NOTIFICATION_SENT' : 'ATTENDANCE_EMAIL_SENT',
-        details: `Automated ${isLate ? 'Late' : 'On-Time'} Notification dispatched to ${studentFullIdentifier} (${studentEmail}): ${statusText} for ${classItem.title} at ${markedTimeFormatted}`
+        details: `Automated ${isLate ? 'Late' : 'On-Time'} Notification dispatched to ${studentFullIdentifier} (${studentEmail})${isParentAttendanceCcEnabled ? ` [CC'd Parent: ${studentUser?.parentEmail}]` : ''}: ${statusText} for ${classItem.title} at ${markedTimeFormatted}`
       });
     } catch (err) {
       console.warn("Failed sending attendance notification / message", err);

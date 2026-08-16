@@ -499,6 +499,8 @@ export const AdminDashboard: React.FC = () => {
   const [studentAddress, setStudentAddress] = useState("");
   const [studentDob, setStudentDob] = useState("");
   const [studentGuardianName, setStudentGuardianName] = useState("");
+  const [studentParentEmail, setStudentParentEmail] = useState("");
+  const [studentCcParentOnNotifications, setStudentCcParentOnNotifications] = useState(false);
   const [studentNotes, setStudentNotes] = useState("");
   const [studentPhotoURL, setStudentPhotoURL] = useState("");
   const [tutorBio, setTutorBio] = useState("");
@@ -931,6 +933,8 @@ export const AdminDashboard: React.FC = () => {
     setStudentAddress("");
     setStudentDob("");
     setStudentGuardianName("");
+    setStudentParentEmail("");
+    setStudentCcParentOnNotifications(false);
     setStudentNotes("");
     setStudentPhotoURL("");
     setTutorBio("");
@@ -1013,6 +1017,8 @@ export const AdminDashboard: React.FC = () => {
       setStudentAddress(item.address || "");
       setStudentDob(item.dob || "");
       setStudentGuardianName(item.guardianName || "");
+      setStudentParentEmail(item.parentEmail || "");
+      setStudentCcParentOnNotifications(item.ccParentOnNotifications ?? item.isParentEmailLinked ?? (!!item.parentEmail));
       setStudentNotes(item.notes || "");
       setStudentPhotoURL(item.photoURL || "");
     } else if (type === 'tutor') {
@@ -1285,6 +1291,14 @@ export const AdminDashboard: React.FC = () => {
           dob: studentDob,
           guardianName: studentGuardianName,
           guardianPhone: studentParentContact,
+          parentEmail: studentParentEmail.trim(),
+          isParentEmailLinked: studentCcParentOnNotifications && !!studentParentEmail.trim(),
+          ccParentOnNotifications: studentCcParentOnNotifications && !!studentParentEmail.trim(),
+          parentEmailCcPreferences: {
+            attendance: true,
+            payments: true,
+            general: true
+          },
           notes: studentNotes,
           photoURL: studentPhotoURL || (studentGender === 'male' 
             ? 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150'
@@ -4086,6 +4100,34 @@ export const AdminDashboard: React.FC = () => {
                         className="w-full p-2.5 border border-gray-200 rounded-xl bg-white outline-none focus:border-blue-500 font-sans"
                       />
                     </div>
+                  </div>
+
+                  {/* Parent Email & Auto-CC Configuration Card */}
+                  <div className="bg-indigo-50/60 p-3.5 rounded-2xl border border-indigo-150 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-indigo-900 uppercase tracking-widest font-mono flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-indigo-600" /> Parent / Guardian Email (Auto-CC)
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-indigo-700 select-none">
+                        <input 
+                          type="checkbox"
+                          checked={studentCcParentOnNotifications}
+                          onChange={(e) => setStudentCcParentOnNotifications(e.target.checked)}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        Auto-CC Enabled
+                      </label>
+                    </div>
+                    <input 
+                      type="email"
+                      value={studentParentEmail}
+                      onChange={(e) => setStudentParentEmail(e.target.value)}
+                      placeholder="e.g. parent.guardian@example.com"
+                      className="w-full p-2.5 bg-white border border-indigo-200 rounded-xl outline-none focus:border-indigo-600 text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      When enabled, attendance check-ins, tardiness alerts, and tuition payment receipts are automatically CC'd to this email.
+                    </p>
                   </div>
 
                   <div>
