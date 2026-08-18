@@ -1,5 +1,6 @@
 import { ClassItem, UserProfile, AttendanceRecord } from '../types';
 import { firestoreService } from './firestoreService';
+import { emailNotificationService } from './emailNotificationService';
 
 export interface AttendanceNotificationResult {
   studentFirstName: string;
@@ -186,7 +187,23 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
         }
       }
 
-      // 4. Log Automated Email / SMS Delivery in Audit Logs & System
+      // 4. Trigger Automated Rich HTML Email Service (Firebase Cloud Function / Mail queue)
+      try {
+        await emailNotificationService.notifyAttendanceMarked({
+          record,
+          classItem,
+          studentUser,
+          punctualityStatusText: statusText,
+          isLate,
+          delayMinutes,
+          markedTimeFormatted,
+          classTimesFormatted
+        });
+      } catch (emailErr) {
+        console.warn("Automated email service dispatch warning:", emailErr);
+      }
+
+      // 5. Log Automated Email / SMS Delivery in Audit Logs & System
       const studentEmail = studentUser?.email || 'N/A';
       await firestoreService.addAuditLog({
         username: senderName,

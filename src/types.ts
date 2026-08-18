@@ -248,5 +248,68 @@ export interface SyncLogEntry {
   attempts: number;
 }
 
+export type EmailTriggerEventType = 
+  | 'booking_confirmation'
+  | 'booking_tutor_alert'
+  | 'payment_receipt'
+  | 'payment_due_reminder'
+  | 'class_resource_added'
+  | 'class_schedule_updated'
+  | 'class_created'
+  | 'attendance_marked'
+  | 'attendance_late_alert'
+  | 'attendance_absent_alert'
+  | 'student_status_changed'
+  | 'class_reminder_24h'
+  | 'custom_broadcast';
+
+export interface EmailNotificationLog {
+  id: string;
+  to: string | string[];
+  cc?: string | string[];
+  bcc?: string | string[];
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+  eventType: EmailTriggerEventType;
+  status: 'queued' | 'sent' | 'delivered' | 'failed' | 'simulated';
+  createdAt: string;
+  sentAt?: string;
+  errorMessage?: string;
+  recipientName?: string;
+  metadata?: {
+    studentId?: string;
+    studentName?: string;
+    studentEmail?: string;
+    parentEmail?: string;
+    tutorId?: string;
+    tutorName?: string;
+    classId?: string;
+    classTitle?: string;
+    paymentId?: string;
+    amount?: number;
+    resourceId?: string;
+    resourceTitle?: string;
+    attendanceId?: string;
+    attendanceStatus?: string;
+    cloudFunctionTriggered?: boolean;
+    dispatchMechanism?: 'firestore_mail_collection' | 'cloud_function_http' | 'client_simulated';
+  };
+}
+
+export interface MailDocument {
+  to: string | string[];
+  cc?: string | string[];
+  message: {
+    subject: string;
+    text: string;
+    html: string;
+  };
+  eventType?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+
 
 

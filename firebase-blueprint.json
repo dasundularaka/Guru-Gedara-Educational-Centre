@@ -152,6 +152,34 @@
         "gracePeriodApplied": { "type": "number" }
       },
       "required": ["id", "classId", "classTitle", "studentId", "studentName", "date", "status", "markedAt", "tutorId"]
+    },
+    "EmailNotificationLog": {
+      "title": "EmailNotificationLog",
+      "description": "Log of automated email service triggers and delivery records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "to": { "type": "string" },
+        "cc": { "type": "string" },
+        "subject": { "type": "string" },
+        "htmlContent": { "type": "string" },
+        "textContent": { "type": "string" },
+        "eventType": { "type": "string" },
+        "status": { "type": "string", "enum": ["queued", "sent", "delivered", "failed", "simulated"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "to", "subject", "eventType", "status", "createdAt"]
+    },
+    "MailDocument": {
+      "title": "MailDocument",
+      "description": "Mail queue collection for Firebase Cloud Functions / Trigger Email Extension",
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "message": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["to", "message", "createdAt"]
     }
   },
   "firestore": {
@@ -186,6 +214,14 @@
     "/attendance/{attendanceId}": {
       "schema": "AttendanceRecord",
       "description": "Student attendance registry records"
+    },
+    "/email_notifications/{notificationId}": {
+      "schema": "EmailNotificationLog",
+      "description": "Automated email notification audit logs"
+    },
+    "/mail/{mailId}": {
+      "schema": "MailDocument",
+      "description": "Automated mail dispatch queue for Firebase Cloud Functions"
     }
   }
 }

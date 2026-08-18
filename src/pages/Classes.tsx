@@ -820,16 +820,15 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                             <span className="block font-bold text-slate-700 mt-0.5">{mat.tutorName}</span>
                           </div>
                           
-                          <a 
-                            href={mat.referenceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button 
+                            type="button"
+                            onClick={() => binaryStore.openOrDownload(mat)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-indigo-600 text-[10px] font-bold transition-all cursor-pointer shadow-sm"
                           >
                             <Download className="w-3 h-3" />
                             <span>Download / Open</span>
                             <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-                          </a>
+                          </button>
                         </div>
                       </div>
 

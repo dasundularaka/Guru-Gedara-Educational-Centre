@@ -7,6 +7,7 @@ import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
 import { optimizeImage } from '../lib/imageOptimizer';
+import { binaryStore } from '../lib/binaryStore';
 import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMaterial, ResourceType } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
@@ -2152,16 +2153,15 @@ export const TutorDashboard: React.FC = () => {
                                             </div>
 
                                             <div className="flex items-center gap-1.5 shrink-0">
-                                              <a
-                                                href={mat.referenceUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
+                                              <button
+                                                type="button"
+                                                onClick={() => binaryStore.openOrDownload(mat)}
+                                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
                                                 title="Open or download resource file"
                                               >
                                                 {mat.storagePath ? <Download className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
                                                 <span>{mat.storagePath ? 'Download' : 'Open'}</span>
-                                              </a>
+                                              </button>
 
                                               <button
                                                 onClick={() => {
@@ -2479,15 +2479,14 @@ export const TutorDashboard: React.FC = () => {
 
                               {/* Card Footer Actions */}
                               <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                                <a
-                                  href={mat.referenceUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                                <button
+                                  type="button"
+                                  onClick={() => binaryStore.openOrDownload(mat)}
+                                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                                 >
                                   {mat.storagePath ? <Download className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
                                   <span>{mat.storagePath ? 'Download File' : 'Open Resource'}</span>
-                                </a>
+                                </button>
 
                                 <div className="flex items-center gap-1">
                                   <button

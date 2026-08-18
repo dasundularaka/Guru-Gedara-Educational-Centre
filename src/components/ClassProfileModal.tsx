@@ -31,10 +31,13 @@ import {
   Timer,
   AlertTriangle,
   Sliders,
-  Save
+  Save,
+  Download,
+  Upload
 } from 'lucide-react';
 import { ClassItem, Booking, UserProfile, Payment, StudyMaterial, AttendanceRecord, ResourceType } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { binaryStore } from '../lib/binaryStore';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { StudentProfileModal } from './StudentProfileModal';
 
@@ -81,6 +84,9 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [newType, setNewType] = useState<ResourceType>('link');
+  const [newMode, setNewMode] = useState<'file' | 'link'>('file');
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [savingMaterial, setSavingMaterial] = useState(false);
 
   // Grace Period Configuration State
@@ -314,34 +320,72 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   // Add Study Material
   const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newUrl.trim()) {
-      showToast('Please enter title and reference link/file URL.', 'info');
+    if (!newTitle.trim()) {
+      showToast('Please enter a title for the resource.', 'info');
+      return;
+    }
+
+    if (newMode === 'file' && !newFile) {
+      showToast('Please choose a file to upload.', 'info');
+      return;
+    }
+
+    if (newMode === 'link' && !newUrl.trim()) {
+      showToast('Please enter a valid reference link / URL.', 'info');
       return;
     }
 
     setSavingMaterial(true);
+    setUploadProgress(0);
+
     try {
+      let finalUrl = newUrl.trim();
+      let finalFileName = '';
+      let finalFileSize = 0;
+      let finalFileType = '';
+      let finalStoragePath = '';
+
+      if (newMode === 'file' && newFile) {
+        const uploadRes = await firestoreService.uploadResourceFile(
+          newFile,
+          classItem.id,
+          currentUser.uid,
+          (progress) => setUploadProgress(progress)
+        );
+        finalUrl = uploadRes.url;
+        finalFileName = uploadRes.fileName;
+        finalFileSize = uploadRes.fileSize;
+        finalFileType = uploadRes.fileType;
+        finalStoragePath = uploadRes.storagePath;
+      }
+
       const newMat = await firestoreService.saveStudyMaterial({
         title: newTitle.trim(),
         description: newDesc.trim(),
         subject: classItem.subject,
-        referenceUrl: newUrl.trim(),
+        referenceUrl: finalUrl,
         type: newType,
         tutorId: currentUser.uid,
         tutorName: currentUser.name,
         classId: classItem.id,
         classTitle: classItem.title,
-        isVisible: true
+        isVisible: true,
+        fileName: finalFileName || undefined,
+        fileSize: finalFileSize || undefined,
+        fileType: finalFileType || undefined,
+        storagePath: finalStoragePath || undefined
       });
 
       setMaterials(prev => [newMat, ...prev]);
       setNewTitle('');
       setNewDesc('');
       setNewUrl('');
+      setNewFile(null);
+      setUploadProgress(0);
       setShowAddMaterial(false);
       showToast('Study material published successfully!', 'success');
-    } catch (err) {
-      showToast('Could not save material.', 'error');
+    } catch (err: any) {
+      showToast(err?.message || 'Could not save material.', 'error');
     } finally {
       setSavingMaterial(false);
     }
@@ -883,13 +927,36 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                 {/* Add Material Form */}
                 {showAddMaterial && (
                   <form onSubmit={handleAddMaterial} className="bg-slate-50 p-4 rounded-2xl border border-indigo-100 space-y-3">
-                    <h4 className="text-xs font-extrabold text-indigo-950 uppercase font-mono tracking-wider">
-                      Add New Resource for {classItem.title}
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-extrabold text-indigo-950 uppercase font-mono tracking-wider">
+                        Add New Resource for {classItem.title}
+                      </h4>
+                      {/* Mode switch */}
+                      <div className="flex bg-slate-200/70 p-0.5 rounded-lg text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setNewMode('file')}
+                          className={`px-2.5 py-1 rounded-md transition-all ${
+                            newMode === 'file' ? 'bg-white text-indigo-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Upload File
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewMode('link')}
+                          className={`px-2.5 py-1 rounded-md transition-all ${
+                            newMode === 'link' ? 'bg-white text-indigo-600 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Drive / Link
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-650 mb-1">Resource Title</label>
+                        <label className="block text-[10px] font-bold text-slate-650 mb-1">Resource Title *</label>
                         <input
                           required
                           type="text"
@@ -907,25 +974,42 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                           onChange={(e) => setNewType(e.target.value as ResourceType)}
                           className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 cursor-pointer font-semibold"
                         >
-                          <option value="link">External Link / Google Drive</option>
                           <option value="file">Document / PDF File</option>
+                          <option value="link">External Link / Google Drive</option>
                           <option value="video">Video Recording</option>
                           <option value="note">Class Notes / Summary</option>
                         </select>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-650 mb-1">Resource URL / Download Link</label>
-                      <input
-                        required
-                        type="url"
-                        value={newUrl}
-                        onChange={(e) => setNewUrl(e.target.value)}
-                        placeholder="https://drive.google.com/file/d/..."
-                        className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
-                      />
-                    </div>
+                    {newMode === 'file' ? (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-650 mb-1">Select File (PDF, Docs, Image, etc.) *</label>
+                        <input
+                          type="file"
+                          required={newMode === 'file'}
+                          onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                          className="w-full text-xs px-3 py-1.5 bg-white border border-dashed border-indigo-200 rounded-xl outline-none text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                        {newFile && (
+                          <p className="mt-1 text-[10px] font-mono text-slate-500">
+                            Selected: {newFile.name} ({(newFile.size / 1024).toFixed(1)} KB)
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-650 mb-1">Resource URL / Download Link *</label>
+                        <input
+                          required={newMode === 'link'}
+                          type="url"
+                          value={newUrl}
+                          onChange={(e) => setNewUrl(e.target.value)}
+                          placeholder="https://drive.google.com/file/d/..."
+                          className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
+                        />
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-650 mb-1">Description (Optional)</label>
@@ -937,6 +1021,21 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                         className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
                       />
                     </div>
+
+                    {savingMaterial && uploadProgress > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-mono text-indigo-650">
+                          <span>Uploading resource file...</span>
+                          <span>{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-indigo-600 h-full rounded-full transition-all duration-200"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex justify-end gap-2 pt-1">
                       <button
@@ -1000,14 +1099,14 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                                 )}
                               </div>
                               <p className="text-[11px] text-slate-500 mt-0.5">{mat.description || 'Class study resource'}</p>
-                              <a 
-                                href={mat.referenceUrl} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="text-[10px] font-mono text-indigo-600 hover:underline flex items-center gap-1 mt-1 truncate max-w-sm"
+                              <button 
+                                type="button"
+                                onClick={() => binaryStore.openOrDownload(mat)}
+                                className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 mt-1 cursor-pointer font-bold"
                               >
-                                <LinkIcon className="w-3 h-3" /> {mat.referenceUrl}
-                              </a>
+                                {mat.storagePath || mat.fileName ? <Download className="w-3 h-3" /> : <LinkIcon className="w-3 h-3" />}
+                                <span>{mat.fileName || (mat.referenceUrl.startsWith('indexeddb://') ? 'Download Stored Document' : mat.referenceUrl)}</span>
+                              </button>
                             </div>
                           </div>
 

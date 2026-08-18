@@ -135,5 +135,53 @@ export const binaryStore = {
     } catch (e) {
       console.warn('[binaryStore] Failed deleting file from IndexedDB:', e);
     }
+  },
+
+  /**
+   * Universal downloader/opener for study resources and media files
+   */
+  async openOrDownload(item: { referenceUrl?: string; storagePath?: string; fileName?: string; title?: string }): Promise<void> {
+    const url = item.referenceUrl || '';
+    const storagePath = item.storagePath || '';
+    const fileName = item.fileName || item.title || 'resource';
+
+    // 1. If stored in indexeddb
+    if (storagePath.startsWith('indexeddb://') || url.startsWith('indexeddb://')) {
+      const id = (storagePath || url).replace('indexeddb://', '');
+      const blobUrl = await this.getFileObjectUrl(id);
+      if (blobUrl) {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        return;
+      }
+    }
+
+    // 2. If it's a base64 Data URL or Blob URL
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // 3. Regular HTTP/HTTPS web url or Firebase Cloud Storage download URL
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   }
 };

@@ -19,6 +19,7 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebas
 import { db, auth, storage, firebaseConfig } from './firebase';
 import { binaryStore } from './binaryStore';
 import { optimizeImage } from './imageOptimizer';
+import { emailNotificationService } from './emailNotificationService';
 import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType } from '../types';
 import { 
   INITIAL_CLASSES, 
@@ -796,6 +797,14 @@ const firestoreServiceRaw = {
       items.push(newItem);
       saveFallback('local_classes', items);
     }
+
+    // Write system audit log
+    await this.addAuditLog({
+      username: newItem.tutorId,
+      action: 'CLASS_CREATED',
+      details: `Created new course "${newItem.title}" (${newItem.schedule}) by ${newItem.tutorName}`
+    });
+
     return newItem;
   },
 
@@ -876,6 +885,30 @@ const firestoreServiceRaw = {
     bookings.push(newBooking);
     saveFallback('local_bookings', bookings);
     await this.updateClassBookingsCount(classItem.id, 1);
+
+    // Trigger Automated Email Service & In-App Notification
+    try {
+      const studentUser = await this.getUserProfile(studentId);
+      const tutorUser = await this.getUserProfile(classItem.tutorId);
+      
+      await emailNotificationService.notifyClassBookingSuccess({
+        booking: newBooking,
+        classItem,
+        studentUser,
+        tutorUser
+      });
+
+      // Also trigger in-app notification
+      await this.triggerNotification(
+        studentId,
+        `✅ Booking Confirmed: ${classItem.title}`,
+        `You have successfully enrolled in ${classItem.title} (${classItem.schedule}). An official confirmation email was dispatched.`,
+        'announcement'
+      );
+    } catch (notifErr) {
+      console.warn("[firestoreService] Automated booking email trigger warning:", notifErr);
+    }
+
     return newBooking;
   },
 
@@ -982,6 +1015,16 @@ const firestoreServiceRaw = {
           `Advisory for student ${studentName} (${studentProfile.username || studentId}):\n${notifMsg}`,
           'payment'
         );
+      }
+
+      // Automated Rich HTML Email Receipt Dispatch
+      if (status === 'paid') {
+        const classObj = await this.getClass(classId);
+        await emailNotificationService.notifyPaymentSuccess({
+          payment: newPay,
+          classItem: classObj || null,
+          studentUser: studentProfile
+        });
       }
     } catch (payNotifErr) {
       console.warn("Payment notification auto-dispatch warning:", payNotifErr);
@@ -1957,6 +2000,45 @@ const firestoreServiceRaw = {
       action: 'RESOURCE_ADDED',
       details: `Added ${item.type || 'material'} "${item.title}" to ${item.classTitle || 'general'}`
     });
+
+    // Trigger Automated Email Service to Enrolled Students
+    try {
+      let enrolledUsers: UserProfile[] = [];
+      if (item.classId) {
+        const allUsers = await this.getAllUsers();
+        enrolledUsers = allUsers.filter(u => 
+          u.role === 'student' && 
+          (u.selectedClasses?.includes(item.classId!) || 
+           u.classEnrollmentStatus?.[item.classId!] === 'active')
+        );
+      }
+
+      const classObj = item.classId ? await this.getClass(item.classId) : null;
+      const tutorObj = await this.getUserProfile(item.tutorId);
+
+      await emailNotificationService.notifyClassResourceAdded({
+        material: item,
+        classItem: classObj || null,
+        tutorUser: tutorObj,
+        enrolledStudents: enrolledUsers
+      });
+
+      // Also trigger in-app notification to all enrolled students
+      if (enrolledUsers.length > 0) {
+        for (const student of enrolledUsers) {
+          try {
+            await this.triggerNotification(
+              student.uid,
+              `📚 New Material: ${item.title}`,
+              `${item.tutorName} uploaded new ${item.type || 'study resource'} to ${item.classTitle || 'your class'}.`,
+              'announcement'
+            );
+          } catch (_) {}
+        }
+      }
+    } catch (notifErr) {
+      console.warn("[firestoreService] Automated resource email trigger warning:", notifErr);
+    }
 
     return item;
   },

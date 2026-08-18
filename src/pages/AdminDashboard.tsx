@@ -12,6 +12,7 @@ import { ClassProfileModal } from '../components/ClassProfileModal';
 import { TutorProfileModal } from '../components/TutorProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
+import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -103,6 +104,7 @@ export const AdminDashboard: React.FC = () => {
   } = useApp();
   const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress'>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
+  const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
@@ -3149,6 +3151,13 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowEmailLogsModal(true)}
+                        className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="View Automated Email Service Logs & Cloud Functions Queue"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-indigo-600" /> Automated Email Service
+                      </button>
                       {notifications.filter(n => !n.isRead).length > 0 && (
                         <button
                           onClick={async () => {
@@ -5023,6 +5032,12 @@ export const AdminDashboard: React.FC = () => {
           reviews={reviews || []}
         />
       )}
+
+      {/* Automated Email Notification Center & Cloud Function Inspector */}
+      <EmailNotificationLogsModal
+        isOpen={showEmailLogsModal}
+        onClose={() => setShowEmailLogsModal(false)}
+      />
     </motion.div>
   );
 };

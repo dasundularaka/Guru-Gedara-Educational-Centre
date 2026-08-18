@@ -27,6 +27,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
 import { Booking, NotificationItem } from '../types';
+import { EmailNotificationLogsModal } from './EmailNotificationLogsModal';
 
 interface NavbarProps {
   currentTab: string;
@@ -56,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [upcomingClasses, setUpcomingClasses] = useState<Booking[]>([]);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
+  const [showEmailLogsModal, setShowEmailLogsModal] = useState(false);
 
   // Editable profile state hooks with default fallback values
   const [profileName, setProfileName] = useState("");
@@ -523,16 +525,28 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                           </div>
 
                           {/* Panel Footer */}
-                          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                            <button
-                              onClick={() => {
-                                setShowSettings(true);
-                                setShowNotifications(false);
-                              }}
-                              className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center gap-1 cursor-pointer"
-                            >
-                              <Settings className="w-3.5 h-3.5" /> Preferences
-                            </button>
+                          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setShowSettings(true);
+                                  setShowNotifications(false);
+                                }}
+                                className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold flex items-center gap-1 cursor-pointer"
+                              >
+                                <Settings className="w-3.5 h-3.5" /> Preferences
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowEmailLogsModal(true);
+                                  setShowNotifications(false);
+                                }}
+                                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60"
+                                title="View automated email notifications"
+                              >
+                                <Mail className="w-3 h-3 text-indigo-500" /> Email Logs
+                              </button>
+                            </div>
                             <button
                               onClick={() => {
                                 setShowNotifications(false);
@@ -1128,6 +1142,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Automated Email Notification Center & Cloud Function Inspector */}
+      <EmailNotificationLogsModal
+        isOpen={showEmailLogsModal}
+        onClose={() => setShowEmailLogsModal(false)}
+      />
     </>
   );
 };
