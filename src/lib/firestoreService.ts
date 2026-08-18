@@ -17,6 +17,8 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, auth, storage, firebaseConfig } from './firebase';
+import { binaryStore } from './binaryStore';
+import { optimizeImage } from './imageOptimizer';
 import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType } from '../types';
 import { 
   INITIAL_CLASSES, 
@@ -1936,11 +1938,15 @@ const firestoreServiceRaw = {
       id,
       createdAt: new Date().toISOString()
     };
+    const sanitizedItem = sanitizeForFirestore(item);
+
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'materials', id), item);
-        await setDoc(doc(db, 'study_materials', id), item);
-      } catch (e) {}
+        await setDoc(doc(db, 'materials', id), sanitizedItem);
+        await setDoc(doc(db, 'study_materials', id), sanitizedItem);
+      } catch (e) {
+        console.warn("Cloud save warning for study material:", e);
+      }
     }
     const list = handleFallback<StudyMaterial>('local_materials', []);
     list.unshift(item);
@@ -1956,11 +1962,14 @@ const firestoreServiceRaw = {
   },
 
   async updateStudyMaterial(id: string, updates: Partial<StudyMaterial>): Promise<void> {
+    const sanitizedUpdates = sanitizeForFirestore(updates);
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'materials', id), updates, { merge: true });
-        await setDoc(doc(db, 'study_materials', id), updates, { merge: true });
-      } catch (e) {}
+        await setDoc(doc(db, 'materials', id), sanitizedUpdates, { merge: true });
+        await setDoc(doc(db, 'study_materials', id), sanitizedUpdates, { merge: true });
+      } catch (e) {
+        console.warn("Cloud update warning for study material:", e);
+      }
     }
     const list = handleFallback<StudyMaterial>('local_materials', []);
     const idx = list.findIndex(m => m.id === id);
@@ -1978,12 +1987,28 @@ const firestoreServiceRaw = {
   ): Promise<{ url: string; fileName: string; fileSize: number; fileType: string; storagePath: string }> {
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const timestamp = Date.now();
+    const fileId = `file_${timestamp}_${Math.random().toString(36).substr(2, 6)}`;
     const storagePath = `resources/classes/${classId || 'general'}/${timestamp}_${sanitizedName}`;
     
+    // If it's an image file, optimize it first
+    let processedFile: File | Blob = file;
+    if (file.type.startsWith('image/')) {
+      try {
+        const optimizedDataUrl = await optimizeImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.85 });
+        if (optimizedDataUrl && !optimizedDataUrl.startsWith('http')) {
+          const res = await fetch(optimizedDataUrl);
+          processedFile = await res.blob();
+        }
+      } catch (err) {
+        console.warn("Image pre-optimization skipped:", err);
+      }
+    }
+
+    // 1. Try Firebase Cloud Storage
     try {
       if (isUsingCloud && storage) {
         const storageRef = ref(storage, storagePath);
-        const uploadTask = uploadBytesResumable(storageRef, file, {
+        const uploadTask = uploadBytesResumable(storageRef, processedFile, {
           contentType: file.type || 'application/octet-stream',
           customMetadata: {
             classId: classId || 'general',
@@ -1992,28 +2017,15 @@ const firestoreServiceRaw = {
           }
         });
 
-        return new Promise((resolve, reject) => {
+        const cloudResult = await new Promise<{ url: string; fileName: string; fileSize: number; fileType: string; storagePath: string }>((resolve, reject) => {
           uploadTask.on(
             'state_changed',
             (snapshot) => {
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              if (onProgress) onProgress(Math.round(progress));
+              if (onProgress) onProgress(Math.min(95, Math.round(progress)));
             },
             (error) => {
-              console.warn('Firebase storage upload encountered issue, using reliable fallback', error);
-              const reader = new FileReader();
-              reader.onload = () => {
-                if (onProgress) onProgress(100);
-                resolve({
-                  url: reader.result as string,
-                  fileName: file.name,
-                  fileSize: file.size,
-                  fileType: file.type,
-                  storagePath
-                });
-              };
-              reader.onerror = () => reject(error);
-              reader.readAsDataURL(file);
+              reject(error);
             },
             async () => {
               try {
@@ -2023,51 +2035,71 @@ const firestoreServiceRaw = {
                   url: downloadUrl,
                   fileName: file.name,
                   fileSize: file.size,
-                  fileType: file.type,
+                  fileType: file.type || 'application/octet-stream',
                   storagePath
                 });
               } catch (err) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (onProgress) onProgress(100);
-                  resolve({
-                    url: reader.result as string,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                    storagePath
-                  });
-                };
-                reader.readAsDataURL(file);
+                reject(err);
               }
             }
           );
         });
+
+        return cloudResult;
       }
     } catch (e) {
-      console.warn("Storage upload caught exception, generating fallback data url", e);
+      console.warn("Cloud storage upload bypassed/failed, transitioning to high-speed local binary store:", e);
     }
 
-    // Fallback if cloud disabled or storage unavailable
-    return new Promise((resolve) => {
-      if (onProgress) onProgress(50);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (onProgress) onProgress(100);
-        resolve({
-          url: reader.result as string,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          storagePath
+    // 2. High-resilience Binary Store (IndexedDB) + Compact URL fallback
+    try {
+      await binaryStore.saveFile(fileId, processedFile, file.name);
+      if (onProgress) onProgress(80);
+
+      let fallbackUrl = '';
+      if (file.type.startsWith('image/')) {
+        fallbackUrl = await optimizeImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.8 });
+      } else if (file.size < 200 * 1024) {
+        // Small document (<200KB) can store as Data URL
+        fallbackUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
         });
+      } else {
+        // Larger document -> Create local object URL & identifier
+        fallbackUrl = URL.createObjectURL(processedFile);
+      }
+
+      if (onProgress) onProgress(100);
+      return {
+        url: fallbackUrl || URL.createObjectURL(processedFile),
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type || 'application/octet-stream',
+        storagePath: `indexeddb://${fileId}`
       };
-      reader.readAsDataURL(file);
-    });
+    } catch (err) {
+      console.warn("Binary store fallback encountered issue:", err);
+      if (onProgress) onProgress(100);
+      return {
+        url: URL.createObjectURL(file),
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type || 'application/octet-stream',
+        storagePath
+      };
+    }
   },
 
   async deleteResourceFile(storagePath: string): Promise<void> {
     if (!storagePath) return;
+    if (storagePath.startsWith('indexeddb://')) {
+      const fileId = storagePath.replace('indexeddb://', '');
+      await binaryStore.deleteFile(fileId);
+      return;
+    }
     try {
       if (isUsingCloud && storage) {
         const storageRef = ref(storage, storagePath);
@@ -2089,7 +2121,9 @@ const firestoreServiceRaw = {
       try {
         await deleteDoc(doc(db, 'materials', id));
         await deleteDoc(doc(db, 'study_materials', id));
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Delete study material cloud warning:", e);
+      }
     }
     saveFallback('local_materials', list.filter(m => m.id !== id));
   },

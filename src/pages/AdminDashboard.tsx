@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
+import { optimizeImage } from '../lib/imageOptimizer';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
@@ -966,19 +967,22 @@ export const AdminDashboard: React.FC = () => {
     setPaymentMethod("Credit Card");
   };
 
-  const handleStudentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStudentFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        showToast("Image file size should be less than 3MB.", "error");
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("Image file size should be less than 10MB.", "error");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setStudentPhotoURL(reader.result as string);
-        showToast("Profile image uploaded successfully!", "success");
-      };
-      reader.readAsDataURL(file);
+      try {
+        const optimized = await optimizeImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
+        if (optimized) {
+          setStudentPhotoURL(optimized);
+          showToast("Profile image uploaded and optimized for cloud sync!", "success");
+        }
+      } catch (err) {
+        showToast("Failed to process profile image.", "error");
+      }
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { auth } from '../lib/firebase';
+import { optimizeImage } from '../lib/imageOptimizer';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { 
   Lock, 
@@ -112,22 +113,22 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     }
   }, [currentUser]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
         showToast("Please upload a PNG or JPG image file.", "error");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const result = uploadEvent.target?.result as string;
-        if (result) {
-          setPhotoURL(result);
-          showToast("Profile image uploaded successfully!", "success");
+      try {
+        const optimized = await optimizeImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
+        if (optimized) {
+          setPhotoURL(optimized);
+          showToast("Profile image uploaded and optimized for cloud sync!", "success");
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        showToast("Failed to process image. Please try another.", "error");
+      }
     }
   };
 

@@ -49,10 +49,17 @@ export const auth = getAuth(app);
 let storageInstance: any = null;
 try {
   if (firebaseConfig.storageBucket) {
+    // Attempt standard initialization with bucket URL
+    try {
+      storageInstance = getStorage(app, `gs://${firebaseConfig.storageBucket.replace(/^gs:\/\//, '')}`);
+    } catch (e) {
+      storageInstance = getStorage(app);
+    }
+  } else {
     storageInstance = getStorage(app);
   }
 } catch (err) {
-  console.warn("Firebase Storage service is not available, falling back to local storage handler.", err);
+  console.warn("Firebase Storage service is not available, falling back to local binary store.", err);
   storageInstance = null;
 }
 

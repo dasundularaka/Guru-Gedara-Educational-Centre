@@ -6,6 +6,7 @@ import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
+import { optimizeImage } from '../lib/imageOptimizer';
 import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMaterial, ResourceType } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
@@ -767,19 +768,22 @@ export const TutorDashboard: React.FC = () => {
     }
   };
 
-  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Profile image must be under 5MB", "error");
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("Profile image must be under 10MB", "error");
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setProfPhoto(reader.result as string);
-      showToast("Photo uploaded! Click 'Save Profile Details' to publish changes.", "info");
-    };
-    reader.readAsDataURL(file);
+    try {
+      const optimized = await optimizeImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
+      if (optimized) {
+        setProfPhoto(optimized);
+        showToast("Photo uploaded and optimized for cloud synchronization! Click 'Save Profile Details' to publish changes.", "info");
+      }
+    } catch (err) {
+      showToast("Failed to process photo. Please try another image file.", "error");
+    }
   };
 
   const handleAddExpertiseArea = () => {

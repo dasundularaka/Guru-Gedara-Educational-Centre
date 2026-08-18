@@ -18,6 +18,7 @@ import {
 import { ClassItem, StudyMaterial, SubjectItem } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { genericFirestoreService } from '../lib/genericFirestore';
+import { binaryStore } from '../lib/binaryStore';
 
 interface ClassesProps {
   onNavigateTab: (tab: string) => void;
@@ -58,6 +59,10 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   const [uploadSubject, setUploadSubject] = useState("Mathematics");
   const [uploadUrl, setUploadUrl] = useState("");
   const [uploadClassId, setUploadClassId] = useState("");
+  const [uploadType, setUploadType] = useState<any>("Notes");
+  const [uploadMode, setUploadMode] = useState<'file' | 'link'>('file');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
@@ -89,10 +94,10 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
   };
 
-  // Fetch Study Materials from genericFirestoreService
+  // Fetch Study Materials
   const fetchStudyMaterials = async () => {
     try {
-      const list = await genericFirestoreService.getCollection<StudyMaterial>('study_materials');
+      const list = await firestoreService.getStudyMaterials();
       setStudyMaterials(list || []);
     } catch (e) {
       console.warn("Failed retrieving study materials", e);
@@ -205,46 +210,83 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     e.preventDefault();
     if (!currentUser) return;
     
-    if (!uploadTitle.trim() || !uploadUrl.trim() || !uploadDesc.trim()) {
-      showToast("Please fill in all the required fields for study material.", "error");
+    if (!uploadTitle.trim() || !uploadDesc.trim()) {
+      showToast("Please provide a title and description for the material.", "error");
       return;
     }
 
-    // Basic URL validation
-    if (!uploadUrl.startsWith("http://") && !uploadUrl.startsWith("https://")) {
-      showToast("Please enter a valid reference URL starting with http:// or https://", "error");
+    if (uploadMode === 'file' && !uploadFile) {
+      showToast("Please choose a file to upload.", "error");
       return;
+    }
+
+    if (uploadMode === 'link') {
+      if (!uploadUrl.trim()) {
+        showToast("Please provide a valid reference URL.", "error");
+        return;
+      }
+      if (!uploadUrl.startsWith("http://") && !uploadUrl.startsWith("https://")) {
+        showToast("Please enter a valid reference URL starting with http:// or https://", "error");
+        return;
+      }
     }
 
     setIsUploading(true);
+    setUploadProgress(0);
+
     try {
       const selectedClassItem = classes.find(c => c.id === uploadClassId);
-      
-      const newMaterial: Omit<StudyMaterial, 'id'> = {
+      let finalUrl = uploadUrl.trim();
+      let finalFileName = '';
+      let finalFileSize = 0;
+      let finalFileType = '';
+      let finalStoragePath = '';
+
+      if (uploadMode === 'file' && uploadFile) {
+        const uploadRes = await firestoreService.uploadResourceFile(
+          uploadFile,
+          uploadClassId || 'general',
+          currentUser.uid,
+          (progress) => setUploadProgress(progress)
+        );
+        finalUrl = uploadRes.url;
+        finalFileName = uploadRes.fileName;
+        finalFileSize = uploadRes.fileSize;
+        finalFileType = uploadRes.fileType;
+        finalStoragePath = uploadRes.storagePath;
+      }
+
+      await firestoreService.saveStudyMaterial({
         title: uploadTitle.trim(),
         description: uploadDesc.trim(),
         subject: uploadSubject,
-        referenceUrl: uploadUrl.trim(),
+        referenceUrl: finalUrl,
+        type: uploadType,
         tutorId: currentUser.uid,
         tutorName: currentUser.name,
         classId: uploadClassId || undefined,
         classTitle: selectedClassItem?.title || undefined,
-        createdAt: new Date().toISOString()
-      };
+        isVisible: true,
+        fileName: finalFileName || undefined,
+        fileSize: finalFileSize || undefined,
+        fileType: finalFileType || undefined,
+        storagePath: finalStoragePath || undefined
+      });
 
-      const docId = await genericFirestoreService.addDocument('study_materials', newMaterial);
-      showToast(`Study material '${uploadTitle}' uploaded successfully!`, "success");
+      showToast(`Study material '${uploadTitle}' published successfully!`, "success");
       
       // Reset form fields
       setUploadTitle("");
       setUploadDesc("");
       setUploadUrl("");
       setUploadClassId("");
+      setUploadFile(null);
+      setUploadProgress(0);
       
       // Refresh list
       await fetchStudyMaterials();
-    } catch (error) {
-      showToast("Failed to upload study material. Try again.", "error");
+    } catch (error: any) {
+      showToast(error?.message || "Failed to upload study material. Try again.", "error");
     } finally {
       setIsUploading(false);
     }
@@ -276,7 +318,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     if (!deleteConfirmModal.id) return;
     setDeleteConfirmModal(prev => ({ ...prev, isDeleting: true }));
     try {
-      await genericFirestoreService.deleteDocument('study_materials', deleteConfirmModal.id);
+      await firestoreService.deleteStudyMaterial(deleteConfirmModal.id);
       showToast("Study material removed successfully.", "success");
       await fetchStudyMaterials();
       setDeleteConfirmModal({ isOpen: false, id: '', title: '', isDeleting: false });
@@ -537,6 +579,28 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                 </div>
                 
                 <form onSubmit={handleUploadResource} className="space-y-4">
+                  {/* Mode Selector */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('file')}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        uploadMode === 'file' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('link')}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        uploadMode === 'link' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Web Link / Drive
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Material Title *</label>
                     <input 
@@ -553,8 +617,8 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                     <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Brief Description *</label>
                     <textarea 
                       required
-                      rows={3}
-                      placeholder="e.g. Formulative guide and worksheets with answers keys for limits assessment checks..."
+                      rows={2}
+                      placeholder="e.g. Comprehensive worksheet with solutions for limits evaluation..."
                       value={uploadDesc}
                       onChange={(e) => setUploadDesc(e.target.value)}
                       className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-650 focus:bg-white font-medium resize-none"
@@ -586,17 +650,67 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Reference Link / URL *</label>
-                    <input 
-                      type="url" 
-                      required
-                      placeholder="https://example.com/materials/calculus_notes.pdf"
-                      value={uploadUrl}
-                      onChange={(e) => setUploadUrl(e.target.value)}
-                      className="w-full text-xs px-3.5 py-2 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-650 focus:bg-white font-medium"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Resource Type</label>
+                      <select
+                        value={uploadType}
+                        onChange={(e) => setUploadType(e.target.value)}
+                        className="w-full text-xs px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 outline-none font-bold text-slate-700 cursor-pointer"
+                      >
+                        <option value="Notes">Notes / Handout</option>
+                        <option value="Assignment">Assignment / Worksheet</option>
+                        <option value="PastPaper">Past Paper / Quiz</option>
+                        <option value="Video">Video Link</option>
+                        <option value="Link">External Reference</option>
+                        <option value="Other">Other Document</option>
+                      </select>
+                    </div>
                   </div>
+
+                  {uploadMode === 'file' ? (
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Select File (PDF, Word, Images, etc.) *</label>
+                      <input 
+                        type="file" 
+                        required={uploadMode === 'file'}
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                        className="w-full text-xs px-3 py-2 bg-slate-50 rounded-xl border border-dashed border-indigo-200 outline-none text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                      />
+                      {uploadFile && (
+                        <p className="mt-1 text-[11px] text-slate-500 font-mono">
+                          Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5">Reference Link / URL *</label>
+                      <input 
+                        type="url" 
+                        required={uploadMode === 'link'}
+                        placeholder="https://drive.google.com/..."
+                        value={uploadUrl}
+                        onChange={(e) => setUploadUrl(e.target.value)}
+                        className="w-full text-xs px-3.5 py-2 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-650 focus:bg-white font-medium"
+                      />
+                    </div>
+                  )}
+
+                  {isUploading && uploadProgress > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] font-mono text-indigo-600">
+                        <span>Uploading file...</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-indigo-600 h-full rounded-full transition-all duration-200" 
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <button 
                     type="submit" 
