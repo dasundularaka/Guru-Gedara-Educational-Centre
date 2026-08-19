@@ -12,6 +12,7 @@ import { firestoreService, safeStringify } from '../lib/firestoreService';
 import { genericFirestoreService } from '../lib/genericFirestore';
 import { checkAndMarkAutoAbsentStudents } from '../lib/classScheduleUtils';
 import { start24HourClassReminderCronInterval, stop24HourClassReminderCronInterval } from '../lib/classReminderCronTrigger';
+import { start15MinuteClassReminderLoop, stop15MinuteClassReminderLoop } from '../lib/classReminder15MinTrigger';
 import { UserProfile, NotificationSettings, NotificationItem, Review, Booking, Payment, SyncLogEntry } from '../types';
 import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
@@ -677,6 +678,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     start24HourClassReminderCronInterval(60000); // Check every 60s
     return () => stop24HourClassReminderCronInterval();
   }, []);
+
+  // Boot 15-Minute Live Class Alert Background Trigger
+  useEffect(() => {
+    start15MinuteClassReminderLoop(() => currentUser, 30000); // Check every 30s
+    return () => stop15MinuteClassReminderLoop();
+  }, [currentUser]);
 
   // Google sign in callback
   const loginWithGoogle = async () => {

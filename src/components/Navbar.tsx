@@ -28,6 +28,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
 import { Booking, NotificationItem } from '../types';
 import { EmailNotificationLogsModal } from './EmailNotificationLogsModal';
+import { Class15MinReminderBanner } from './Class15MinReminderBanner';
 
 interface NavbarProps {
   currentTab: string;
@@ -436,6 +437,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                                 Upcoming ({upcomingClasses.length})
                               </button>
                             )}
+                          </div>
+
+                          {/* 15-Minute Browser Class Notification Banner */}
+                          <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                            <Class15MinReminderBanner compact={true} />
                           </div>
 
                           {/* Notification Items List */}

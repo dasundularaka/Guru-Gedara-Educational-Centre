@@ -17,6 +17,7 @@ import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
+import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -580,6 +581,8 @@ export const StudentDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-6"
               >
+                <Class15MinReminderBanner />
+
                 <UpcomingDeadlines />
 
                 <ClassScheduleWidget />

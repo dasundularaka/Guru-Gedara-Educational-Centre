@@ -74,6 +74,7 @@ import { TutorProfileModal } from '../components/TutorProfileModal';
 import { AttendanceHealthProgressBar } from '../components/AttendanceHealthProgressBar';
 import { StudentProfileModal } from '../components/StudentProfileModal';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
+import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -1207,22 +1208,25 @@ export const TutorDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+                className="space-y-6"
               >
-                {/* Left Side: Calendar Schedule View */}
-                <div className="lg:col-span-8">
-                  <CalendarView
-                    userRole="tutor"
-                    tutorClasses={tutorClasses}
-                    tutorAvailability={tutorAvailability}
-                    onAddAvailability={handleAddAvailability}
-                    attendanceRecords={attendanceRecords}
-                  />
-                </div>
+                <Class15MinReminderBanner />
 
-                {/* Right Side: Attendance Tracker Quick Widget */}
-                <div className="lg:col-span-4 space-y-6">
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-5 font-sans space-y-5" id="attendance_quick_widget">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Side: Calendar Schedule View */}
+                  <div className="lg:col-span-8">
+                    <CalendarView
+                      userRole="tutor"
+                      tutorClasses={tutorClasses}
+                      tutorAvailability={tutorAvailability}
+                      onAddAvailability={handleAddAvailability}
+                      attendanceRecords={attendanceRecords}
+                    />
+                  </div>
+
+                  {/* Right Side: Attendance Tracker Quick Widget */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-md p-5 font-sans space-y-5" id="attendance_quick_widget">
                     
                     {/* Widget Header */}
                     <div className="flex items-center justify-between gap-2">
@@ -1403,6 +1407,7 @@ export const TutorDashboard: React.FC = () => {
                     )}
 
                   </div>
+                </div>
                 </div>
               </motion.div>
             )}
