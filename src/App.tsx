@@ -165,7 +165,9 @@ function MainAppContent() {
   const [currentTab, setCurrentTab] = useState('home');
   const { 
     toast, 
+    toasts,
     hideToast, 
+    clearAllToasts,
     cloudSync, 
     currentUser, 
     loading, 
@@ -245,11 +247,12 @@ function MainAppContent() {
         </main>
         
         {/* Global active feedback Toast Notification message Banner */}
-        <AnimatePresence>
-          {toast && (
-            <ToastNotification toast={toast} onClose={hideToast} />
-          )}
-        </AnimatePresence>
+        <ToastNotification 
+          toasts={toasts} 
+          toast={toast} 
+          onClose={hideToast} 
+          onClearAll={clearAllToasts} 
+        />
       </div>
     );
   }
@@ -445,11 +448,12 @@ function MainAppContent() {
       </footer>
 
       {/* Global active feedback Toast Notification message Banner */}
-      <AnimatePresence>
-        {toast && (
-          <ToastNotification toast={toast} onClose={hideToast} />
-        )}
-      </AnimatePresence>
+      <ToastNotification 
+        toasts={toasts} 
+        toast={toast} 
+        onClose={hideToast} 
+        onClearAll={clearAllToasts} 
+      />
     </div>
   );
 }

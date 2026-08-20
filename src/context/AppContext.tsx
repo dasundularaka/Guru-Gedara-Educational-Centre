@@ -13,7 +13,18 @@ import { genericFirestoreService } from '../lib/genericFirestore';
 import { checkAndMarkAutoAbsentStudents } from '../lib/classScheduleUtils';
 import { start24HourClassReminderCronInterval, stop24HourClassReminderCronInterval } from '../lib/classReminderCronTrigger';
 import { start15MinuteClassReminderLoop, stop15MinuteClassReminderLoop } from '../lib/classReminder15MinTrigger';
-import { UserProfile, NotificationSettings, NotificationItem, Review, Booking, Payment, SyncLogEntry } from '../types';
+import { 
+  UserProfile, 
+  NotificationSettings, 
+  NotificationItem, 
+  Review, 
+  Booking, 
+  Payment, 
+  SyncLogEntry,
+  ToastItem,
+  ToastType,
+  ToastAction
+} from '../types';
 import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
 interface AppContextType {
@@ -22,9 +33,21 @@ interface AppContextType {
   cloudSync: boolean;
   notifications: NotificationItem[];
   notificationSettings: NotificationSettings;
-  toast: { message: string; type: 'success' | 'error' | 'info' } | null;
-  showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
-  hideToast: () => void;
+  toast: ToastItem | null;
+  toasts: ToastItem[];
+  showToast: (
+    msg: string, 
+    type?: ToastType, 
+    options?: { 
+      title?: string; 
+      description?: string; 
+      action?: ToastAction; 
+      duration?: number; 
+      tag?: string; 
+    }
+  ) => void;
+  hideToast: (id?: string) => void;
+  clearAllToasts: () => void;
   loginWithGoogle: () => Promise<UserProfile | null>;
   loginWithEmail: (email: string, pass: string) => Promise<UserProfile>;
   registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'tutor', details?: any) => Promise<UserProfile>;
@@ -162,7 +185,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [darkMode]);
 
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toast = toasts.length > 0 ? toasts[toasts.length - 1] : null;
   const [authDomainError, setAuthDomainError] = useState<string | null>(null);
   const clearAuthDomainError = () => setAuthDomainError(null);
 
@@ -286,14 +310,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     emailPerformanceLogs: true
   });
 
-  // Handle toast notifications
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type });
+  // Handle modern toast & pop-up notifications
+  const showToast = (
+    message: string, 
+    type: ToastType = 'info', 
+    options?: { 
+      title?: string; 
+      description?: string; 
+      action?: ToastAction; 
+      duration?: number; 
+      tag?: string; 
+    }
+  ) => {
+    const id = options?.tag ? `${options.tag}_${Date.now()}` : `toast_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const newToast: ToastItem = {
+      id,
+      message,
+      type,
+      title: options?.title,
+      description: options?.description,
+      action: options?.action,
+      duration: options?.duration ?? (type === 'error' ? 6000 : 4500),
+      createdAt: Date.now(),
+      tag: options?.tag
+    };
+
+    setToasts((prev) => {
+      // If tag exists, replace existing toast with same tag to avoid duplicate stacking
+      const filtered = options?.tag ? prev.filter((t) => t.tag !== options.tag) : prev;
+      // Cap at 4 latest visible toasts
+      const trimmed = filtered.length >= 4 ? filtered.slice(filtered.length - 3) : filtered;
+      return [...trimmed, newToast];
+    });
   };
 
-  const hideToast = () => {
-    setToast(null);
+  const hideToast = (id?: string) => {
+    setToasts((prev) => {
+      if (!id) {
+        // If no ID provided, dismiss the oldest or latest
+        return prev.slice(0, prev.length - 1);
+      }
+      return prev.filter((t) => t.id !== id);
+    });
   };
+
+  const clearAllToasts = () => {
+    setToasts([]);
+  };
+
+  // Listen for global custom in-app notification events from background schedulers
+  useEffect(() => {
+    const handleInAppToast = (e: any) => {
+      if (e.detail?.message) {
+        showToast(e.detail.message, e.detail.type || 'info', e.detail.options);
+      }
+    };
+    window.addEventListener('gurugedara_inapp_toast', handleInAppToast);
+    return () => {
+      window.removeEventListener('gurugedara_inapp_toast', handleInAppToast);
+    };
+  }, []);
 
   // Safe fetch function for classes
   const refreshClasses = async () => {
@@ -636,16 +712,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return unsubscribe;
   }, []);
-
-  // Sync toast timer
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => {
-        setToast(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   // Trigger prefetching of essential data immediately after successful authentication to hide latency
   useEffect(() => {
@@ -1065,8 +1131,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notifications,
       notificationSettings,
       toast,
+      toasts,
       showToast,
       hideToast,
+      clearAllToasts,
       loginWithGoogle,
       loginWithEmail,
       registerWithEmail,

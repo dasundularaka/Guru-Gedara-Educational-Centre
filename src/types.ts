@@ -310,6 +310,22 @@ export interface MailDocument {
   createdAt: string;
 }
 
+export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'reminder';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+  primary?: boolean;
+}
 
-
+export interface ToastItem {
+  id: string;
+  message: string;
+  type: ToastType;
+  title?: string;
+  description?: string;
+  action?: ToastAction;
+  duration?: number;
+  createdAt: number;
+  tag?: string;
+}

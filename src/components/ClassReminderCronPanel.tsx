@@ -451,6 +451,136 @@ export const ClassReminderCronPanel: React.FC = () => {
         </AnimatePresence>
       </div>
 
+      {/* Modern Pop-up Notifications Interactive Tester & Pattern Showcase */}
+      <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-200/80 dark:border-slate-700 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                Modern Pop-up Notifications Showcase
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Experience the multi-layer stacked toast pattern with pause-on-hover, audio chimes, progress countdowns, and swipe-to-dismiss.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              showToast("Payment receipt #INV-8823 confirmed and ledger reconciled.", "success", {
+                title: "Payment Received",
+                duration: 5000,
+                action: {
+                  label: "View Receipt",
+                  onClick: () => showToast("Opening receipt breakdown in new view...", "info")
+                }
+              });
+            }}
+            className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200/70 dark:border-emerald-800/50 text-left transition-all cursor-pointer group"
+          >
+            <span className="text-[10px] font-bold uppercase font-mono text-emerald-600 dark:text-emerald-400 block mb-1">
+              Success Pattern
+            </span>
+            <span className="text-xs font-extrabold text-slate-800 dark:text-white group-hover:text-emerald-700 block">
+              Payment &amp; Action
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              showToast("Advanced Pure Mathematics starts in 15 minutes in Classroom A-3.", "reminder", {
+                title: "⏰ Class In 15 Mins",
+                duration: 6000,
+                action: {
+                  label: "Enter Room",
+                  onClick: () => showToast("Connecting to live classroom audio/video feed...", "info")
+                }
+              });
+            }}
+            className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 border border-indigo-200/70 dark:border-indigo-800/50 text-left transition-all cursor-pointer group"
+          >
+            <span className="text-[10px] font-bold uppercase font-mono text-indigo-600 dark:text-indigo-400 block mb-1">
+              Class Reminder
+            </span>
+            <span className="text-xs font-extrabold text-slate-800 dark:text-white group-hover:text-indigo-700 block">
+              15-Min Live Alert
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              showToast("Monthly fee is overdue for Physics Grade 12. Grace period active.", "warning", {
+                title: "Fee Reminder",
+                duration: 5500,
+                action: {
+                  label: "Settle Fee",
+                  onClick: () => showToast("Opening tuition fee payment gateway...", "info")
+                }
+              });
+            }}
+            className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200/70 dark:border-amber-800/50 text-left transition-all cursor-pointer group"
+          >
+            <span className="text-[10px] font-bold uppercase font-mono text-amber-600 dark:text-amber-400 block mb-1">
+              Warning Notice
+            </span>
+            <span className="text-xs font-extrabold text-slate-800 dark:text-white group-hover:text-amber-700 block">
+              Overdue Notice
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              showToast("Attendance QR token expired. Please scan fresh dynamic barcode.", "error", {
+                title: "Scan Timeout",
+                duration: 5000,
+                action: {
+                  label: "Retry Scan",
+                  onClick: () => showToast("Re-initializing camera barcode scanner...", "info")
+                }
+              });
+            }}
+            className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200/70 dark:border-rose-800/50 text-left transition-all cursor-pointer group"
+          >
+            <span className="text-[10px] font-bold uppercase font-mono text-rose-600 dark:text-rose-400 block mb-1">
+              Error / Alert
+            </span>
+            <span className="text-xs font-extrabold text-slate-800 dark:text-white group-hover:text-rose-700 block">
+              Scan Issue
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              showToast("New revision notes uploaded by Mr. Silva.", "info", { title: "Course Material", duration: 4000 });
+              setTimeout(() => {
+                showToast("Monthly tuition fee processed via Bank Slip.", "success", { title: "Slip Verified", duration: 5000 });
+              }, 250);
+              setTimeout(() => {
+                showToast("⏰ Chemistry Revision starts in 15 mins!", "reminder", { title: "Class In 15 Mins", duration: 6000 });
+              }, 500);
+            }}
+            className="p-3 rounded-2xl bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-left transition-all cursor-pointer group shadow-sm"
+          >
+            <span className="text-[10px] font-bold uppercase font-mono text-blue-300 dark:text-blue-600 block mb-1">
+              Stacking Test
+            </span>
+            <span className="text-xs font-extrabold text-white dark:text-slate-900 block">
+              Trigger 3 Cards
+            </span>
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 };

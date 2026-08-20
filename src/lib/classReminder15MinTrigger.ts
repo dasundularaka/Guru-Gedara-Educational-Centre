@@ -354,6 +354,27 @@ export async function run15MinuteClassReminderCheck(
             console.warn("[classReminder15MinTrigger] In-app notification error:", inAppErr);
           }
 
+          // Dispatch modern in-app pop-up toast event
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('gurugedara_inapp_toast', {
+              detail: {
+                message: `"${cls.title}" with ${cls.tutorName} begins at ${timeFormatted}.`,
+                type: 'reminder',
+                options: {
+                  title: `⏰ Class Starts in ${minutesLeft} Mins`,
+                  duration: 8000,
+                  tag: dedupeKey,
+                  action: {
+                    label: 'Classroom',
+                    onClick: () => {
+                      window.location.hash = '#schedule';
+                    }
+                  }
+                }
+              }
+            }));
+          }
+
           // 4. Save deduplication key and log history
           save15MinDedupeKey(dedupeKey);
 
