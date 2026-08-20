@@ -107,53 +107,68 @@ export function calculatePunctualityStatus(
 
 export async function sendAttendanceNotifications(
   record: AttendanceRecord,
-  classItem: ClassItem,
-  studentUser: UserProfile | undefined | null,
+  classItem?: ClassItem | null,
+  studentUser?: UserProfile | undefined | null,
   senderUser?: UserProfile
 ): Promise<AttendanceNotificationResult & { isLate: boolean; delayMinutes: number }> {
-  const rawName = studentUser?.name || record.studentName || 'Student';
+  // 1. Resolve studentUser and classItem if missing or incomplete
+  let activeStudent = studentUser;
+  if (!activeStudent || !activeStudent.email) {
+    try {
+      activeStudent = await firestoreService.getUserProfile(record.studentId);
+    } catch (e) {
+      console.warn("Could not fetch student profile for attendance notification:", e);
+    }
+  }
+
+  let activeClass = classItem;
+  if (!activeClass) {
+    try {
+      activeClass = await firestoreService.getClass(record.classId);
+    } catch (e) {
+      console.warn("Could not fetch class item for attendance notification:", e);
+    }
+  }
+
+  const courseTitle = activeClass?.title || record.classTitle || 'Class Session';
+  const rawName = activeStudent?.name || record.studentName || 'Student';
   const firstName = rawName.trim().split(' ')[0] || 'Student';
-  const username = studentUser?.username || studentUser?.uid || record.studentId || 'N/A';
+  const username = activeStudent?.username || activeStudent?.uid || record.studentId || 'N/A';
   const studentFullIdentifier = `${firstName} (${username})`;
 
-  const effectiveGrace = classItem.gracePeriod !== undefined ? classItem.gracePeriod : 5;
+  const effectiveGrace = activeClass?.gracePeriod !== undefined ? activeClass.gracePeriod : 5;
 
   const { statusText, isLate, delayMinutes, markedTimeFormatted, classTimesFormatted } = calculatePunctualityStatus(
-    classItem.schedule,
+    activeClass?.schedule,
     record.markedAt || new Date().toISOString(),
     record.status,
     effectiveGrace
   );
 
   const notificationTitle = isLate 
-    ? `⚠️ Late Attendance Notice: ${classItem.title}`
-    : `✅ Class Attendance Marked: ${classItem.title}`;
+    ? `⚠️ Late Attendance Notice: ${courseTitle}`
+    : `✅ Class Attendance Marked: ${courseTitle}`;
   
   // Check parent email link & CC configuration
-  const hasParentEmailLinked = !!(studentUser?.parentEmail && (studentUser?.isParentEmailLinked || studentUser?.ccParentOnNotifications));
-  const isParentAttendanceCcEnabled = hasParentEmailLinked && (studentUser?.parentEmailCcPreferences?.attendance !== false);
+  const hasParentEmailLinked = !!(activeStudent?.parentEmail && (activeStudent?.isParentEmailLinked || activeStudent?.ccParentOnNotifications));
+  const isParentAttendanceCcEnabled = hasParentEmailLinked && (activeStudent?.parentEmailCcPreferences?.attendance !== false);
 
   const parentCcNote = isParentAttendanceCcEnabled 
-    ? `\n📧 Parent CC: Auto-dispatched to ${studentUser?.parentEmail}` 
+    ? `\n📧 Parent CC: Auto-dispatched to ${activeStudent?.parentEmail}` 
     : '';
 
   const notificationMessage = `📌 Class Attendance Notification
-Class: ${classItem.title}
+Class: ${courseTitle}
 Student: ${studentFullIdentifier}
 Status: ${statusText}
 Check-in Time: ${markedTimeFormatted}
 Class Schedule: ${classTimesFormatted}
 Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
 
-  const studentUid = studentUser?.uid || record.studentId;
+  const studentUid = activeStudent?.uid || record.studentId;
 
-  // Verify that the student is an active student for this class
-  const isStudentActiveInClass = 
-    studentUser?.role === 'student' && 
-    studentUser?.classEnrollmentStatus?.[classItem.id] !== 'suspended' &&
-    studentUser?.status !== 'suspended';
-
-  if (isStudentActiveInClass && studentUid) {
+  // Send notifications if student identifier is available
+  if (studentUid) {
     try {
       // 1. Send System Notification to Student
       await firestoreService.triggerNotification(
@@ -174,10 +189,10 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
       );
 
       // 3. Automated Parent Email CC Notification Dispatch
-      if (isParentAttendanceCcEnabled && studentUser?.parentEmail) {
+      if (isParentAttendanceCcEnabled && activeStudent?.parentEmail) {
         try {
           await firestoreService.triggerNotification(
-            studentUser.parentEmail,
+            activeStudent.parentEmail,
             `[Parent CC] ${notificationTitle}`,
             `Advisory for ${studentFullIdentifier}:\n${notificationMessage}`,
             isLate ? 'reminder' : 'announcement'
@@ -191,8 +206,8 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
       try {
         await emailNotificationService.notifyAttendanceMarked({
           record,
-          classItem,
-          studentUser,
+          classItem: activeClass,
+          studentUser: activeStudent,
           punctualityStatusText: statusText,
           isLate,
           delayMinutes,
@@ -203,12 +218,12 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
         console.warn("Automated email service dispatch warning:", emailErr);
       }
 
-      // 5. Log Automated Email / SMS Delivery in Audit Logs & System
-      const studentEmail = studentUser?.email || 'N/A';
+      // 5. Log Automated Email Delivery in Audit Logs
+      const studentEmail = activeStudent?.email || 'N/A';
       await firestoreService.addAuditLog({
         username: senderName,
         action: isLate ? 'LATE_ATTENDANCE_NOTIFICATION_SENT' : 'ATTENDANCE_EMAIL_SENT',
-        details: `Automated ${isLate ? 'Late' : 'On-Time'} Notification dispatched to ${studentFullIdentifier} (${studentEmail})${isParentAttendanceCcEnabled ? ` [CC'd Parent: ${studentUser?.parentEmail}]` : ''}: ${statusText} for ${classItem.title} at ${markedTimeFormatted}`
+        details: `Automated ${isLate ? 'Late' : 'On-Time'} Notification dispatched to ${studentFullIdentifier} (${studentEmail})${isParentAttendanceCcEnabled ? ` [CC'd Parent: ${activeStudent?.parentEmail}]` : ''}: ${statusText} for ${courseTitle} at ${markedTimeFormatted}`
       });
     } catch (err) {
       console.warn("Failed sending attendance notification / message", err);

@@ -679,6 +679,18 @@ const firestoreServiceRaw = {
       details: `Created ${fullProfile.role} profile for ${fullProfile.name} (${fullProfile.uid})`
     });
 
+    // Send automated account creation welcome email
+    if (fullProfile.email && fullProfile.email.includes('@')) {
+      try {
+        await emailNotificationService.notifyAccountCreated({
+          user: fullProfile,
+          temporaryPassword: profile.password
+        });
+      } catch (emErr) {
+        console.warn("Could not dispatch welcome account creation email:", emErr);
+      }
+    }
+
     return fullProfile;
   },
 
@@ -1117,12 +1129,29 @@ const firestoreServiceRaw = {
 
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
     const existingIdx = payments.findIndex(p => p.id === id);
+    let effectivePay = updatedPay;
     if (existingIdx !== -1) {
       payments[existingIdx].status = status;
+      effectivePay = payments[existingIdx];
     } else if (updatedPay) {
       payments.push(updatedPay);
     }
     saveFallback('local_payments', payments);
+
+    // If marked as paid, send receipt email
+    if (status === 'paid' && effectivePay) {
+      try {
+        const studentProfile = await this.getUserProfile(effectivePay.studentId);
+        const classObj = await this.getClass(effectivePay.classId);
+        await emailNotificationService.notifyPaymentSuccess({
+          payment: effectivePay,
+          classItem: classObj || null,
+          studentUser: studentProfile
+        });
+      } catch (e) {
+        console.warn("Error triggering receipt on updatePaymentStatus:", e);
+      }
+    }
   },
 
   // -------------------------------------------------------------
@@ -1330,6 +1359,18 @@ const firestoreServiceRaw = {
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     const updatedReg = registered.map(u => u.uid === uid ? { ...u, ...data } : u);
     saveFallback('local_registered_users', updatedReg);
+
+    // If status updated to approved, dispatch official approval email
+    if (data.status === 'approved') {
+      try {
+        const fullUser = await this.getUserProfile(uid);
+        if (fullUser && fullUser.email && fullUser.email.includes('@')) {
+          await emailNotificationService.notifyStudentApproved({ studentUser: fullUser });
+        }
+      } catch (appErr) {
+        console.warn("Could not dispatch student approval email:", appErr);
+      }
+    }
   },
 
   async updateClass(classId: string, data: Partial<ClassItem>): Promise<void> {

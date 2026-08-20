@@ -6,22 +6,27 @@ import {
   UserProfile, 
   StudyMaterial, 
   AttendanceRecord, 
-  EmailNotificationLog,
-  EmailTriggerEventType
+  EmailNotificationLog, 
+  EmailTriggerEventType,
+  EmailSettings
 } from '../types';
-import { emailNotificationService } from '../lib/emailNotificationService';
+import { emailNotificationService, DEFAULT_EMAIL_SETTINGS } from '../lib/emailNotificationService';
 import { firestoreService } from '../lib/firestoreService';
 
 export interface UseEmailNotificationsResult {
   emailLogs: EmailNotificationLog[];
+  emailSettings: EmailSettings;
   isLoading: boolean;
   isDispatching: boolean;
   refreshLogs: () => Promise<void>;
+  refreshSettings: () => Promise<void>;
+  updateSettings: (newSettings: Partial<EmailSettings>) => Promise<EmailSettings>;
+  resendEmail: (logId: string, overrideRecipient?: string) => Promise<EmailNotificationLog>;
   
   // High-level automated trigger hooks
   triggerBookingEmail: (
     booking: Booking, 
-    classItem: ClassItem, 
+    classItem?: ClassItem | null, 
     studentUser?: UserProfile | null, 
     tutorUser?: UserProfile | null
   ) => Promise<{ studentLog: EmailNotificationLog; tutorLog?: EmailNotificationLog }>;
@@ -47,7 +52,7 @@ export interface UseEmailNotificationsResult {
   
   triggerAttendanceEmail: (
     record: AttendanceRecord, 
-    classItem: ClassItem, 
+    classItem?: ClassItem | null, 
     studentUser?: UserProfile | null,
     punctualityInfo?: {
       punctualityStatusText: string;
@@ -58,9 +63,19 @@ export interface UseEmailNotificationsResult {
     }
   ) => Promise<EmailNotificationLog>;
   
+  triggerStudentApprovedEmail: (
+    studentUser: UserProfile
+  ) => Promise<EmailNotificationLog>;
+
+  triggerAccountCreatedEmail: (
+    user: UserProfile,
+    temporaryPassword?: string
+  ) => Promise<EmailNotificationLog>;
+
   triggerCustomEmail: (params: {
     to: string | string[];
     cc?: string | string[];
+    bcc?: string | string[];
     subject: string;
     htmlContent: string;
     textContent: string;
@@ -69,19 +84,24 @@ export interface UseEmailNotificationsResult {
     metadata?: Record<string, any>;
   }) => Promise<EmailNotificationLog>;
 
-  triggerTestEmail: (type: 'booking' | 'payment' | 'resource' | 'attendance', targetEmail?: string) => Promise<EmailNotificationLog>;
+  triggerTestEmail: (
+    type: 'booking' | 'payment' | 'resource' | 'attendance' | 'approval' | 'welcome', 
+    targetEmail?: string
+  ) => Promise<EmailNotificationLog>;
+  
   clearLogs: () => Promise<void>;
 }
 
 export function useEmailNotifications(): UseEmailNotificationsResult {
   const [emailLogs, setEmailLogs] = useState<EmailNotificationLog[]>([]);
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>(DEFAULT_EMAIL_SETTINGS);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDispatching, setIsDispatching] = useState<boolean>(false);
 
   const refreshLogs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const logs = await emailNotificationService.getEmailLogs(60);
+      const logs = await emailNotificationService.getEmailLogs(80);
       setEmailLogs(logs);
     } catch (err) {
       console.warn('[useEmailNotifications] Error loading email logs:', err);
@@ -90,14 +110,41 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
     }
   }, []);
 
+  const refreshSettings = useCallback(async () => {
+    try {
+      const s = await emailNotificationService.getEmailSettings();
+      setEmailSettings(s);
+    } catch (err) {
+      console.warn('[useEmailNotifications] Error loading email settings:', err);
+    }
+  }, []);
+
   useEffect(() => {
     refreshLogs();
+    refreshSettings();
+  }, [refreshLogs, refreshSettings]);
+
+  const updateSettings = useCallback(async (newSettings: Partial<EmailSettings>) => {
+    const updated = await emailNotificationService.updateEmailSettings(newSettings);
+    setEmailSettings(updated);
+    return updated;
+  }, []);
+
+  const resendEmail = useCallback(async (logId: string, overrideRecipient?: string) => {
+    setIsDispatching(true);
+    try {
+      const result = await emailNotificationService.resendEmail(logId, overrideRecipient);
+      await refreshLogs();
+      return result;
+    } finally {
+      setIsDispatching(false);
+    }
   }, [refreshLogs]);
 
   // 1. Booking Email Hook
   const triggerBookingEmail = useCallback(async (
     booking: Booking, 
-    classItem: ClassItem, 
+    classItem?: ClassItem | null, 
     studentUser?: UserProfile | null, 
     tutorUser?: UserProfile | null
   ) => {
@@ -145,7 +192,6 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
   ) => {
     setIsDispatching(true);
     try {
-      // If enrolledStudents not passed, attempt to fetch active students for this class
       let targetStudents = enrolledStudents;
       if (!targetStudents || targetStudents.length === 0) {
         try {
@@ -206,7 +252,7 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
   // 5. Attendance Email Hook
   const triggerAttendanceEmail = useCallback(async (
     record: AttendanceRecord, 
-    classItem: ClassItem, 
+    classItem?: ClassItem | null, 
     studentUser?: UserProfile | null,
     punctualityInfo?: {
       punctualityStatusText: string;
@@ -229,7 +275,7 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
         isLate: punctualityInfo?.isLate ?? (record.isLate || false),
         delayMinutes: punctualityInfo?.delayMinutes ?? (record.delayMinutes || 0),
         markedTimeFormatted: punctualityInfo?.markedTimeFormatted || defaultTimeFormatted,
-        classTimesFormatted: punctualityInfo?.classTimesFormatted || classItem.schedule || 'Scheduled Time'
+        classTimesFormatted: punctualityInfo?.classTimesFormatted || classItem?.schedule || 'Scheduled Time'
       });
       await refreshLogs();
       return result;
@@ -238,10 +284,45 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
     }
   }, [refreshLogs]);
 
-  // 6. Custom Dispatch Hook
+  // 6. Student Approved Email Hook
+  const triggerStudentApprovedEmail = useCallback(async (
+    studentUser: UserProfile
+  ) => {
+    setIsDispatching(true);
+    try {
+      const result = await emailNotificationService.notifyStudentApproved({
+        studentUser
+      });
+      await refreshLogs();
+      return result;
+    } finally {
+      setIsDispatching(false);
+    }
+  }, [refreshLogs]);
+
+  // 7. Account Created Email Hook
+  const triggerAccountCreatedEmail = useCallback(async (
+    user: UserProfile,
+    temporaryPassword?: string
+  ) => {
+    setIsDispatching(true);
+    try {
+      const result = await emailNotificationService.notifyAccountCreated({
+        user,
+        temporaryPassword
+      });
+      await refreshLogs();
+      return result;
+    } finally {
+      setIsDispatching(false);
+    }
+  }, [refreshLogs]);
+
+  // 8. Custom Dispatch Hook
   const triggerCustomEmail = useCallback(async (params: {
     to: string | string[];
     cc?: string | string[];
+    bcc?: string | string[];
     subject: string;
     htmlContent: string;
     textContent: string;
@@ -262,21 +343,28 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
     }
   }, [refreshLogs]);
 
-  // 7. On-demand Test Dispatch Hook
-  const triggerTestEmail = useCallback(async (type: 'booking' | 'payment' | 'resource' | 'attendance', targetEmail?: string): Promise<EmailNotificationLog> => {
+  // 9. On-demand Test Dispatch Hook
+  const triggerTestEmail = useCallback(async (
+    type: 'booking' | 'payment' | 'resource' | 'attendance' | 'approval' | 'welcome', 
+    targetEmail?: string
+  ): Promise<EmailNotificationLog> => {
     setIsDispatching(true);
-    const destination = targetEmail || 'student.sample@gurugedara.edu';
+    const destination = (targetEmail || '').trim() || 'student.sample@gurugedara.edu';
     
     const mockStudent: UserProfile = {
       uid: 'sample_student_01',
       name: 'Kasun Bandara',
       email: destination,
       role: 'student',
-      username: 'kasun.b',
+      username: 'GS2026099',
       createdAt: new Date().toISOString(),
       parentEmail: 'parent.bandara@gmail.com',
       isParentEmailLinked: true,
-      ccParentOnNotifications: true
+      ccParentOnNotifications: true,
+      studentDetails: {
+        grade: 'Grade 12 (A/L 2026)',
+        school: 'Ananda College'
+      }
     };
 
     const mockClass: ClassItem = {
@@ -303,6 +391,7 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
             id: 'bk_test_' + Date.now(),
             studentId: mockStudent.uid,
             studentName: mockStudent.name,
+            studentEmail: mockStudent.email,
             classId: mockClass.id,
             classTitle: mockClass.title,
             tutorId: mockClass.tutorId,
@@ -353,6 +442,15 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
           enrolledStudents: [mockStudent]
         });
         log = logs[0];
+      } else if (type === 'approval') {
+        log = await emailNotificationService.notifyStudentApproved({
+          studentUser: mockStudent
+        });
+      } else if (type === 'welcome') {
+        log = await emailNotificationService.notifyAccountCreated({
+          user: mockStudent,
+          temporaryPassword: 'TempPass2026#'
+        });
       } else {
         log = await emailNotificationService.notifyAttendanceMarked({
           record: {
@@ -394,14 +492,20 @@ export function useEmailNotifications(): UseEmailNotificationsResult {
 
   return {
     emailLogs,
+    emailSettings,
     isLoading,
     isDispatching,
     refreshLogs,
+    refreshSettings,
+    updateSettings,
+    resendEmail,
     triggerBookingEmail,
     triggerPaymentEmail,
     triggerResourceAddedEmail,
     triggerClassUpdatedEmail,
     triggerAttendanceEmail,
+    triggerStudentApprovedEmail,
+    triggerAccountCreatedEmail,
     triggerCustomEmail,
     triggerTestEmail,
     clearLogs

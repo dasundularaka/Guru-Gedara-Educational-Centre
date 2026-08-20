@@ -43,6 +43,7 @@ export interface UserProfile {
   // Specific properties
   studentDetails?: {
     grade: string;
+    school?: string;
     parentContact?: string;
     interests?: string[];
   };
@@ -264,8 +265,27 @@ export type EmailTriggerEventType =
   | 'attendance_late_alert'
   | 'attendance_absent_alert'
   | 'student_status_changed'
+  | 'student_approved'
+  | 'account_created'
+  | 'password_reset_notice'
   | 'class_reminder_24h'
   | 'custom_broadcast';
+
+export interface EmailSettings {
+  senderName: string;
+  senderEmail: string;
+  replyToEmail: string;
+  notifyOnBooking: boolean;
+  notifyOnPayment: boolean;
+  notifyOnResource: boolean;
+  notifyOnAttendance: boolean;
+  notifyOnClassUpdate: boolean;
+  notifyOnApproval: boolean;
+  notifyOnAccountCreate: boolean;
+  ccParentByDefault: boolean;
+  externalWebhookUrl?: string;
+  resendApiKey?: string;
+}
 
 export interface EmailNotificationLog {
   id: string;
@@ -296,8 +316,14 @@ export interface EmailNotificationLog {
     resourceTitle?: string;
     attendanceId?: string;
     attendanceStatus?: string;
+    senderName?: string;
+    senderEmail?: string;
+    replyTo?: string;
+    originalLogId?: string;
+    isResend?: boolean;
     cloudFunctionTriggered?: boolean;
     dispatchMechanism?: 'firestore_mail_collection' | 'cloud_function_http' | 'client_simulated';
+    [key: string]: any;
   };
 }
 
