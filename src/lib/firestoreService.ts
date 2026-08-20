@@ -449,28 +449,36 @@ const firestoreServiceRaw = {
   // USER PROFILES
   // -------------------------------------------------------------
   async getUserProfile(uid: string): Promise<UserProfile | null> {
+    if (!uid) return null;
+    const cleanId = uid.trim();
+
     if (isUsingCloud) {
        try {
-         const userRef = doc(db, 'users', uid);
+         // 1. Direct doc lookup by doc ID
+         const userRef = doc(db, 'users', cleanId);
          const userSnap = await promiseWithTimeout(
            getDoc(userRef),
-           2000,
+           3000,
            { exists: () => false } as any
          );
          if (userSnap.exists()) {
            const userData = userSnap.data() as UserProfile;
-           if (userData.role === 'tutor' || userData.tutorDetails) {
-             const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-             const filtered = tutors.filter(t => t.uid !== uid);
-             filtered.push(userData);
-             saveFallback('local_users_tutors', filtered);
-           } else {
-             const registered = handleFallback<UserProfile>('local_registered_users', []);
-             const filtered = registered.filter(r => r.uid !== uid);
-             filtered.push(userData);
-             saveFallback('local_registered_users', filtered);
-           }
            return userData;
+         }
+
+         // 2. Query where authUid == cleanId
+         const usersRef = collection(db, 'users');
+         const qAuth = query(usersRef, where('authUid', '==', cleanId));
+         const snapAuth = await promiseWithTimeout(getDocs(qAuth), 3000, { empty: true, docs: [] } as any);
+         if (!snapAuth.empty) {
+           return snapAuth.docs[0].data() as UserProfile;
+         }
+
+         // 3. Query where username == cleanId
+         const qUser = query(usersRef, where('username', '==', cleanId));
+         const snapUser = await promiseWithTimeout(getDocs(qUser), 3000, { empty: true, docs: [] } as any);
+         if (!snapUser.empty) {
+           return snapUser.docs[0].data() as UserProfile;
          }
        } catch (e) {
          console.warn("Falling back to local user retrieval", e);
@@ -479,15 +487,34 @@ const firestoreServiceRaw = {
     
     // Comprehensive fallback across all local/cached users
     const allUsers = await this.getAllUsers();
-    const match = allUsers.find(u => u.uid === uid);
+    const match = allUsers.find(u => u.uid === cleanId || u.authUid === cleanId || u.username === cleanId);
     if (match) return match;
 
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-    const tutorMatch = tutors.find(t => t.uid === uid);
+    const tutorMatch = tutors.find(t => t.uid === cleanId || t.authUid === cleanId || t.username === cleanId);
     if (tutorMatch) return tutorMatch;
 
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    return registered.find(u => u.uid === uid) || null;
+    return registered.find(u => u.uid === cleanId || u.authUid === cleanId || u.username === cleanId) || null;
+  },
+
+  async getUserProfileByUsername(username: string): Promise<UserProfile | null> {
+    if (!username) return null;
+    const cleanUsername = username.trim();
+    if (isUsingCloud) {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', cleanUsername));
+        const qSnap = await promiseWithTimeout(getDocs(q), 3000, { empty: true, docs: [] } as any);
+        if (!qSnap.empty) {
+          return qSnap.docs[0].data() as UserProfile;
+        }
+      } catch (e) {
+        console.warn("Error finding user by username", e);
+      }
+    }
+    const allUsers = await this.getAllUsers();
+    return allUsers.find(u => (u.username && u.username.toLowerCase() === cleanUsername.toLowerCase()) || (u.uid && u.uid.toLowerCase() === cleanUsername.toLowerCase())) || null;
   },
 
   async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
@@ -500,7 +527,7 @@ const firestoreServiceRaw = {
          const q = query(usersRef, where('email', '==', cleanEmail));
          const qSnap = await promiseWithTimeout(
            getDocs(q),
-           2000,
+           3000,
            { empty: true, docs: [] } as any
          );
          if (!qSnap.empty) {
@@ -546,12 +573,32 @@ const firestoreServiceRaw = {
       throw new Error("Full name is required.");
     }
 
+    const cleanEmail = profile.email ? profile.email.trim().toLowerCase() : '';
+
+    // CRITICAL: Stop duplicate user creation! If an existing profile already exists with this email, merge/update instead of creating a second document
+    if (cleanEmail) {
+      const existingUser = await this.getUserProfileByEmail(cleanEmail);
+      if (existingUser) {
+        const mergedData: Partial<UserProfile> = {
+          ...existingUser,
+          ...profile,
+          uid: existingUser.uid,
+          username: existingUser.username || existingUser.uid
+        };
+        if (uid && uid !== existingUser.uid) {
+          mergedData.authUid = uid;
+        }
+        await this.updateUserProfile(existingUser.uid, mergedData);
+        return mergedData as UserProfile;
+      }
+    }
+
     // Requirement 1: In database, username and uid must be equal (username = uid)
     const effectiveUsername = profile.username || uid;
 
     const baseProfile: Record<string, any> = {
       uid,
-      email: profile.email || '',
+      email: cleanEmail,
       name: profile.name.trim(),
       displayName: profile.displayName?.trim() || profile.name.trim(),
       role: profile.role || 'student',
@@ -718,16 +765,35 @@ const firestoreServiceRaw = {
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     const deletedUids = handleFallback<string>('local_deleted_uids', []);
 
-    // Build map starting with cloud users (highest priority)
+    // Build map starting with cloud users (highest priority), deduplicating by email
     const userMap = new Map<string, UserProfile>();
     const emailToUidMap = new Map<string, string>();
 
     cloudUsers.forEach(u => {
-      if (u && u.uid && !deletedUids.includes(u.uid)) {
-        userMap.set(u.uid, u);
-        if (u.email) {
-          emailToUidMap.set(u.email.trim().toLowerCase(), u.uid);
+      if (!u || !u.uid || deletedUids.includes(u.uid)) return;
+      const emailKey = u.email ? u.email.trim().toLowerCase() : '';
+
+      if (emailKey && emailToUidMap.has(emailKey)) {
+        const existingUid = emailToUidMap.get(emailKey)!;
+        const existingUser = userMap.get(existingUid);
+        if (existingUser) {
+          // If current user doc has custom system identifier (GS/GT/GA) and existing doesn't, prefer current
+          const isCurrentCustomId = u.uid.startsWith('GS') || u.uid.startsWith('GT') || u.uid.startsWith('GA') || (u.username && (u.username.startsWith('GS') || u.username.startsWith('GT') || u.username.startsWith('GA')));
+          const isExistingCustomId = existingUid.startsWith('GS') || existingUid.startsWith('GT') || existingUid.startsWith('GA') || (existingUser.username && (existingUser.username.startsWith('GS') || existingUser.username.startsWith('GT') || existingUser.username.startsWith('GA')));
+          if (isCurrentCustomId && !isExistingCustomId) {
+            userMap.delete(existingUid);
+            userMap.set(u.uid, { ...existingUser, ...u });
+            emailToUidMap.set(emailKey, u.uid);
+          } else {
+            userMap.set(existingUid, { ...u, ...existingUser });
+          }
         }
+        return;
+      }
+
+      userMap.set(u.uid, u);
+      if (emailKey) {
+        emailToUidMap.set(emailKey, u.uid);
       }
     });
 

@@ -648,47 +648,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(true);
       if (firebaseUser) {
         try {
-          const email = firebaseUser.email || '';
+          const email = (firebaseUser.email || '').trim().toLowerCase();
           let profile = await firestoreService.getUserProfile(firebaseUser.uid);
           
           if (!profile && email) {
             const matchedProfile = await firestoreService.getUserProfileByEmail(email);
             if (matchedProfile) {
-              profile = {
-                ...matchedProfile,
-                uid: firebaseUser.uid,
-                username: firebaseUser.uid
-              };
-              await firestoreService.createUserProfile(firebaseUser.uid, profile);
+              profile = matchedProfile;
+              // Link authUid if needed without creating duplicate or changing uid/username
+              if (matchedProfile.authUid !== firebaseUser.uid) {
+                await firestoreService.updateUserProfile(matchedProfile.uid, { authUid: firebaseUser.uid });
+              }
             }
           }
           
           if (!profile) {
-            // Auto create database profile for newly signed in OAuth users
-            const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
-            profile = await firestoreService.createUserProfile(firebaseUser.uid, {
-              email: firebaseUser.email || '',
-              name: firebaseUser.displayName || (isTutor ? 'Accredited Tutor' : 'Accredited Scholar'),
-              role: isTutor ? 'tutor' : 'student',
-              photoURL: firebaseUser.photoURL || undefined
-            });
-            showToast("Account profile synced from Google!", "success");
+            // ONLY create initial profile for brand-new Google OAuth accounts that have never been seen before
+            const isGoogleAuth = firebaseUser.providerData.some(p => p.providerId === 'google.com');
+            if (isGoogleAuth) {
+              const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
+              profile = await firestoreService.createUserProfile(firebaseUser.uid, {
+                email: firebaseUser.email || '',
+                name: firebaseUser.displayName || (isTutor ? 'Accredited Tutor' : 'Accredited Scholar'),
+                role: isTutor ? 'tutor' : 'student',
+                photoURL: firebaseUser.photoURL || undefined
+              });
+              showToast("Account profile synced from Google!", "success");
+            }
           }
-          setCurrentUser(profile);
-          
-          // Load notifications
-          const nots = await firestoreService.getNotifications(profile.uid);
-          setNotifications(nots);
+
+          if (profile) {
+            setCurrentUser(profile);
+            // Load notifications
+            const nots = await firestoreService.getNotifications(profile.uid);
+            setNotifications(nots);
+          }
         } catch (e) {
           console.error("Authentication mapping failed. Falling back.", e);
-          // Local fallback session
-          setCurrentUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            role: 'student',
-            createdAt: new Date().toISOString()
-          });
         }
       } else {
         // Checking for local simulated guest session in localStorage
@@ -757,19 +753,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      const email = result.user.email || '';
+      const email = (result.user.email || '').trim().toLowerCase();
       
       let profile = await firestoreService.getUserProfile(result.user.uid);
       
       if (!profile && email) {
         const matchedProfile = await firestoreService.getUserProfileByEmail(email);
         if (matchedProfile) {
-          profile = {
-            ...matchedProfile,
-            uid: result.user.uid,
-            username: result.user.uid
-          };
-          await firestoreService.createUserProfile(result.user.uid, profile);
+          profile = matchedProfile;
+          if (matchedProfile.authUid !== result.user.uid) {
+            await firestoreService.updateUserProfile(matchedProfile.uid, { authUid: result.user.uid });
+          }
         }
       }
       
@@ -802,180 +796,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Login via custom email password
-  const loginWithEmail = async (email: string, pass: string): Promise<UserProfile> => {
+  // Login via email or username and password
+  const loginWithEmail = async (emailOrUsername: string, pass: string): Promise<UserProfile> => {
     setLoading(true);
-    const lowercaseEmail = email.trim().toLowerCase();
+    const rawInput = emailOrUsername.trim();
+    const cleanLower = rawInput.toLowerCase();
 
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, pass);
-      let profile = await firestoreService.getUserProfile(cred.user.uid);
+      // 1. First find if there is an existing profile in Firestore by email, username, or UID
+      let existingProfile = await firestoreService.getUserProfileByEmail(cleanLower);
+      if (!existingProfile) {
+        existingProfile = await firestoreService.getUserProfileByUsername(rawInput);
+      }
+      if (!existingProfile) {
+        existingProfile = await firestoreService.getUserProfile(rawInput);
+      }
 
-      // If profile not found by Auth UID, check by EMAIL to match existing tutor/student/admin profiles
-      if (!profile && lowercaseEmail) {
-        const matchedByEmail = await firestoreService.getUserProfileByEmail(lowercaseEmail);
-        if (matchedByEmail) {
-          profile = {
-            ...matchedByEmail,
-            uid: cred.user.uid,
-            username: cred.user.uid
-          };
-          await firestoreService.createUserProfile(cred.user.uid, profile);
+      // The email to use for Firebase Auth
+      const targetEmail = existingProfile?.email || cleanLower;
+
+      // 2. Attempt Firebase Authentication if it's an email
+      let firebaseAuthSuccess = false;
+      let firebaseAuthUid: string | null = null;
+      if (targetEmail.includes('@')) {
+        try {
+          const cred = await signInWithEmailAndPassword(auth, targetEmail, pass);
+          firebaseAuthSuccess = true;
+          firebaseAuthUid = cred.user.uid;
+        } catch (authErr) {
+          // Fall through to database / credential validation below
         }
       }
 
-      if (!profile) {
-        // Preset role according to specified credentials if profile is completely new
-        let role: 'student' | 'tutor' | 'admin' = 'student';
-        let name = "Enrolled Scholar";
-        const isTutorEmail = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
-        
-        if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
-          role = 'admin';
-          name = "Academy Administrator";
-        } else if (isTutorEmail) {
-          role = 'tutor';
-          name = "Faculty Tutor";
-        } else if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
-          role = 'student';
-          name = "Scholar Student";
+      // 3. If an existing profile was found:
+      if (existingProfile) {
+        // Enforce pending student approval
+        if (existingProfile.role === 'student' && existingProfile.status === 'pending') {
+          if (firebaseAuthSuccess) await signOut(auth);
+          throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
         }
 
-        profile = await firestoreService.createUserProfile(cred.user.uid, {
-          email: lowercaseEmail,
-          name,
-          role
-        });
-      }
-      
-      // Prevent pending student logins online
-      if (profile.role === 'student' && profile.status === 'pending') {
-        await signOut(auth);
-        throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
-      }
-
-      setCurrentUser(profile);
-      showToast(`Logged in successfully as ${profile.name}!`, "success");
-      return profile;
-    } catch (e: any) {
-      setLoading(false);
-
-      // Fallback: Check Cloud Firestore and local storage for existing profile by email across all databases
-      try {
-        const cloudMatch = await firestoreService.getUserProfileByEmail(lowercaseEmail);
-        if (cloudMatch) {
-          if (cloudMatch.role === 'student' && cloudMatch.status === 'pending') {
-            throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+        // Validate password if Firebase Auth wasn't used or succeeded
+        if (!firebaseAuthSuccess) {
+          const overridesJSON = localStorage.getItem('local_password_overrides');
+          const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
+          const expectedPassword = overrides[cleanLower] || overrides[existingProfile.email?.toLowerCase()] || existingProfile.password || 'test123';
+          if (pass !== expectedPassword && pass !== 'test123') {
+            throw new Error("Invalid password credentials.");
           }
-          if (cloudMatch.password && cloudMatch.password !== pass && pass !== 'test123') {
-            const overridesJSON = localStorage.getItem('local_password_overrides');
-            const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
-            const expectedPassword = overrides[lowercaseEmail] || cloudMatch.password || 'test123';
-            if (pass !== expectedPassword) {
-              throw new Error("Invalid password credentials.");
-            }
-          }
-          try {
-            localStorage.setItem('local_running_session', safeStringify(cloudMatch));
-          } catch (err) {
-            console.warn("Failed storing running session", err);
-          }
-          setCurrentUser(cloudMatch);
-          showToast(`Logged in successfully as ${cloudMatch.name}!`, "success");
-          return cloudMatch;
         }
-      } catch (cloudErr: any) {
-        if (cloudErr.message && (cloudErr.message.includes('pending administrator approval') || cloudErr.message.includes('Invalid password'))) {
-          throw cloudErr;
+
+        // Link authUid if available
+        if (firebaseAuthUid && existingProfile.authUid !== firebaseAuthUid) {
+          await firestoreService.updateUserProfile(existingProfile.uid, { authUid: firebaseAuthUid });
         }
-        console.warn("User lookup failed during email login:", cloudErr);
+
+        try {
+          localStorage.setItem('local_running_session', safeStringify(existingProfile));
+        } catch (err) {
+          console.warn("Failed storing running session", err);
+        }
+
+        setCurrentUser(existingProfile);
+        showToast(`Logged in successfully as ${existingProfile.name}!`, "success");
+        return existingProfile;
       }
-      
-      // 2. Check for password overrides for default demo credentials
+
+      // 4. If no profile exists, check for standard predefined demo accounts
       const overridesJSON = localStorage.getItem('local_password_overrides');
       const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
-      const expectedPassword = overrides[lowercaseEmail] || 'test123';
+      const expectedPassword = overrides[cleanLower] || 'test123';
 
-      if (pass !== expectedPassword) {
-        throw new Error(e.message || "Invalid password credentials.");
-      }
-
-      // 3. Match keyword roles or handle simulated demo sessions
-      const isTutorKeyword = lowercaseEmail === 'tutor@gg.com' || lowercaseEmail.includes('tutor') || lowercaseEmail.includes('teacher') || lowercaseEmail.includes('prof') || lowercaseEmail.includes('lecturer');
-      
-      if (lowercaseEmail === 'student@gg.com' || lowercaseEmail.includes('student')) {
-        const dummy = await handleSimulatedDemo('student');
-        const customUser: UserProfile = {
-          ...dummy,
-          email: lowercaseEmail,
-          name: 'Scholar Student',
-          status: 'approved' as const
-        };
-        try {
-          localStorage.setItem('local_running_session', safeStringify(customUser));
-        } catch (err) {
-          console.warn("Failed storing running session", err);
-        }
-        setCurrentUser(customUser);
-        showToast("Logged in successfully as Student Scholar!", "success");
-        return customUser;
-      } else if (isTutorKeyword) {
-        const dummy = await handleSimulatedDemo('tutor');
-        const customUser: UserProfile = {
-          ...dummy,
-          email: lowercaseEmail,
-          name: 'Faculty Tutor',
-          role: 'tutor'
-        };
-        try {
-          localStorage.setItem('local_running_session', safeStringify(customUser));
-        } catch (err) {
-          console.warn("Failed storing running session", err);
-        }
-        setCurrentUser(customUser);
-        showToast("Logged in successfully as Faculty Tutor!", "success");
-        return customUser;
-      } else if (lowercaseEmail === 'admin@gg.com' || lowercaseEmail.includes('admin')) {
+      if (cleanLower === 'admin@gg.com' || cleanLower === 'admin' || cleanLower === 'admin_demo') {
+        if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('admin');
-        const customUser: UserProfile = {
-          ...dummy,
-          email: lowercaseEmail,
-          name: 'Academy Administrator',
-          role: 'admin'
-        };
-        try {
-          localStorage.setItem('local_running_session', safeStringify(customUser));
-        } catch (err) {
-          console.warn("Failed storing running session", err);
-        }
+        const customUser: UserProfile = { ...dummy, email: 'admin@gg.com', name: 'Academy Administrator', role: 'admin' };
+        try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Academy Administrator!", "success");
         return customUser;
       }
 
-      // 4. Default Fallback for new custom domains
-      const inferredRole: 'student' | 'tutor' = isTutorKeyword ? 'tutor' : 'student';
-      const dummy = await handleSimulatedDemo(inferredRole);
-      const emailPrefix = lowercaseEmail.split('@')[0] || 'scholar';
-      const displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
-      
-      const customUser: UserProfile = {
-        ...dummy,
-        email: lowercaseEmail,
-        name: inferredRole === 'tutor' ? `Prof. ${displayName}` : `${displayName} Student`,
-        displayName: displayName,
-        role: inferredRole,
-        status: 'approved' as const
-      };
-      
-      try {
-        localStorage.setItem('local_running_session', safeStringify(customUser));
-      } catch (err) {
-        console.warn("Failed storing running session", err);
+      if (cleanLower === 'tutor@gg.com' || cleanLower === 'tutor' || cleanLower === 'tutor_demo') {
+        if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
+        const dummy = await handleSimulatedDemo('tutor');
+        const customUser: UserProfile = { ...dummy, email: 'tutor@gg.com', name: 'Faculty Tutor', role: 'tutor' };
+        try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
+        setCurrentUser(customUser);
+        showToast("Logged in successfully as Faculty Tutor!", "success");
+        return customUser;
       }
-      setCurrentUser(customUser);
-      showToast(`Logged in successfully with '${lowercaseEmail}'!`, "success");
-      return customUser;
+
+      if (cleanLower === 'student@gg.com' || cleanLower === 'student' || cleanLower === 'student_demo') {
+        if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
+        const dummy = await handleSimulatedDemo('student');
+        const customUser: UserProfile = { ...dummy, email: 'student@gg.com', name: 'Scholar Student', role: 'student', status: 'approved' };
+        try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
+        setCurrentUser(customUser);
+        showToast("Logged in successfully as Student Scholar!", "success");
+        return customUser;
+      }
+
+      // 5. Account not found - reject rather than creating a duplicate
+      throw new Error("No registered account found with these credentials. Please check your username/email or sign up.");
+    } catch (e: any) {
+      setLoading(false);
+      throw e;
     }
   };
 

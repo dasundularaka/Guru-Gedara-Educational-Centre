@@ -2,6 +2,7 @@ export type UserRole = 'student' | 'tutor' | 'admin';
 
 export interface UserProfile {
   uid: string;
+  authUid?: string;
   email: string;
   name: string;
   displayName?: string;
