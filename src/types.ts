@@ -86,6 +86,7 @@ export interface ClassItem {
   imageUrl?: string;
   isFeatured?: boolean;
   gracePeriod?: number; // Grace period in minutes before attendance is flagged as Late (e.g. 5, 10, 15)
+  createdAt?: string;
 }
 
 export interface Booking {
@@ -103,6 +104,7 @@ export interface Booking {
   status: 'active' | 'cancelled' | 'pending_approval';
   approvalType?: 'payment_collected' | 'late_payment' | 'free_card';
   collectedAmount?: number;
+  createdAt?: string;
 }
 
 export interface Payment {
@@ -117,6 +119,7 @@ export interface Payment {
   paymentMethod?: string;
   dueDate?: string;
   paymentType?: 'admission' | 'monthly' | 'late_payment' | 'free_card';
+  createdAt?: string;
 }
 
 export interface NotificationItem {

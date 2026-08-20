@@ -155,49 +155,57 @@ export const AdminDashboard: React.FC = () => {
     return r.status === reviewFilterStatus;
   });
 
-  // Recharts Monthly Trends Data processor
+  // Recharts Monthly Trends Data processor based strictly on Firestore data
   const getMonthlyData = () => {
-    // Generate the last 6 months list dynamically
-    const monthsData: { name: string; yearMonth: string; students: number; revenue: number }[] = [];
+    // Generate the last 6 months list dynamically (oldest to newest)
+    const monthsData: { name: string; yearMonth: string; endOfMonth: Date; students: number; revenue: number }[] = [];
     const now = new Date();
     
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthLabel = d.toLocaleString('en-US', { month: 'short' });
       const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
       monthsData.push({
         name: `${monthLabel} ${String(d.getFullYear()).slice(-2)}`,
         yearMonth,
+        endOfMonth,
         students: 0,
         revenue: 0
       });
     }
 
-    // Count actual student profiles matching their creation date
-    users.forEach(u => {
-      if (u.role === 'student' && u.createdAt) {
-        try {
-          const uDate = new Date(u.createdAt);
-          const yMonth = `${uDate.getFullYear()}-${String(uDate.getMonth() + 1).padStart(2, '0')}`;
-          const match = monthsData.find(m => m.yearMonth === yMonth);
-          if (match) {
-            match.students += 1;
+    const studentUsers = (users || []).filter(u => u.role === 'student');
+
+    // Count actual student profiles enrolled on or before end of that month
+    monthsData.forEach(m => {
+      studentUsers.forEach(u => {
+        if (u.createdAt) {
+          try {
+            const uDate = new Date(u.createdAt);
+            if (!isNaN(uDate.getTime()) && uDate <= m.endOfMonth) {
+              m.students += 1;
+            }
+          } catch (e) {
+            m.students += 1;
           }
-        } catch (e) {
-          console.error(e);
+        } else {
+          m.students += 1;
         }
-      }
+      });
     });
 
-    // Sum actual paid transactions matching their logging date
-    paymentsList.forEach(p => {
+    // Sum actual paid transactions matching their logging date month
+    (paymentsList || []).forEach(p => {
       if (p.status === 'paid' && p.date) {
         try {
           const pDate = new Date(p.date);
-          const yMonth = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-          const match = monthsData.find(m => m.yearMonth === yMonth);
-          if (match) {
-            match.revenue += p.amount;
+          if (!isNaN(pDate.getTime())) {
+            const yMonth = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+            const match = monthsData.find(m => m.yearMonth === yMonth);
+            if (match) {
+              match.revenue += (Number(p.amount) || 0);
+            }
           }
         } catch (e) {
           console.error(e);
@@ -205,26 +213,18 @@ export const AdminDashboard: React.FC = () => {
       }
     });
 
-    // Seed baseline stats to make graphs look visually pleasing on empty DBs
-    const baseStudents = [3, 5, 8, 12, 16, 0];
-    const baseRevenue = [18000, 24000, 31000, 39000, 48000, 0];
-
-    return monthsData.map((item, idx) => {
-      const studentsCumulativeCount = item.students + (item.students === 0 ? baseStudents[idx] : 0);
-      const revenueCumulativeSum = item.revenue + (item.revenue === 0 ? baseRevenue[idx] : 0);
-      
-      return {
-        name: item.name,
-        "Scholars Enrolled": studentsCumulativeCount,
-        "Revenue (LKR)": revenueCumulativeSum
-      };
-    });
+    return monthsData.map((item) => ({
+      name: item.name,
+      "Scholars Enrolled": item.students,
+      "Revenue (LKR)": item.revenue
+    }));
   };
 
   const getGrowthMetricsData = () => {
     const monthsData: { 
       name: string; 
       yearMonth: string; 
+      endOfMonth: Date;
       students: number; 
       classes: number; 
       pending: number; 
@@ -235,25 +235,69 @@ export const AdminDashboard: React.FC = () => {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthLabel = d.toLocaleString('en-US', { month: 'short' });
       const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
       monthsData.push({
         name: `${monthLabel} ${String(d.getFullYear()).slice(-2)}`,
         yearMonth,
+        endOfMonth,
         students: 0,
         classes: 0,
         pending: 0
       });
     }
 
-    // Accumulate student count up to each month
-    users.forEach(u => {
-      if (u.role === 'student' && u.createdAt) {
+    const studentUsers = (users || []).filter(u => u.role === 'student');
+
+    // Accumulate actual student count up to each month
+    monthsData.forEach(m => {
+      studentUsers.forEach(u => {
+        if (u.createdAt) {
+          try {
+            const uDate = new Date(u.createdAt);
+            if (!isNaN(uDate.getTime()) && uDate <= m.endOfMonth) {
+              m.students += 1;
+            }
+          } catch (e) {
+            m.students += 1;
+          }
+        } else {
+          m.students += 1;
+        }
+      });
+    });
+
+    // Populate active classes created on or before that month
+    monthsData.forEach(m => {
+      (classesList || []).forEach(c => {
+        if (c.createdAt) {
+          try {
+            const cDate = new Date(c.createdAt);
+            if (!isNaN(cDate.getTime())) {
+              if (cDate <= m.endOfMonth) {
+                m.classes += 1;
+              }
+            } else {
+              m.classes += 1;
+            }
+          } catch (e) {
+            m.classes += 1;
+          }
+        } else {
+          m.classes += 1;
+        }
+      });
+    });
+
+    // Count pending payments by their date month
+    (paymentsList || []).forEach(p => {
+      if (p.status === 'pending' && p.date) {
         try {
-          const uDate = new Date(u.createdAt);
-          const yMonth = `${uDate.getFullYear()}-${String(uDate.getMonth() + 1).padStart(2, '0')}`;
-          const matchIdx = monthsData.findIndex(m => m.yearMonth === yMonth);
-          if (matchIdx !== -1) {
-            for (let j = matchIdx; j < monthsData.length; j++) {
-              monthsData[j].students += 1;
+          const pDate = new Date(p.date);
+          if (!isNaN(pDate.getTime())) {
+            const yMonth = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
+            const match = monthsData.find(m => m.yearMonth === yMonth);
+            if (match) {
+              match.pending += 1;
             }
           }
         } catch (e) {
@@ -262,51 +306,15 @@ export const AdminDashboard: React.FC = () => {
       }
     });
 
-    // Populate active classes (distributed across months dynamically for a realistic trajectory)
-    classesList.forEach((c, idx) => {
-      const monthIdx = idx % 4;
-      for (let j = monthIdx; j < monthsData.length; j++) {
-        monthsData[j].classes += 1;
-      }
-    });
-
-    // Count pending payments by their date month
-    paymentsList.forEach(p => {
-      if (p.status === 'pending' && p.date) {
-        try {
-          const pDate = new Date(p.date);
-          const yMonth = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}`;
-          const match = monthsData.find(m => m.yearMonth === yMonth);
-          if (match) {
-            match.pending += 1;
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    });
-
-    // Seed data points if lists are empty so charts remain gorgeous
-    const seedStudents = [4, 8, 12, 18, 24, 32];
-    const seedClasses = [2, 4, 6, 8, 10, 14];
-    const seedPending = [1, 2, 1, 3, 2, 4];
-
-    return monthsData.map((item, idx) => {
-      const studentCount = users.filter(u => u.role === 'student').length;
-      const totalStuds = item.students + (studentCount === 0 ? seedStudents[idx] : seedStudents[idx % seedStudents.length]);
-      const activeCls = item.classes + (classesList.length === 0 ? seedClasses[idx] : seedClasses[idx % seedClasses.length]);
-      const pendPays = item.pending + (paymentsList.filter(p => p.status === 'pending').length === 0 ? seedPending[idx] : seedPending[idx % seedPending.length]);
-
-      return {
-        name: item.name,
-        "Total Students": totalStuds,
-        "Active Classes": activeCls,
-        "Pending Payments": pendPays
-      };
-    });
+    return monthsData.map((item) => ({
+      name: item.name,
+      "Total Students": item.students,
+      "Active Classes": item.classes,
+      "Pending Payments": item.pending
+    }));
   };
 
-  // Recharts 30-Day Class Enrollment Trends Data processor based on Firestore bookings & student registrations
+  // Recharts 30-Day Class Enrollment Trends Data processor based purely on Firestore bookings & student registrations
   const get30DaysEnrollmentData = () => {
     const daysData: {
       date: string;
@@ -332,9 +340,10 @@ export const AdminDashboard: React.FC = () => {
     // Process bookings list from Firestore
     (bookingsList || []).forEach(booking => {
       if (!booking || booking.status === 'cancelled') return;
-      if (booking.bookingDate) {
+      const bDateStr = booking.bookingDate || booking.createdAt;
+      if (bDateStr) {
         try {
-          const bDate = new Date(booking.bookingDate);
+          const bDate = new Date(bDateStr);
           if (!isNaN(bDate.getTime())) {
             const iso = `${bDate.getFullYear()}-${String(bDate.getMonth() + 1).padStart(2, '0')}-${String(bDate.getDate()).padStart(2, '0')}`;
             const match = daysData.find(d => d.fullDate === iso);
@@ -348,7 +357,7 @@ export const AdminDashboard: React.FC = () => {
       }
     });
 
-    // Process student users created date
+    // Process student users created date from Firestore
     (users || []).forEach(u => {
       if (u.role === 'student' && u.createdAt) {
         try {
@@ -366,27 +375,16 @@ export const AdminDashboard: React.FC = () => {
       }
     });
 
-    // Seed realistic curve variations if counts are minimal so graph presents smooth trends
-    const totalActualBookings = (bookingsList || []).filter(b => b.status !== 'cancelled').length;
-    const totalActualStudents = (users || []).filter(u => u.role === 'student').length;
-
     let accumulativeEnrollments = 0;
 
-    return daysData.map((item, idx) => {
-      // Baseline distribution when real DB dataset is low/empty for visual clarity
-      const seedBookingVal = totalActualBookings === 0 ? ((idx % 4 === 0) ? 2 : (idx % 3 === 0) ? 1 : (idx % 7 === 0) ? 3 : 0) : 0;
-      const seedStudentVal = totalActualStudents === 0 ? ((idx % 5 === 0) ? 1 : (idx % 6 === 0) ? 2 : 0) : 0;
-
-      const dailyBookingsCount = item.newBookings + seedBookingVal;
-      const dailyStudentsCount = item.newStudents + seedStudentVal;
-      const dailyTotal = dailyBookingsCount + dailyStudentsCount;
-
+    return daysData.map((item) => {
+      const dailyTotal = item.newBookings + item.newStudents;
       accumulativeEnrollments += dailyTotal;
 
       return {
         date: item.date,
-        "Class Enrollments": dailyBookingsCount,
-        "Student Signups": dailyStudentsCount,
+        "Class Enrollments": item.newBookings,
+        "Student Signups": item.newStudents,
         "Daily Total": dailyTotal,
         "Cumulative Velocity": accumulativeEnrollments
       };
@@ -2072,8 +2070,14 @@ export const AdminDashboard: React.FC = () => {
 
                 </div>
 
-                {/* System Activity Feed Component */}
-                <SystemActivityFeed />
+                {/* System Activity Feed Component with live Firestore data stream */}
+                <SystemActivityFeed 
+                  users={users}
+                  classes={classesList}
+                  payments={paymentsList}
+                  bookings={bookingsList}
+                  onRefresh={fetchAdminDatasets}
+                />
 
                 {/* CSV exporter card block */}
                 <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white shadow-md shadow-blue-100">
