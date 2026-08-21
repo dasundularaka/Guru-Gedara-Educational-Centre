@@ -189,7 +189,7 @@ async function resolveEnrolledStudentsForClass(classId: string): Promise<UserPro
 // -------------------------------------------------------------
 // HTML EMAIL TEMPLATE GENERATOR
 // -------------------------------------------------------------
-function wrapInMasterHtmlTemplate(options: {
+export function wrapInMasterHtmlTemplate(options: {
   title: string;
   preheader: string;
   badgeText: string;

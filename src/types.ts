@@ -285,6 +285,7 @@ export type EmailTriggerEventType =
   | 'account_created'
   | 'password_reset_notice'
   | 'class_reminder_24h'
+  | 'class_reminder_15m'
   | 'custom_broadcast';
 
 export interface EmailSettings {
@@ -308,6 +309,8 @@ export interface EmailNotificationLog {
   to: string | string[];
   cc?: string | string[];
   bcc?: string | string[];
+  from?: string;
+  replyTo?: string;
   subject: string;
   htmlContent: string;
   textContent: string;

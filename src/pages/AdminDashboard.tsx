@@ -13,6 +13,7 @@ import { TutorProfileModal } from '../components/TutorProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
+import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -102,7 +103,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
   
@@ -1609,6 +1610,7 @@ export const AdminDashboard: React.FC = () => {
                   {activeTab === 'pathways' && <Layers className="w-4 h-4" />}
                   {activeTab === 'banners' && <ImageIcon className="w-4 h-4" />}
                   {activeTab === 'notices' && <Bell className="w-4 h-4" />}
+                  {activeTab === 'email_templates' && <Mail className="w-4 h-4 text-indigo-600" />}
                   {activeTab === 'admins' && <ShieldCheck className="w-4 h-4" />}
                   {activeTab === 'reviews' && <Star className="w-4 h-4" />}
                 </span>
@@ -1622,6 +1624,7 @@ export const AdminDashboard: React.FC = () => {
                   {activeTab === 'pathways' && 'Course Pathways & Subjects'}
                   {activeTab === 'banners' && 'Hero Banners'}
                   {activeTab === 'notices' && 'Notices & System Alerts'}
+                  {activeTab === 'email_templates' && 'Email Templates & Notifications'}
                   {activeTab === 'admins' && 'Administrative Staff'}
                   {activeTab === 'reviews' && 'Moderate Reviews'}
                 </span>
@@ -1649,6 +1652,7 @@ export const AdminDashboard: React.FC = () => {
                     { id: 'pathways', label: 'Course Pathways & Subjects', icon: <Layers className="w-4 h-4 text-cyan-500" /> },
                     { id: 'banners', label: 'Hero Banners', icon: <ImageIcon className="w-4 h-4 text-teal-500" /> },
                     { id: 'notices', label: 'Notices & System Alerts', icon: <Bell className="w-4 h-4 text-amber-500" />, badge: notifications.filter(n => !n.isRead).length },
+                    { id: 'email_templates', label: 'Email Templates & Suite', icon: <Mail className="w-4 h-4 text-indigo-500" /> },
                     { id: 'admins', label: 'Administrative Staff', icon: <ShieldCheck className="w-4 h-4 text-emerald-500" /> },
                     { id: 'reviews', label: 'Moderate Reviews', icon: <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> },
                   ].map(opt => (
@@ -3154,7 +3158,14 @@ export const AdminDashboard: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => setActiveTab('email_templates')}
+                        className="px-3.5 py-1.5 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="View & Test HTML Email Templates"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-pink-600" /> Email Templates
+                      </button>
                       <button
                         onClick={() => setShowEmailLogsModal(true)}
                         className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
@@ -3975,6 +3986,18 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </motion.div>
+            )}
+
+            {/* 11. EMAIL TEMPLATES & NOTIFICATIONS MANAGEMENT */}
+            {activeTab === 'email_templates' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <AdminEmailTemplatesPanel onOpenEmailLogs={() => setShowEmailLogsModal(true)} />
               </motion.div>
             )}
 

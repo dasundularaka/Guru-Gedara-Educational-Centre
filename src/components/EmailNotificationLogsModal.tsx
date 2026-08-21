@@ -34,6 +34,7 @@ import {
 import { useEmailNotifications } from '../hooks/useEmailNotifications';
 import { EmailNotificationLog, EmailTriggerEventType } from '../types';
 import { downloadEmlFile, buildGmailComposeUrl, buildMailtoUrl } from '../lib/emailNotificationService';
+import { AdminEmailTemplatesPanel } from './AdminEmailTemplatesPanel';
 
 interface EmailNotificationLogsModalProps {
   isOpen: boolean;
@@ -61,7 +62,7 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
     clearLogs 
   } = useEmailNotifications();
 
-  const [activeTab, setActiveTab] = useState<'logs' | 'compose' | 'settings'>('logs');
+  const [activeTab, setActiveTab] = useState<'logs' | 'templates' | 'compose' | 'settings'>('logs');
   const [filterType, setFilterType] = useState<string>(defaultFilter);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedLog, setSelectedLog] = useState<EmailNotificationLog | null>(null);
@@ -272,6 +273,14 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                 }`}
               >
                 Email Queue ({emailLogs.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('templates')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                  activeTab === 'templates' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-pink-500" /> Templates
               </button>
               <button
                 onClick={() => setActiveTab('compose')}
@@ -920,6 +929,13 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* Templates Tab */}
+        {activeTab === 'templates' && (
+          <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 max-h-[calc(90vh-130px)]">
+            <AdminEmailTemplatesPanel />
           </div>
         )}
 
