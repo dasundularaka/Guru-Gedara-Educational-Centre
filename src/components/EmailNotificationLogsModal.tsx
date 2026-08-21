@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Mail, 
   Send, 
@@ -26,10 +26,14 @@ import {
   SendHorizontal,
   UserPlus,
   Award,
-  Globe
+  Globe,
+  Download,
+  Key,
+  Flame
 } from 'lucide-react';
 import { useEmailNotifications } from '../hooks/useEmailNotifications';
 import { EmailNotificationLog, EmailTriggerEventType } from '../types';
+import { downloadEmlFile, buildGmailComposeUrl, buildMailtoUrl } from '../lib/emailNotificationService';
 
 interface EmailNotificationLogsModalProps {
   isOpen: boolean;
@@ -80,7 +84,18 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
   const [senderEmail, setSenderEmail] = useState<string>(emailSettings.senderEmail);
   const [replyToEmail, setReplyToEmail] = useState<string>(emailSettings.replyToEmail);
   const [webhookUrl, setWebhookUrl] = useState<string>(emailSettings.externalWebhookUrl || '');
+  const [resendApiKey, setResendApiKey] = useState<string>(emailSettings.resendApiKey || '');
   const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
+  const [customResendRecipient, setCustomResendRecipient] = useState<string>('');
+  const [showResendInput, setShowResendInput] = useState<boolean>(false);
+
+  useEffect(() => {
+    setSenderName(emailSettings.senderName);
+    setSenderEmail(emailSettings.senderEmail);
+    setReplyToEmail(emailSettings.replyToEmail);
+    setWebhookUrl(emailSettings.externalWebhookUrl || '');
+    setResendApiKey(emailSettings.resendApiKey || '');
+  }, [emailSettings]);
 
   if (!isOpen) return null;
 
@@ -99,7 +114,7 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
   const handleSendTest = async (type: 'booking' | 'payment' | 'resource' | 'attendance' | 'approval' | 'welcome') => {
     setIsSendingTest(true);
     try {
-      const target = testEmailAddress.trim() || 'student@gurugedara.edu';
+      const target = testEmailAddress.trim() || 'dasundularaka@gmail.com';
       const log = await triggerTestEmail(type, target);
       setSelectedLog(log);
       showInternalToast(`Automated ${type.toUpperCase()} email dispatched to ${target}!`);
@@ -110,12 +125,14 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
     }
   };
 
-  const handleResend = async () => {
+  const handleResend = async (customRecipient?: string) => {
     if (!selectedLog) return;
     setIsResending(true);
     try {
-      const res = await resendEmail(selectedLog.id);
+      const res = await resendEmail(selectedLog.id, customRecipient || undefined);
       setSelectedLog(res);
+      setShowResendInput(false);
+      setCustomResendRecipient('');
       showInternalToast(`Email resent successfully to ${Array.isArray(res.to) ? res.to.join(', ') : res.to}!`);
     } catch (e) {
       showInternalToast('Failed to resend email.');
@@ -132,9 +149,10 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
         senderName: senderName.trim(),
         senderEmail: senderEmail.trim(),
         replyToEmail: replyToEmail.trim(),
-        externalWebhookUrl: webhookUrl.trim() || undefined
+        externalWebhookUrl: webhookUrl.trim() || undefined,
+        resendApiKey: resendApiKey.trim() || undefined
       });
-      showInternalToast('Email sender settings saved successfully!');
+      showInternalToast('Email configuration saved successfully!');
     } catch (e) {
       showInternalToast('Failed to save settings.');
     } finally {
@@ -495,14 +513,47 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                       </div>
 
                       {/* Top Action buttons */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Direct Gmail compose button */}
+                        <a
+                          href={selectedLog.webmailUrl || buildGmailComposeUrl(selectedLog.to, selectedLog.subject, selectedLog.textContent, selectedLog.cc)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                          title="Open pre-filled Gmail compose window ready to send in 1 click"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          Open in Gmail
+                          <ExternalLink className="w-2.5 h-2.5 opacity-80" />
+                        </a>
+
+                        {/* Direct default Mail App button */}
+                        <a
+                          href={selectedLog.mailtoUrl || buildMailtoUrl(selectedLog.to, selectedLog.subject, selectedLog.textContent, selectedLog.cc)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all shadow-xs"
+                          title="Open your device default mail application"
+                        >
+                          <Send className="w-3 h-3 text-slate-500" />
+                          Mail App
+                        </a>
+
+                        {/* Download .EML button */}
                         <button
-                          onClick={handleResend}
+                          onClick={() => downloadEmlFile(selectedLog)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+                          title="Download RFC-822 .eml file to open in Outlook, Apple Mail or Thunderbird"
+                        >
+                          <Download className="w-3 h-3 text-slate-500" />
+                          .EML
+                        </button>
+
+                        <button
+                          onClick={() => setShowResendInput(!showResendInput)}
                           disabled={isResending}
-                          className="px-3 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                          className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all shadow-xs cursor-pointer disabled:opacity-50"
                         >
                           <Repeat className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
-                          Resend Email
+                          Resend...
                         </button>
 
                         {/* View mode toggle */}
@@ -535,6 +586,33 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                       </div>
                     </div>
 
+                    {/* Resend to custom email drawer */}
+                    {showResendInput && (
+                      <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2">
+                        <span className="text-xs font-bold text-indigo-900 whitespace-nowrap">Resend to:</span>
+                        <input
+                          type="email"
+                          value={customResendRecipient}
+                          onChange={(e) => setCustomResendRecipient(e.target.value)}
+                          placeholder="e.g. dasundularaka@gmail.com"
+                          className="flex-1 px-2.5 py-1 text-xs bg-white border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-slate-800"
+                        />
+                        <button
+                          onClick={() => handleResend(customResendRecipient.trim())}
+                          disabled={isResending}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {isResending ? 'Sending...' : 'Send Now'}
+                        </button>
+                        <button
+                          onClick={() => setShowResendInput(false)}
+                          className="px-2 py-1 text-slate-500 hover:text-slate-700 text-xs cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
                     {/* Recipient details */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-white p-2.5 rounded-xl border border-slate-200">
                       <div>
@@ -556,9 +634,10 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                         </span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Queue Target</span>
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                          <ShieldCheck className="w-3.5 h-3.5" /> Firestore / Mail
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Delivery Channel</span>
+                        <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          {selectedLog.deliveryChannel || 'Firestore Mail Queue'}
                         </span>
                       </div>
                     </div>
@@ -774,6 +853,28 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                 </div>
 
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Resend.com Direct Outbound API Key (Optional)</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> 100% Real Live Inbox Delivery
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={resendApiKey}
+                      onChange={(e) => setResendApiKey(e.target.value)}
+                      placeholder="re_123456789..."
+                      className="w-full px-3 py-2 pl-9 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                    />
+                    <Key className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    If provided, transactional emails are sent directly via Resend API to actual destination inboxes (<a href="https://resend.com" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">free tier available at resend.com</a>).
+                  </p>
+                </div>
+
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     External Email Webhook URL (Optional)
                   </label>
@@ -792,11 +893,13 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1.5">
                   <div className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Globe className="w-3.5 h-3.5 text-indigo-600" />
-                    Firebase Firestore Integration Architecture:
+                    Complete Email Delivery Architecture:
                   </div>
-                  <p className="text-[11px] leading-relaxed">
-                    Outbound emails write directly to the <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200 text-indigo-700">mail</code> collection (matching the standard Firebase Trigger Email Extension schema) and to the <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200 text-indigo-700">email_notifications</code> audit collection for real-time tracking across all student and parent portals.
-                  </p>
+                  <ul className="text-[11px] space-y-1 list-disc pl-4 leading-relaxed">
+                    <li><strong>Firebase Extension:</strong> Writes directly to the <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200 text-indigo-700">mail</code> collection for the Firebase Trigger Email Extension with SMTP credentials.</li>
+                    <li><strong>1-Click Gmail &amp; Mail App:</strong> Open formatted emails directly in your Gmail webmail or native mail client.</li>
+                    <li><strong>Direct API Dispatch:</strong> Optional Resend or Webhook integration for instant delivery.</li>
+                  </ul>
                 </div>
 
                 <div className="pt-2 flex items-center justify-end gap-3">

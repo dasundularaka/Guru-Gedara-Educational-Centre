@@ -1,5 +1,16 @@
 export type UserRole = 'student' | 'tutor' | 'admin';
 
+export interface UserEmailPreferences {
+  bookingConfirmation: boolean;
+  classReminder24h: boolean;
+  classCancellation: boolean;
+  paymentReceipts: boolean;
+  attendanceAlerts: boolean;
+  studyMaterials: boolean;
+  classScheduleUpdates: boolean;
+  monthlyReports: boolean;
+}
+
 export interface UserProfile {
   uid: string;
   authUid?: string;
@@ -39,6 +50,9 @@ export interface UserProfile {
     payments?: boolean;
     general?: boolean;
   };
+
+  // Granular User Notification & Email Preferences
+  emailPreferences?: Partial<UserEmailPreferences>;
 
   // Specific properties
   studentDetails?: {
@@ -256,6 +270,8 @@ export interface SyncLogEntry {
 export type EmailTriggerEventType = 
   | 'booking_confirmation'
   | 'booking_tutor_alert'
+  | 'booking_cancellation'
+  | 'class_cancelled'
   | 'payment_receipt'
   | 'payment_due_reminder'
   | 'class_resource_added'
@@ -301,6 +317,9 @@ export interface EmailNotificationLog {
   sentAt?: string;
   errorMessage?: string;
   recipientName?: string;
+  webmailUrl?: string;
+  mailtoUrl?: string;
+  deliveryChannel?: string;
   metadata?: {
     studentId?: string;
     studentName?: string;

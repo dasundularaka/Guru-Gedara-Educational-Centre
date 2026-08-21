@@ -1,6 +1,7 @@
 import { firestoreService, safeStringify } from './firestoreService';
 import { Booking, ClassItem, NotificationItem, UserProfile } from '../types';
 import { parseScheduleTimes, parseTimeToTodayDate } from './classScheduleUtils';
+import { emailNotificationService, shouldUserReceiveEmail } from './emailNotificationService';
 
 export interface ClassReminderAlertLog {
   id: string;
@@ -17,6 +18,7 @@ export interface ClassReminderAlertLog {
   emailAlertSent: boolean;
   emailSubject: string;
   emailBodyPreview: string;
+  emailNotificationLogId?: string;
 }
 
 export interface CronRunResult {
@@ -192,13 +194,14 @@ export async function run24HourClassReminderCron(forceTriggerAll: boolean = fals
           const formattedDate = sessionDate.toLocaleDateString('en-US', {
             weekday: 'long',
             month: 'short',
-            day: 'numeric'
+            day: 'numeric',
+            year: 'numeric'
           });
           const formattedTime = timeSlot || parseScheduleTimes(timeSlot, schedule).startTimeStr;
 
           // 2. Formulate In-App Alert
           const inAppTitle = `⏰ 24h Class Reminder: ${classTitle}`;
-          const inAppMessage = `Dear ${studentName}, your class "${classTitle}" with ${tutorName} is scheduled for tomorrow (${formattedDate}) at ${formattedTime}. Please review your materials and prepare on time.`;
+          const inAppMessage = `Dear ${studentName}, your class "${classTitle}" with ${tutorName} is scheduled for tomorrow (${formattedDate}) at ${formattedTime}. Please review your materials and arrive on time.`;
 
           let inAppSent = false;
           try {
@@ -213,9 +216,30 @@ export async function run24HourClassReminderCron(forceTriggerAll: boolean = fals
             console.warn(`Failed sending in-app 24h alert to ${studentName}:`, e);
           }
 
-          // 3. Formulate Email Alert
-          const emailSubject = `[Guru Gedara] Reminder: ${classTitle} starts in 24 hours!`;
-          const emailBodyPreview = `Hi ${studentName}, this is an automated 24-hour reminder that your class "${classTitle}" is scheduled for ${formattedDate} at ${formattedTime}.`;
+          // 3. Formulate & Dispatch Professional HTML Email via emailNotificationService
+          let emailNotificationLogId: string | undefined;
+          let emailAlertSent = false;
+          const emailSubject = `⏰ [Guru Gedara] Reminder: ${classTitle} starts tomorrow at ${formattedTime}!`;
+          const emailBodyPreview = `Hi ${studentName}, your class "${classTitle}" with ${tutorName} is scheduled for tomorrow (${formattedDate}) at ${formattedTime}.`;
+
+          const shouldSendEmail = shouldUserReceiveEmail(student, 'class_reminder_24h');
+
+          if (shouldSendEmail) {
+            try {
+              const emailLog = await emailNotificationService.notify24HourClassReminder({
+                booking,
+                classItem: cls,
+                studentUser: student,
+                sessionDate,
+                formattedDate,
+                formattedTime
+              });
+              emailNotificationLogId = emailLog.id;
+              emailAlertSent = true;
+            } catch (err) {
+              console.warn(`[cron24h] Failed sending rich reminder email to ${studentEmail}:`, err);
+            }
+          }
 
           const alertLog: ClassReminderAlertLog = {
             id: `email_log_${Math.random().toString(36).substring(2, 9)}`,
@@ -229,9 +253,10 @@ export async function run24HourClassReminderCron(forceTriggerAll: boolean = fals
             scheduledDate: formattedDate,
             dispatchedAt: new Date().toISOString(),
             inAppAlertSent: inAppSent,
-            emailAlertSent: true,
+            emailAlertSent,
             emailSubject,
-            emailBodyPreview
+            emailBodyPreview,
+            emailNotificationLogId
           };
 
           // Save email log to outbox

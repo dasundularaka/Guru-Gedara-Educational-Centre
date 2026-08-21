@@ -75,6 +75,7 @@ import { AttendanceHealthProgressBar } from '../components/AttendanceHealthProgr
 import { StudentProfileModal } from '../components/StudentProfileModal';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
+import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -3310,124 +3311,15 @@ export const TutorDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-6"
               >
-                <div className="bg-white border border-gray-150 rounded-2xl p-6">
-                  <h3 className="text-base font-bold text-gray-900 border-b pb-4 border-gray-50 mb-4 flex items-center gap-2">
-                    <Sliders className="w-4.5 h-4.5 text-blue-500" />
-                    Faculty Communication Handles
-                  </h3>
-                  <p className="text-xs text-gray-400 mb-5">Configure which operational updates trigger real-time system copy alerts and email dispatches to your personal address.</p>
-
-                  <div className="space-y-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-gray-850">Class Attendance & Student Bookings</span>
-                        <span className="block text-[10px] text-gray-400 mt-0.5">Receive immediate dashboard alerts when a student registers or books a class</span>
-                      </div>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.reminders}
-                        onChange={(e) => updateNotificationSettings({ reminders: e.target.checked })}
-                        className="w-4.5 h-4.5 rounded text-blue-600 cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-gray-850">Tuition Invoices & Payment Settlements</span>
-                        <span className="block text-[10px] text-gray-400 mt-0.5">Alert me when admin updates ledger records or logs payouts matched to my class</span>
-                      </div>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.payments}
-                        onChange={(e) => updateNotificationSettings({ payments: e.target.checked })}
-                        className="w-4.5 h-4.5 rounded text-blue-600 cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-bold text-gray-850">Student Chat Messages</span>
-                        <span className="block text-[10px] text-gray-400 mt-0.5">Get notified immediately when a scholar initiates or replies to a chat message</span>
-                      </div>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.messages}
-                        onChange={(e) => updateNotificationSettings({ messages: e.target.checked })}
-                        className="w-4.5 h-4.5 rounded text-blue-600 cursor-pointer"
-                      />
-                    </div>
-
-                    {/* Email triggers toggle elements */}
-                    <div className="border-t pt-5 border-dashed border-gray-100 space-y-4">
-                      <h4 className="text-[10px] uppercase tracking-wider font-extrabold text-blue-650 font-mono">Email Notification Triggers</h4>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Class revisions & timing alterations</span>
-                          <span className="block text-[9px] text-gray-400">Dispatch copies when schedule slots expand or curriculum titles update</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailClassRevisions}
-                          onChange={(e) => updateNotificationSettings({ emailClassRevisions: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Booking & enrollment receipts</span>
-                          <span className="block text-[9px] text-gray-400">Receive email alerts on active scholar registrations and seat counts</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailBookingStatus}
-                          onChange={(e) => updateNotificationSettings({ emailBookingStatus: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Academic study worksheets & materials</span>
-                          <span className="block text-[9px] text-gray-400">Receive copy confirmations when course worksheets or documents are uploaded</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailStudyMaterials}
-                          onChange={(e) => updateNotificationSettings({ emailStudyMaterials: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Daily academy general announcements</span>
-                          <span className="block text-[9px] text-gray-400">Receive general management notifications and bulletin board notices</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailPerformanceLogs}
-                          onChange={(e) => updateNotificationSettings({ emailPerformanceLogs: e.target.checked })}
-                          className="w-4 h-4 rounded text-blue-600 cursor-pointer"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t pt-4 border-dashed border-gray-100">
-                      <div>
-                        <span className="text-xs font-bold text-blue-700">Inbox Copy Sync</span>
-                        <span className="block text-[9px] text-gray-400 leading-none mt-0.5">Route copy to faculty registered email address</span>
-                      </div>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.emailSync}
-                        onChange={(e) => updateNotificationSettings({ emailSync: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-650"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <UserNotificationSettingsPanel
+                  currentUser={currentUser}
+                  onProfileUpdated={async (updated) => {
+                    if (refreshUserProfile) {
+                      await refreshUserProfile();
+                    }
+                  }}
+                  showToast={showToast}
+                />
               </motion.div>
             )}
 

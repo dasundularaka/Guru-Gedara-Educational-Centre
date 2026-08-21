@@ -361,6 +361,119 @@ ${footerNote ? `\nNote: ${footerNote}\n` : ''}
   return { html, text };
 }
 
+// Helper URLs and exporters
+export function buildGmailComposeUrl(to: string | string[], subject: string, bodyText: string, cc?: string | string[]): string {
+  const toStr = Array.isArray(to) ? to.join(',') : to;
+  const ccStr = cc ? (Array.isArray(cc) ? cc.join(',') : cc) : '';
+  const params = new URLSearchParams();
+  params.set('view', 'cm');
+  params.set('fs', '1');
+  params.set('to', toStr);
+  if (ccStr) params.set('cc', ccStr);
+  params.set('su', subject);
+  params.set('body', bodyText);
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+export function buildMailtoUrl(to: string | string[], subject: string, bodyText: string, cc?: string | string[]): string {
+  const toStr = Array.isArray(to) ? to.join(',') : to;
+  const ccStr = cc ? (Array.isArray(cc) ? cc.join(',') : cc) : '';
+  const params = new URLSearchParams();
+  params.set('subject', subject);
+  params.set('body', bodyText);
+  if (ccStr) params.set('cc', ccStr);
+  return `mailto:${encodeURIComponent(toStr)}?${params.toString()}`;
+}
+
+export function downloadEmlFile(log: EmailNotificationLog): void {
+  const toStr = Array.isArray(log.to) ? log.to.join(', ') : log.to;
+  const ccStr = log.cc ? (Array.isArray(log.cc) ? log.cc.join(', ') : log.cc) : '';
+  const emlContent = [
+    `To: ${toStr}`,
+    ccStr ? `Cc: ${ccStr}` : '',
+    `Subject: ${log.subject}`,
+    `X-Unsent: 1`,
+    `Content-Type: text/html; charset=utf-8`,
+    `Date: ${new Date(log.createdAt).toUTCString()}`,
+    ``,
+    log.htmlContent
+  ].filter(Boolean).join('\r\n');
+
+  const blob = new Blob([emlContent], { type: 'message/rfc822' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${log.subject.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.eml`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Generate Google Calendar "Add to Calendar" URL for a class session
+ */
+export function generateGoogleCalendarUrl(options: {
+  title: string;
+  description: string;
+  location?: string;
+  startTime: Date;
+  durationMinutes?: number;
+}): string {
+  const { title, description, location = 'Guru Gedara Higher Educational Institute / Online Portal', startTime, durationMinutes = 120 } = options;
+  const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+
+  const pad = (n: number) => n < 10 ? `0${n}` : `${n}`;
+  const formatGCalDate = (d: Date) => {
+    return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+  };
+
+  const startStr = formatGCalDate(startTime);
+  const endStr = formatGCalDate(endTime);
+
+  const params = new URLSearchParams();
+  params.set('action', 'TEMPLATE');
+  params.set('text', title);
+  params.set('details', description);
+  params.set('location', location);
+  params.set('dates', `${startStr}/${endStr}`);
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/**
+ * Check if a user's notification preferences allow receiving a given email trigger
+ */
+export function shouldUserReceiveEmail(userProfile: UserProfile | null | undefined, eventType: EmailTriggerEventType): boolean {
+  if (!userProfile || !userProfile.emailPreferences) return true;
+  const prefs = userProfile.emailPreferences;
+
+  switch (eventType) {
+    case 'booking_confirmation':
+    case 'booking_tutor_alert':
+      return prefs.bookingConfirmation !== false;
+    case 'booking_cancellation':
+    case 'class_cancelled':
+      return prefs.classCancellation !== false;
+    case 'class_reminder_24h':
+      return prefs.classReminder24h !== false;
+    case 'payment_receipt':
+    case 'payment_due_reminder':
+      return prefs.paymentReceipts !== false;
+    case 'attendance_marked':
+    case 'attendance_late_alert':
+    case 'attendance_absent_alert':
+      return prefs.attendanceAlerts !== false;
+    case 'class_resource_added':
+      return prefs.studyMaterials !== false;
+    case 'class_schedule_updated':
+    case 'class_created':
+      return prefs.classScheduleUpdates !== false;
+    default:
+      return true;
+  }
+}
+
 // -------------------------------------------------------------
 // SERVICE IMPLEMENTATION
 // -------------------------------------------------------------
@@ -403,7 +516,7 @@ export const emailNotificationService = {
   },
 
   /**
-   * Internal dispatcher that logs to Firestore mail queue and email_notifications collection
+   * Internal dispatcher that logs to Firestore mail queue, sends via webhook/API if configured, and builds direct webmail launchers
    */
   async dispatchEmail(params: {
     to: string | string[];
@@ -424,9 +537,84 @@ export const emailNotificationService = {
     const bccRecipients = params.bcc ? (Array.isArray(params.bcc) ? params.bcc : [params.bcc]) : [];
 
     // Filter out invalid/empty email addresses
-    const validTo = toRecipients.map(e => (e || '').trim()).filter(email => email.includes('@'));
+    let validTo = toRecipients.map(e => (e || '').trim()).filter(email => email.includes('@'));
     const validCc = ccRecipients.map(e => (e || '').trim()).filter(email => email.includes('@'));
     const validBcc = bccRecipients.map(e => (e || '').trim()).filter(email => email.includes('@'));
+
+    // Safe fallback if recipient was empty or username
+    if (validTo.length === 0) {
+      if (params.metadata?.studentEmail && params.metadata.studentEmail.includes('@')) {
+        validTo = [params.metadata.studentEmail.trim()];
+      } else if (params.recipientName) {
+        validTo = [`${params.recipientName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'student'}@gurugedara.edu`];
+      } else {
+        validTo = ['student@gurugedara.edu'];
+      }
+    }
+
+    const webmailUrl = buildGmailComposeUrl(validTo, params.subject, params.textContent, validCc);
+    const mailtoUrl = buildMailtoUrl(validTo, params.subject, params.textContent, validCc);
+
+    let status: 'queued' | 'sent' | 'delivered' | 'failed' | 'simulated' = 'sent';
+    let deliveryChannel = isUsingCloud ? 'Firestore Cloud Mail Queue' : 'Local Event Engine';
+
+    // 1. Resend API direct dispatch if configured
+    if (settings.resendApiKey && validTo.length > 0) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${settings.resendApiKey.trim()}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: `${settings.senderName} <${settings.senderEmail}>`,
+            to: validTo,
+            cc: validCc.length > 0 ? validCc : undefined,
+            bcc: validBcc.length > 0 ? validBcc : undefined,
+            reply_to: settings.replyToEmail,
+            subject: params.subject,
+            html: params.htmlContent,
+            text: params.textContent
+          })
+        });
+        if (res.ok) {
+          status = 'delivered';
+          deliveryChannel = 'Resend Direct Outbound API';
+        }
+      } catch (resendErr) {
+        console.warn('[emailService] Resend API dispatch error:', resendErr);
+      }
+    }
+
+    // 2. External Webhook HTTP POST dispatch if configured
+    if (settings.externalWebhookUrl && validTo.length > 0) {
+      try {
+        const webhookRes = await fetch(settings.externalWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id,
+            to: validTo,
+            cc: validCc,
+            subject: params.subject,
+            html: params.htmlContent,
+            text: params.textContent,
+            eventType: params.eventType,
+            sender: settings.senderEmail,
+            senderName: settings.senderName,
+            replyTo: settings.replyToEmail,
+            timestamp: new Date().toISOString()
+          })
+        });
+        if (webhookRes.ok) {
+          status = 'delivered';
+          deliveryChannel = 'Custom SMTP / Webhook Forwarder';
+        }
+      } catch (webhookErr) {
+        console.warn('[emailService] External webhook dispatch error:', webhookErr);
+      }
+    }
 
     const logEntry: EmailNotificationLog = {
       id,
@@ -437,10 +625,13 @@ export const emailNotificationService = {
       htmlContent: params.htmlContent,
       textContent: params.textContent,
       eventType: params.eventType,
-      status: 'sent',
+      status,
       createdAt: new Date().toISOString(),
       sentAt: new Date().toISOString(),
       recipientName: params.recipientName,
+      webmailUrl,
+      mailtoUrl,
+      deliveryChannel,
       metadata: {
         ...params.metadata,
         senderName: settings.senderName,
@@ -451,7 +642,7 @@ export const emailNotificationService = {
       }
     };
 
-    // 1. Write to Firestore 'mail' collection (Firebase Trigger Email Extension & Cloud Functions target)
+    // 3. Write to Firestore 'mail' collection (Firebase Trigger Email Extension & Cloud Functions target)
     if (isUsingCloud && validTo.length > 0) {
       try {
         const mailDoc: MailDocument = {
@@ -479,7 +670,7 @@ export const emailNotificationService = {
         console.warn('[emailService] Warning writing to mail queue collection:', mailErr);
       }
 
-      // 2. Write to 'email_notifications' for system auditing and UI status tracking
+      // 4. Write to 'email_notifications' for system auditing and UI status tracking
       try {
         await setDoc(doc(db, 'email_notifications', id), logEntry);
       } catch (logErr) {
@@ -487,35 +678,12 @@ export const emailNotificationService = {
       }
     }
 
-    // 3. Optional external webhook dispatch if configured
-    if (settings.externalWebhookUrl && validTo.length > 0) {
-      try {
-        fetch(settings.externalWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id,
-            to: validTo,
-            cc: validCc,
-            subject: params.subject,
-            html: params.htmlContent,
-            text: params.textContent,
-            eventType: params.eventType,
-            sender: settings.senderEmail,
-            senderName: settings.senderName
-          })
-        }).catch(err => console.warn('[emailService] External webhook dispatch error:', err));
-      } catch (webhookErr) {
-        console.warn('[emailService] Webhook call failed:', webhookErr);
-      }
-    }
-
-    // 4. Save to localStorage fallback
+    // 5. Save to localStorage fallback
     const localLogs = handleFallback<EmailNotificationLog>('local_email_notifications', []);
     localLogs.unshift(logEntry);
     saveFallback('local_email_notifications', localLogs.slice(0, 100));
 
-    console.info(`[emailService] Automated email dispatched: [${params.eventType}] to: ${validTo.join(', ')} subject: "${params.subject}"`);
+    console.info(`[emailService] Automated email dispatched: [${params.eventType}] to: ${validTo.join(', ')} subject: "${params.subject}" via [${deliveryChannel}]`);
     return logEntry;
   },
 
@@ -664,6 +832,314 @@ export const emailNotificationService = {
     }
 
     return { studentLog, tutorLog };
+  },
+
+  // -------------------------------------------------------------
+  // 1B. BOOKING CANCELLATION NOTIFICATIONS
+  // -------------------------------------------------------------
+  async notifyBookingCancellation(params: {
+    booking: Booking;
+    classItem?: ClassItem | null;
+    studentUser?: UserProfile | null;
+    tutorUser?: UserProfile | null;
+    reason?: string;
+    refundStatus?: string;
+    appUrl?: string;
+  }): Promise<{ studentLog: EmailNotificationLog; tutorLog?: EmailNotificationLog }> {
+    const { booking, reason = 'Cancelled by student request', refundStatus = 'Evaluation in progress', appUrl = window.location.origin } = params;
+
+    const resolvedStudent = params.studentUser || await resolveUserProfile(booking.studentId);
+    const resolvedClass = params.classItem || await resolveClassItem(booking.classId);
+    const resolvedTutor = params.tutorUser || (resolvedClass?.tutorId ? await resolveUserProfile(resolvedClass.tutorId) : null);
+
+    const classTitle = resolvedClass?.title || booking.classTitle || 'Tuition Course';
+    const tutorName = resolvedClass?.tutorName || resolvedTutor?.name || 'Faculty Tutor';
+
+    const studentEmail = resolvedStudent?.email || booking.studentEmail || '';
+    const studentName = resolvedStudent?.name || booking.studentName || 'Student';
+    const tutorEmail = resolvedTutor?.email || '';
+
+    const hasParentLinked = !!(resolvedStudent?.parentEmail && (resolvedStudent.isParentEmailLinked || resolvedStudent.ccParentOnNotifications));
+    const parentEmail = hasParentLinked ? resolvedStudent?.parentEmail : undefined;
+
+    const { html, text } = wrapInMasterHtmlTemplate({
+      title: `Booking Cancelled: ${classTitle}`,
+      preheader: `Your class reservation for ${classTitle} has been cancelled.`,
+      badgeText: 'Booking Cancelled',
+      badgeColor: '#dc2626',
+      headline: `Booking Cancellation Notice`,
+      subheadline: `Class seat reservation for ${classTitle} was successfully cancelled.`,
+      bodyContentHtml: `
+        <p>Dear <strong>${studentName}</strong>,</p>
+        <p>This email confirms that your seat reservation in <strong>${classTitle}</strong> with <strong>${tutorName}</strong> has been cancelled.</p>
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px 18px; margin: 16px 0; color: #991b1b; font-size: 13px;">
+          <strong>Cancellation Reason:</strong> ${reason}<br/>
+          <strong>Fee / Refund Status:</strong> ${refundStatus}
+        </div>
+        <p>If this was done in error or you wish to explore alternative class schedules or subjects, you can re-enroll at any time via the Guru Gedara course directory.</p>
+      `,
+      metadataList: [
+        { label: 'Class / Subject', value: classTitle, isHighlight: true },
+        { label: 'Faculty Tutor', value: tutorName },
+        { label: 'Booking Ref', value: booking.id },
+        { label: 'Cancellation Date', value: new Date().toLocaleDateString() },
+        { label: 'Status', value: 'CANCELLED', isHighlight: true }
+      ],
+      actionUrl: `${appUrl}/classes`,
+      actionText: 'Explore Available Courses & Schedules',
+      footerNote: parentEmail ? `Parent advisory copy dispatched to ${parentEmail}` : undefined
+    });
+
+    const studentLog = await this.dispatchEmail({
+      to: studentEmail || `${booking.studentId}@gurugedara.edu`,
+      cc: parentEmail,
+      subject: `🚫 Booking Cancelled: ${classTitle} (${tutorName})`,
+      htmlContent: html,
+      textContent: text,
+      eventType: 'booking_cancellation',
+      recipientName: studentName,
+      metadata: {
+        bookingId: booking.id,
+        studentId: booking.studentId,
+        studentName,
+        studentEmail,
+        parentEmail,
+        classId: booking.classId,
+        classTitle,
+        tutorId: resolvedClass?.tutorId,
+        tutorName,
+        cancellationReason: reason
+      }
+    });
+
+    let tutorLog: EmailNotificationLog | undefined;
+    if (tutorEmail) {
+      const tutorTemplate = wrapInMasterHtmlTemplate({
+        title: `Student Booking Cancelled: ${classTitle}`,
+        preheader: `${studentName} has cancelled their booking for ${classTitle}.`,
+        badgeText: 'Enrollment Cancelled',
+        badgeColor: '#ea580c',
+        headline: `Student Left ${classTitle}`,
+        subheadline: `Seat released by ${studentName}.`,
+        bodyContentHtml: `
+          <p>Hello <strong>${tutorName}</strong>,</p>
+          <p><strong>${studentName}</strong> has cancelled their enrollment in your course <strong>${classTitle}</strong>.</p>
+          <p>Your class roster has been automatically updated and the reserved seat has been returned to the available quota.</p>
+        `,
+        metadataList: [
+          { label: 'Student Name', value: studentName, isHighlight: true },
+          { label: 'Student ID', value: resolvedStudent?.username || booking.studentId },
+          { label: 'Class', value: classTitle },
+          { label: 'Date', value: new Date().toLocaleDateString() }
+        ],
+        actionUrl: `${appUrl}/tutor`,
+        actionText: 'View Updated Course Roster'
+      });
+
+      tutorLog = await this.dispatchEmail({
+        to: tutorEmail,
+        subject: `⚠️ Enrollment Cancelled: ${studentName} left ${classTitle}`,
+        htmlContent: tutorTemplate.html,
+        textContent: tutorTemplate.text,
+        eventType: 'booking_cancellation',
+        recipientName: tutorName,
+        metadata: {
+          bookingId: booking.id,
+          tutorId: resolvedClass?.tutorId,
+          tutorName,
+          studentId: booking.studentId,
+          studentName,
+          classId: booking.classId,
+          classTitle
+        }
+      });
+    }
+
+    return { studentLog, tutorLog };
+  },
+
+  // -------------------------------------------------------------
+  // 1C. 24-HOUR UPCOMING CLASS REMINDER NOTIFICATIONS
+  // -------------------------------------------------------------
+  async notify24HourClassReminder(params: {
+    booking: Booking;
+    classItem?: ClassItem | null;
+    studentUser?: UserProfile | null;
+    tutorUser?: UserProfile | null;
+    sessionDate?: Date;
+    formattedDate?: string;
+    formattedTime?: string;
+    appUrl?: string;
+  }): Promise<EmailNotificationLog> {
+    const { booking, appUrl = window.location.origin } = params;
+
+    const resolvedStudent = params.studentUser || await resolveUserProfile(booking.studentId);
+    const resolvedClass = params.classItem || await resolveClassItem(booking.classId);
+    const resolvedTutor = params.tutorUser || (resolvedClass?.tutorId ? await resolveUserProfile(resolvedClass.tutorId) : null);
+
+    const classTitle = resolvedClass?.title || booking.classTitle || 'Upcoming Class';
+    const tutorName = resolvedClass?.tutorName || resolvedTutor?.name || 'Faculty Tutor';
+
+    const studentEmail = resolvedStudent?.email || booking.studentEmail || '';
+    const studentName = resolvedStudent?.name || booking.studentName || 'Scholar Student';
+
+    const hasParentLinked = !!(resolvedStudent?.parentEmail && (resolvedStudent.isParentEmailLinked || resolvedStudent.ccParentOnNotifications));
+    const parentEmail = hasParentLinked ? resolvedStudent?.parentEmail : undefined;
+
+    const sessionDate = params.sessionDate || new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const formattedDate = params.formattedDate || sessionDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+    const formattedTime = params.formattedTime || booking.timeSlot || resolvedClass?.timeSlot || 'Scheduled Time';
+
+    const gcalUrl = generateGoogleCalendarUrl({
+      title: `${classTitle} - Guru Gedara Institute`,
+      description: `Class session for ${classTitle} with instructor ${tutorName}.\nPortal Access: ${appUrl}/classes\nGrace period: ${resolvedClass?.gracePeriod ?? 5} minutes.`,
+      location: 'Guru Gedara Higher Educational Institute / Online Portal',
+      startTime: sessionDate,
+      durationMinutes: 120
+    });
+
+    const { html, text } = wrapInMasterHtmlTemplate({
+      title: `Reminder: ${classTitle} Starts Tomorrow!`,
+      preheader: `Hi ${studentName}, your class "${classTitle}" with ${tutorName} is scheduled for tomorrow at ${formattedTime}.`,
+      badgeText: '⏰ Starts Tomorrow (24h Reminder)',
+      badgeColor: '#4f46e5',
+      headline: `Class Starts in 24 Hours!`,
+      subheadline: `Get ready for ${classTitle} with ${tutorName}.`,
+      bodyContentHtml: `
+        <p>Dear <strong>${studentName}</strong>,</p>
+        <p>This is an automated 24-hour reminder that your upcoming session for <strong>${classTitle}</strong> is scheduled for <strong>tomorrow, ${formattedDate}</strong> at <strong>${formattedTime}</strong>.</p>
+        
+        <div style="background-color: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 12px; padding: 16px 20px; margin: 18px 0;">
+          <div style="font-weight: 800; font-size: 14px; color: #312e81; margin-bottom: 8px;">
+            🎓 Preparation Checklist for Tomorrow's Session:
+          </div>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #3730a3; line-height: 1.7;">
+            <li>Review previously uploaded lecture notes and tutorial sheets in the portal.</li>
+            <li>Have your notebooks, reference materials, and stationery ready.</li>
+            <li>Arrive or log in at least <strong>5 minutes before start time</strong> (grace period: ${resolvedClass?.gracePeriod ?? 5} minutes).</li>
+            <li>Present your student QR code at the entrance or virtual room check-in.</li>
+          </ul>
+        </div>
+
+        <div style="margin: 16px 0; text-align: center;">
+          <a href="${gcalUrl}" target="_blank" style="display: inline-block; background-color: #e0e7ff; color: #3730a3; text-decoration: none; font-size: 12px; font-weight: 700; font-family: sans-serif; padding: 8px 16px; border-radius: 8px; border: 1px solid #c7d2fe;">
+            📅 Add to Google Calendar &rarr;
+          </a>
+        </div>
+      `,
+      metadataList: [
+        { label: 'Course Title', value: classTitle, isHighlight: true },
+        { label: 'Faculty Tutor', value: tutorName },
+        { label: 'Session Date', value: formattedDate, isHighlight: true },
+        { label: 'Start Time', value: formattedTime },
+        { label: 'Subject', value: resolvedClass?.subject || 'Academic Course' },
+        { label: 'Grace Period', value: `${resolvedClass?.gracePeriod ?? 5} minutes` }
+      ],
+      actionUrl: `${appUrl}/classes`,
+      actionText: 'Access Class Materials & Student Portal',
+      footerNote: parentEmail ? `Parent advisory reminder dispatched to ${parentEmail}` : undefined
+    });
+
+    return await this.dispatchEmail({
+      to: studentEmail || `${booking.studentId}@gurugedara.edu`,
+      cc: parentEmail,
+      subject: `⏰ [Guru Gedara] Reminder: ${classTitle} starts tomorrow at ${formattedTime}!`,
+      htmlContent: html,
+      textContent: text,
+      eventType: 'class_reminder_24h',
+      recipientName: studentName,
+      metadata: {
+        bookingId: booking.id,
+        studentId: booking.studentId,
+        studentName,
+        studentEmail,
+        parentEmail,
+        classId: booking.classId,
+        classTitle,
+        tutorId: resolvedClass?.tutorId,
+        tutorName,
+        sessionDate: sessionDate.toISOString(),
+        formattedDate,
+        formattedTime
+      }
+    });
+  },
+
+  // -------------------------------------------------------------
+  // 1D. CLASS CANCELLED NOTIFICATIONS (FOR ALL ENROLLED STUDENTS)
+  // -------------------------------------------------------------
+  async notifyClassCancelled(params: {
+    classItem: ClassItem;
+    tutorUser?: UserProfile | null;
+    cancellationReason?: string;
+    enrolledStudents?: UserProfile[];
+    appUrl?: string;
+  }): Promise<EmailNotificationLog[]> {
+    const { classItem, cancellationReason = 'Scheduled class session has been cancelled or rescheduled by the academy.', appUrl = window.location.origin } = params;
+    const logs: EmailNotificationLog[] = [];
+
+    let students = params.enrolledStudents;
+    if (!students || students.length === 0) {
+      students = await resolveEnrolledStudentsForClass(classItem.id);
+    }
+
+    const { html, text } = wrapInMasterHtmlTemplate({
+      title: `Notice: ${classItem.title} Cancelled`,
+      preheader: `Important notice regarding the cancellation of ${classItem.title}.`,
+      badgeText: 'Class Session Cancelled',
+      badgeColor: '#dc2626',
+      headline: `Class Cancellation Advisory`,
+      subheadline: `${classItem.title} • ${classItem.tutorName}`,
+      bodyContentHtml: `
+        <p>Dear students and parents,</p>
+        <p>Please be advised that the upcoming session for <strong>${classItem.title}</strong> conducted by <strong>${classItem.tutorName}</strong> has been cancelled.</p>
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px 18px; margin: 16px 0; color: #991b1b; font-size: 13px;">
+          <strong>Cancellation Advisory:</strong> ${cancellationReason}
+        </div>
+        <p>Makeup class schedules or rescheduled dates will be posted on your student portal bulletin board.</p>
+      `,
+      metadataList: [
+        { label: 'Course', value: classItem.title, isHighlight: true },
+        { label: 'Instructor', value: classItem.tutorName },
+        { label: 'Subject', value: classItem.subject },
+        { label: 'Status', value: 'SESSION CANCELLED', isHighlight: true },
+        { label: 'Notice Date', value: new Date().toLocaleDateString() }
+      ],
+      actionUrl: `${appUrl}/classes`,
+      actionText: 'View Class Timetable & Updates'
+    });
+
+    const validStudents = (students || []).filter(s => s.email && s.email.includes('@'));
+    if (validStudents.length > 0) {
+      for (const student of validStudents) {
+        try {
+          const log = await this.dispatchEmail({
+            to: student.email,
+            cc: student.parentEmail && student.isParentEmailLinked ? student.parentEmail : undefined,
+            subject: `⚠️ Cancellation Notice: ${classItem.title}`,
+            htmlContent: html,
+            textContent: text,
+            eventType: 'class_cancelled',
+            recipientName: student.name,
+            metadata: {
+              classId: classItem.id,
+              classTitle: classItem.title,
+              tutorId: classItem.tutorId,
+              tutorName: classItem.tutorName,
+              cancellationReason
+            }
+          });
+          logs.push(log);
+        } catch (e) {}
+      }
+    }
+
+    return logs;
   },
 
   // -------------------------------------------------------------

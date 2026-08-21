@@ -45,6 +45,8 @@ import {
   Save,
   CheckCircle2
 } from 'lucide-react';
+import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
+import { emailNotificationService } from '../lib/emailNotificationService';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -402,6 +404,32 @@ export const StudentDashboard: React.FC = () => {
             `Your booking slot for '${classTitle}' has been successfully removed. Refund evaluation is on review.`,
             "reminder"
           );
+
+          // Dispatch official HTML cancellation email to student & tutor
+          try {
+            const targetBooking = studentBookings.find(b => b.id === bookingId) || {
+              id: bookingId,
+              studentId: currentUser!.uid,
+              studentName: currentUser!.name,
+              studentEmail: currentUser!.email,
+              classId,
+              classTitle,
+              bookingDate: new Date().toISOString(),
+              status: 'cancelled'
+            } as Booking;
+
+            const targetClass = classes.find(c => c.id === classId);
+
+            await emailNotificationService.notifyBookingCancellation({
+              booking: targetBooking,
+              classItem: targetClass,
+              studentUser: currentUser,
+              reason: 'Student self-service booking cancellation',
+              refundStatus: 'Evaluation in progress / Pending administrative confirmation'
+            });
+          } catch (emailErr) {
+            console.warn("Failed sending booking cancellation email:", emailErr);
+          }
         },
         async () => {
           try {
@@ -910,227 +938,16 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Alerts customization config settings */}
-                <div className="bg-white border border-gray-150 rounded-2xl p-6">
-                  <h3 className="text-base font-bold text-gray-900 border-b pb-4 border-gray-50 mb-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sliders className="w-4.5 h-4.5 text-blue-500" />
-                      <span>Alert Handles</span>
-                    </div>
-                    <SyncStatusIndicator operationPatterns={['notification', 'settings']} />
-                  </h3>
-                  <p className="text-xs text-gray-400 mb-5">Manage personalized alerts sync settings:</p>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-700">Course Reminders</span>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.reminders}
-                        onChange={(e) => updateNotificationSettings({ reminders: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-700">Payments Alerts</span>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.payments}
-                        onChange={(e) => updateNotificationSettings({ payments: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-700">Tutor Messages</span>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.messages}
-                        onChange={(e) => updateNotificationSettings({ messages: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600"
-                      />
-                    </div>
-                    
-                    {/* Specific Email Triggers Section */}
-                    <div className="border-t pt-4 border-dashed border-gray-100 space-y-3.5">
-                      <h4 className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-650 font-mono">Email Notification Triggers</h4>
-                      
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Class revisions & timing alterations</span>
-                          <span className="block text-[9px] text-gray-400">Receive alerts when schedule slots or links change</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailClassRevisions}
-                          onChange={(e) => updateNotificationSettings({ emailClassRevisions: e.target.checked })}
-                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Booking & enrollment receipts</span>
-                          <span className="block text-[9px] text-gray-400">Receive confirmations on seat reservations</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailBookingStatus}
-                          onChange={(e) => updateNotificationSettings({ emailBookingStatus: e.target.checked })}
-                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">New course worksheets & handouts</span>
-                          <span className="block text-[9px] text-gray-400">Alert me when files or handouts are distributed</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailStudyMaterials}
-                          onChange={(e) => updateNotificationSettings({ emailStudyMaterials: e.target.checked })}
-                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs font-bold text-gray-750">Grade & performance analysis reports</span>
-                          <span className="block text-[9px] text-gray-400">Receive monthly progress summaries and charts</span>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!!notificationSettings.emailPerformanceLogs}
-                          onChange={(e) => updateNotificationSettings({ emailPerformanceLogs: e.target.checked })}
-                          className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t pt-4 border-dashed border-gray-100">
-                      <div>
-                        <span className="text-xs font-bold text-blue-700">Inbox Copy Sync</span>
-                        <span className="block text-[9px] text-gray-400 leading-none mt-0.5">Route copy to email addresses</span>
-                      </div>
-                      <input 
-                        type="checkbox" 
-                        checked={notificationSettings.emailSync}
-                        onChange={(e) => updateNotificationSettings({ emailSync: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Parent / Guardian Email Linking & Notification Auto-CC Card */}
-                <div className="bg-white border border-indigo-150 rounded-2xl p-6 shadow-xs" id="student_parent_linking_card">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-indigo-50 mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                        <LinkIcon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                          Parent / Guardian Account Link
-                          {parentCcEnabled && parentEmailInput && (
-                            <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Active CC
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-xs text-slate-400">Keep parents updated with automated CC on class check-ins & fee notices</p>
-                      </div>
-                    </div>
-
-                    {/* Master Simple Toggle */}
-                    <label className="flex items-center gap-2 cursor-pointer select-none bg-indigo-50/60 px-3 py-1.5 rounded-xl border border-indigo-200/70 hover:bg-indigo-100/60 transition-colors">
-                      <span className="text-xs font-extrabold text-indigo-950">Auto-CC Parent</span>
-                      <input 
-                        type="checkbox"
-                        id="student_toggle_parent_cc"
-                        checked={parentCcEnabled}
-                        onChange={(e) => setParentCcEnabled(e.target.checked)}
-                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                      <div className="sm:col-span-8 space-y-1.5">
-                        <label className="text-xs font-bold text-slate-750 flex items-center justify-between">
-                          <span>Parent / Guardian Email Address</span>
-                          <span className="text-[10px] text-slate-400 font-normal">Used for automated Carbon Copy (CC)</span>
-                        </label>
-                        <div className="relative">
-                          <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                          <input 
-                            type="email"
-                            id="student_input_parent_email"
-                            placeholder="e.g. parent.guardian@example.com"
-                            value={parentEmailInput}
-                            onChange={(e) => setParentEmailInput(e.target.value)}
-                            className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-50 focus:bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-mono transition-all"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-4">
-                        <button
-                          type="button"
-                          id="btn_student_save_parent_link"
-                          onClick={() => handleSaveParentSettings()}
-                          disabled={savingParentSettings}
-                          className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          {savingParentSettings ? 'Saving Link...' : 'Save & Link Email'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Specific CC Notification Channels */}
-                    <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 space-y-2.5 text-xs">
-                      <span className="text-[10px] uppercase font-mono font-extrabold text-slate-500 block">
-                        Included Parent CC Notification Types:
-                      </span>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input 
-                            type="checkbox"
-                            checked={parentCcAttendance}
-                            onChange={(e) => setParentCcAttendance(e.target.checked)}
-                            disabled={!parentCcEnabled}
-                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40"
-                          />
-                          <div>
-                            <span className={`text-xs font-bold block ${parentCcEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                              Attendance & Tardiness Alerts
-                            </span>
-                            <span className="text-[10px] text-slate-400 block">Check-ins, late arrival badges & absence notices</span>
-                          </div>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                          <input 
-                            type="checkbox"
-                            checked={parentCcPayments}
-                            onChange={(e) => setParentCcPayments(e.target.checked)}
-                            disabled={!parentCcEnabled}
-                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40"
-                          />
-                          <div>
-                            <span className={`text-xs font-bold block ${parentCcEnabled ? 'text-slate-800' : 'text-slate-400'}`}>
-                              Tuition Invoices & Receipts
-                            </span>
-                            <span className="text-[10px] text-slate-400 block">Payment receipts, due dates & monthly fee invoices</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Granular User Notification & Email Preferences Panel */}
+                <UserNotificationSettingsPanel
+                  currentUser={currentUser}
+                  onProfileUpdated={async (updated) => {
+                    if (refreshUserProfile) {
+                      await refreshUserProfile();
+                    }
+                  }}
+                  showToast={showToast}
+                />
               </div>
             </motion.div>
           )}
