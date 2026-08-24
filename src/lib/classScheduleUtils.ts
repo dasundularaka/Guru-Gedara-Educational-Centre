@@ -1,5 +1,6 @@
 import { ClassItem, Booking, UserProfile, AttendanceRecord } from '../types';
 import { firestoreService, safeStringify } from './firestoreService';
+import { sendAttendanceNotifications } from './attendanceNotification';
 
 export interface ExtraClassSession {
   classId: string;
@@ -256,6 +257,13 @@ export async function checkAndMarkAutoAbsentStudents(
           try {
             await firestoreService.markAttendance(absentRecord);
             newAbsentRecords.push(absentRecord);
+
+            // Automatically dispatch absence reminder email & notification
+            try {
+              await sendAttendanceNotifications(absentRecord, cls, studentObj);
+            } catch (notifErr) {
+              console.warn("Failed dispatching auto absent notification:", notifErr);
+            }
           } catch (e) {
             console.warn("Failed creating auto absent record", e);
           }

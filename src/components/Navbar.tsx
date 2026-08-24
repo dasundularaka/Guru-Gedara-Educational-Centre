@@ -321,11 +321,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             {/* High-contrast Night-Study Theme Switcher */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40 transition-all cursor-pointer border border-transparent"
+              className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-700/60 overflow-hidden relative"
               title={darkMode ? "Switch to Day Study Mode" : "Switch to Night Study Dark Mode"}
               id="theme_switcher_btn"
             >
-              {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={darkMode ? 'dark' : 'light'}
+                  initial={{ y: -12, opacity: 0, rotate: -45, scale: 0.8 }}
+                  animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
+                  exit={{ y: 12, opacity: 0, rotate: 45, scale: 0.8 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                >
+                  {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+                </motion.div>
+              </AnimatePresence>
             </button>
 
             {currentUser ? (
@@ -620,10 +630,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             {/* Mobile Theme Switcher */}
             <button
               onClick={toggleDarkMode}
-              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-200/40"
+              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors overflow-hidden relative cursor-pointer"
               id="mobile_theme_switcher_btn"
+              title={darkMode ? "Switch to Day Study Mode" : "Switch to Night Study Dark Mode"}
             >
-              {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={darkMode ? 'dark' : 'light'}
+                  initial={{ y: -10, opacity: 0, rotate: -45, scale: 0.8 }}
+                  animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
+                  exit={{ y: 10, opacity: 0, rotate: 45, scale: 0.8 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                >
+                  {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+                </motion.div>
+              </AnimatePresence>
             </button>
             {currentUser && (
               <div className="p-1 text-slate-500 dark:text-slate-400 relative">

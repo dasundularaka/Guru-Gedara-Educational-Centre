@@ -3,6 +3,46 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+/* Smooth subtle cross-fade transition for Light and Dark theme switching */
+html {
+  color-scheme: light;
+  transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1), color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  transition: background-color 0.35s cubic-bezier(0.4, 0, 0.2, 1), color 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Cross-fade transition on containers, cards, borders and text elements */
+nav,
+main,
+header,
+footer,
+section,
+article,
+aside,
+div,
+span,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+button,
+input,
+select,
+textarea {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 0.3s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 @theme {
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
@@ -149,6 +189,17 @@
   background: #94a3b8;
 }
 
+/* Smooth theme cross-fade transition */
+html {
+  color-scheme: light;
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 /* Custom visual adjustments */
 body {
   font-family: var(--font-sans);
@@ -156,6 +207,29 @@ body {
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Universal smooth cross-fade for backgrounds, text, and borders during theme switches */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.35s;
+}
+
+/* Exempt elements that need instant rendering or standalone transforms */
+.no-theme-transition,
+.no-theme-transition *,
+canvas,
+video,
+img,
+svg text,
+.recharts-wrapper,
+.recharts-wrapper * {
+  transition-property: none !important;
 }
 
 /* High-contrast 'Dark Mode' optimized for night-time study sessions */

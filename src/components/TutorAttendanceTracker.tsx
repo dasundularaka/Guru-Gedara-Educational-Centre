@@ -7,6 +7,7 @@ import { sendAttendanceNotifications } from '../lib/attendanceNotification';
 import { AttendanceCalendarHeatmap } from './AttendanceCalendarHeatmap';
 import { ClassQRCodeAttendanceModal } from './ClassQRCodeAttendanceModal';
 import { AttendanceScanHistory } from './AttendanceScanHistory';
+import { AbsentStudentsReminderModal, AbsentStudentItem } from './AbsentStudentsReminderModal';
 import { 
   ClipboardList, 
   CheckCircle2, 
@@ -29,7 +30,8 @@ import {
   Activity, 
   ShieldCheck,
   AlertTriangle,
-  FileText
+  FileText,
+  Mail
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -71,6 +73,8 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
+  const [isAbsentModalOpen, setIsAbsentModalOpen] = useState<boolean>(false);
+  const [customAbsentListForModal, setCustomAbsentListForModal] = useState<AbsentStudentItem[] | null>(null);
 
   // Active bookings for this tutor
   const activeBookings = useMemo(() => {
@@ -87,6 +91,21 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
       return matchClass && matchSearch;
     });
   }, [activeBookings, selectedClassId, searchQuery]);
+
+  // Students marked absent in current view for the selected date
+  const sessionAbsentStudents: AbsentStudentItem[] = useMemo(() => {
+    return displayedBookings
+      .filter(b => {
+        const recordId = `${b.classId}_${b.studentId || b.id}_${selectedDate}`;
+        const rec = attendanceRecords.find(r => r.id === recordId);
+        return rec?.status === 'Absent';
+      })
+      .map(b => ({
+        studentId: b.studentId || b.id,
+        studentName: b.studentName,
+        bookingId: b.id
+      }));
+  }, [displayedBookings, attendanceRecords, selectedDate]);
 
   // Calculate engagement metrics per class for Recharts
   const classEngagementData = useMemo(() => {
@@ -231,7 +250,11 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
 
       await sendAttendanceNotifications(record, targetCls, null, currentUser);
 
-      showToast(`Marked ${booking.studentName} as ${status} for ${selectedDate}`, 'success');
+      if (status === 'Absent') {
+        showToast(`Marked ${booking.studentName} as Absent. Dispatched automated catch-up email reminder.`, 'success');
+      } else {
+        showToast(`Marked ${booking.studentName} as ${status} for ${selectedDate}`, 'success');
+      }
       onAttendanceUpdated();
     } catch (e) {
       showToast('Failed to update attendance record.', 'error');
@@ -263,9 +286,30 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           type: 'manual'
         };
         await firestoreService.markAttendance(record);
+
+        // Auto dispatch notifications (including absence catch-up emails if Absent)
+        const targetCls: ClassItem = tutorClasses.find(c => c.id === booking.classId) || {
+          id: booking.classId,
+          title: booking.classTitle,
+          subject: 'General',
+          tutorId: booking.tutorId,
+          tutorName: currentUser?.name || 'Instructor',
+          price: 0,
+          dayOfWeek: 'Monday',
+          timeSlot: 'Morning',
+          schedule: '09:00 AM - 11:00 AM',
+          description: 'Class session',
+          maxSlots: 50,
+          bookedSlots: 0
+        };
+        sendAttendanceNotifications(record, targetCls, null, currentUser).catch(console.warn);
       }
 
-      showToast(`Successfully marked all ${displayedBookings.length} students as ${status}!`, 'success');
+      if (status === 'Absent') {
+        showToast(`Marked all ${displayedBookings.length} students as Absent and dispatched automated catch-up reminders!`, 'success');
+      } else {
+        showToast(`Successfully marked all ${displayedBookings.length} students as ${status}!`, 'success');
+      }
       onAttendanceUpdated();
     } catch (e) {
       showToast('Error saving bulk attendance updates.', 'error');
@@ -545,7 +589,20 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
             <span className="text-slate-400 text-[11px]">({displayedBookings.length} scholars in view)</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {sessionAbsentStudents.length > 0 && (
+              <button
+                id="btn_email_absent_students"
+                onClick={() => {
+                  setCustomAbsentListForModal(null);
+                  setIsAbsentModalOpen(true);
+                }}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title="Send automated absence catch-up reminder emails to all absent students"
+              >
+                <Mail className="w-3.5 h-3.5" /> Email Absent Reminders ({sessionAbsentStudents.length})
+              </button>
+            )}
             <button
               id="btn_generate_tutor_qr_pass"
               onClick={() => setIsQrModalOpen(true)}
@@ -703,6 +760,24 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
                         {/* Attendance Action Buttons */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {currentRecord?.status === 'Absent' && (
+                              <button
+                                id={`email_absent_single_${b.id}`}
+                                onClick={() => {
+                                  setCustomAbsentListForModal([{
+                                    studentId: b.studentId || b.id,
+                                    studentName: b.studentName,
+                                    bookingId: b.id
+                                  }]);
+                                  setIsAbsentModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors cursor-pointer"
+                                title="Send absence follow-up & study reminder email to this student"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
                             <button
                               id={`trigger_alert_${b.id}`}
                               onClick={async () => {
@@ -809,6 +884,21 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           showToast={showToast}
         />
       )}
+
+      {/* Absent Students Automated Email Reminder Modal */}
+      <AbsentStudentsReminderModal
+        isOpen={isAbsentModalOpen}
+        onClose={() => {
+          setIsAbsentModalOpen(false);
+          setCustomAbsentListForModal(null);
+        }}
+        selectedClass={selectedClassId === 'all' ? null : (tutorClasses.find(c => c.id === selectedClassId) || null)}
+        selectedDate={selectedDate}
+        absentStudents={customAbsentListForModal || sessionAbsentStudents}
+        currentUser={currentUser}
+        onSuccess={onAttendanceUpdated}
+        showToast={showToast}
+      />
 
     </div>
   );

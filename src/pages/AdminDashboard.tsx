@@ -14,6 +14,7 @@ import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRSc
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
+import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -83,7 +84,8 @@ import {
   User,
   Award,
   Percent,
-  QrCode
+  QrCode,
+  Camera
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -120,6 +122,7 @@ export const AdminDashboard: React.FC = () => {
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
+  const [showAdminCameraModal, setShowAdminCameraModal] = useState<boolean>(false);
   const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
   const [progressGradeFilter, setProgressGradeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -642,6 +645,28 @@ export const AdminDashboard: React.FC = () => {
       console.warn("Failed index mapping of site admin data pools", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Photo Approval Handlers (Approval workflow for Students & Tutors)
+  const handleApprovePhoto = async (targetUser: UserProfile) => {
+    if (!targetUser.pendingPhotoURL) return;
+    try {
+      await firestoreService.approveProfilePhoto(targetUser.uid);
+      await fetchAdminDatasets();
+      showToast(`Approved new photo for ${targetUser.name}! It is now public.`, 'success');
+    } catch (err: any) {
+      showToast('Failed to approve photo: ' + err.message, 'error');
+    }
+  };
+
+  const handleRejectPhoto = async (targetUser: UserProfile) => {
+    try {
+      await firestoreService.rejectProfilePhoto(targetUser.uid);
+      await fetchAdminDatasets();
+      showToast(`Rejected proposed photo for ${targetUser.name}.`, 'info');
+    } catch (err: any) {
+      showToast('Failed to reject photo: ' + err.message, 'error');
     }
   };
 
@@ -1592,8 +1617,37 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Sub menu controls - Modern Dropdown Navigation */}
-          <div className="relative">
+          {/* Controls: Admin Profile Avatar & Navigation Dropdown */}
+          <div className="flex items-center gap-3">
+            {/* Admin Profile Picture Control */}
+            <button
+              id="admin_profile_photo_btn"
+              onClick={() => setShowAdminCameraModal(true)}
+              className="relative group p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-2.5 px-3 py-1.5 cursor-pointer"
+              title="Capture photo with Camera or select from Gallery (Instant Admin Direct Approval)"
+            >
+              <div className="relative">
+                <img
+                  src={currentUser?.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}
+                  alt={currentUser?.name || "Admin"}
+                  className="w-8 h-8 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
+                />
+                <div className="absolute -bottom-1 -right-1 bg-red-600 text-white p-0.5 rounded-full ring-2 ring-white dark:ring-slate-800 shadow-xs">
+                  <Camera className="w-2.5 h-2.5" />
+                </div>
+              </div>
+              <div className="text-left hidden sm:block">
+                <p className="text-[11px] font-extrabold text-slate-800 dark:text-white leading-tight">
+                  {currentUser?.name || 'Administrator'}
+                </p>
+                <span className="text-[9px] font-mono font-bold text-red-600 dark:text-red-400">
+                  Admin Avatar
+                </span>
+              </div>
+            </button>
+
+            {/* Sub menu controls - Modern Dropdown Navigation */}
+            <div className="relative">
             <button
               id="admin_dashboard_nav_dropdown_trigger"
               onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
@@ -1686,6 +1740,110 @@ export const AdminDashboard: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Global Pending Profile Picture Approvals Review Banner (Students & Tutors) */}
+      {users.filter(u => !!u.pendingPhotoURL).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-500/20 dark:via-amber-500/10 border border-amber-300 dark:border-amber-700/60 rounded-3xl backdrop-blur-sm shadow-sm"
+        >
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-sm">
+                <Camera className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    Pending Profile Photo Review Queue
+                  </h3>
+                  <span className="px-2 py-0.5 text-[10px] font-mono font-extrabold bg-amber-500 text-white rounded-full">
+                    {users.filter(u => !!u.pendingPhotoURL).length} Awaiting Approval
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                  Student and faculty tutor avatars require manual review before being shown publicly in system rosters.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {users.filter(u => !!u.pendingPhotoURL).map(pendingUser => (
+              <div
+                key={pendingUser.uid}
+                className="p-3.5 bg-white dark:bg-slate-800/90 border border-amber-200 dark:border-amber-700/50 rounded-2xl shadow-xs flex flex-col justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="relative">
+                      <img
+                        src={pendingUser.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}
+                        alt="Current"
+                        className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
+                        title="Current Active Photo"
+                      />
+                      <span className="absolute -bottom-1 -left-1 text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold px-1 rounded">
+                        Old
+                      </span>
+                    </div>
+                    <span className="text-slate-400 font-bold text-xs">&rarr;</span>
+                    <div className="relative">
+                      <img
+                        src={pendingUser.pendingPhotoURL}
+                        alt="Proposed"
+                        className="w-10 h-10 rounded-xl object-cover border-2 border-amber-500 shadow-sm"
+                        title="Proposed New Photo"
+                      />
+                      <span className="absolute -bottom-1 -right-1 text-[8px] bg-amber-500 text-white font-bold px-1 rounded shadow-xs">
+                        New
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white truncate">
+                        {pendingUser.name}
+                      </h4>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-extrabold ${
+                        pendingUser.role === 'tutor' 
+                          ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300' 
+                          : 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300'
+                      }`}>
+                        {pendingUser.role === 'tutor' ? 'Faculty' : 'Scholar'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-mono truncate">{pendingUser.email}</p>
+                    {pendingUser.username && (
+                      <p className="text-[9px] text-slate-400 font-mono">ID: {pendingUser.username}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700">
+                  <button
+                    id={`accept-photo-queue-btn-${pendingUser.uid}`}
+                    onClick={() => handleApprovePhoto(pendingUser)}
+                    className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Approve
+                  </button>
+                  <button
+                    id={`reject-photo-queue-btn-${pendingUser.uid}`}
+                    onClick={() => handleRejectPhoto(pendingUser)}
+                    className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <X className="w-3.5 h-3.5" /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
         {/* Aggregate statistics bento bar - Only visible on Insights & Analytics tab */}
         {activeTab === 'analytics' && (
@@ -2376,35 +2534,14 @@ export const AdminDashboard: React.FC = () => {
                                 <div className="flex gap-2">
                                   <button
                                     id={`accept-photo-btn-${stud.uid}`}
-                                    onClick={async () => {
-                                      try {
-                                        await firestoreService.updateUserProfile(stud.uid, {
-                                          photoURL: stud.pendingPhotoURL,
-                                          pendingPhotoURL: ""
-                                        });
-                                        await fetchAdminDatasets();
-                                        showToast("Scholar profile photo verified and saved successfully!", "success");
-                                      } catch (err: any) {
-                                        showToast("Failed to approve photo: " + err.message, "error");
-                                      }
-                                    }}
+                                    onClick={() => handleApprovePhoto(stud)}
                                     className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer shadow-xs"
                                   >
                                     Accept Photo
                                   </button>
                                   <button
                                     id={`reject-photo-btn-${stud.uid}`}
-                                    onClick={async () => {
-                                      try {
-                                        await firestoreService.updateUserProfile(stud.uid, {
-                                          pendingPhotoURL: ""
-                                        });
-                                        await fetchAdminDatasets();
-                                        showToast("Proposed picture was rejected and removed.", "info");
-                                      } catch (err: any) {
-                                        showToast("Failed to reject: " + err.message, "error");
-                                      }
-                                    }}
+                                    onClick={() => handleRejectPhoto(stud)}
                                     className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 rounded-lg text-[10px] font-black transition-all cursor-pointer"
                                   >
                                     Reject photo
@@ -2873,6 +3010,41 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </div>
                       </div>
+
+                      {tut.pendingPhotoURL && (
+                        <div className="mt-3 p-3 bg-amber-50/70 dark:bg-amber-900/20 border border-amber-205 dark:border-amber-700/50 rounded-xl space-y-2">
+                          <span className="block text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest font-mono">
+                            📸 Proposed Faculty Photo
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <img src={tut.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"} className="w-10 h-10 rounded-full object-cover border border-slate-200" title="Current Active Photo" />
+                              <span className="absolute -bottom-1 -right-1 text-red-500 bg-white rounded-full px-1 text-[8px] font-bold shadow-sm border border-slate-100">Old</span>
+                            </div>
+                            <span className="text-slate-400 font-mono text-xs">&rarr;</span>
+                            <div className="relative">
+                              <img src={tut.pendingPhotoURL} className="w-10 h-10 rounded-full object-cover border-2 border-amber-400 shadow-sm" title="Proposed New Photo" />
+                              <span className="absolute -bottom-1 -right-1 text-emerald-500 bg-white rounded-full px-1 text-[8px] font-bold shadow-sm border border-slate-100">New</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              id={`accept-tutor-photo-btn-${tut.uid}`}
+                              onClick={() => handleApprovePhoto(tut)}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition-all cursor-pointer shadow-xs"
+                            >
+                              Accept Photo
+                            </button>
+                            <button
+                              id={`reject-tutor-photo-btn-${tut.uid}`}
+                              onClick={() => handleRejectPhoto(tut)}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border border-rose-100 dark:border-rose-800/40 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                            >
+                              Reject photo
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Card Action Controls */}
                       <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
@@ -5065,6 +5237,19 @@ export const AdminDashboard: React.FC = () => {
         isOpen={showEmailLogsModal}
         onClose={() => setShowEmailLogsModal(false)}
       />
+
+      {/* Admin Profile Camera & Gallery Avatar Capture Modal */}
+      {showAdminCameraModal && currentUser && (
+        <CameraProfileCapture
+          isOpen={showAdminCameraModal}
+          onClose={() => setShowAdminCameraModal(false)}
+          targetUser={currentUser}
+          onPhotoUpdated={async ({ isPending, url }) => {
+            await fetchAdminDatasets();
+            showToast('Administrator profile photo updated and synchronized successfully!', 'success');
+          }}
+        />
+      )}
     </motion.div>
   );
 };

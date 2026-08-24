@@ -2318,6 +2318,205 @@ const firestoreServiceRaw = {
   },
 
   // -------------------------------------------------------------
+  // PROFILE PICTURE UPLOAD (FIREBASE STORAGE & APPROVAL WORKFLOW)
+  // -------------------------------------------------------------
+  async uploadProfilePhoto(
+    fileOrBlobOrDataUrl: File | Blob | string,
+    userId: string,
+    role: string,
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    const timestamp = Date.now();
+    const cleanRole = (role || 'user').toLowerCase();
+    const storagePath = `profile_photos/${cleanRole}s/${userId}_${timestamp}.jpg`;
+
+    let blobToUpload: Blob;
+
+    if (typeof fileOrBlobOrDataUrl === 'string') {
+      if (fileOrBlobOrDataUrl.startsWith('data:')) {
+        try {
+          const res = await fetch(fileOrBlobOrDataUrl);
+          blobToUpload = await res.blob();
+        } catch (e) {
+          const byteString = atob(fileOrBlobOrDataUrl.split(',')[1]);
+          const mimeString = fileOrBlobOrDataUrl.split(',')[0].split(':')[1].split(';')[0];
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+          }
+          blobToUpload = new Blob([ab], { type: mimeString || 'image/jpeg' });
+        }
+      } else {
+        return fileOrBlobOrDataUrl;
+      }
+    } else {
+      blobToUpload = fileOrBlobOrDataUrl;
+    }
+
+    // 1. Try Firebase Cloud Storage
+    try {
+      if (isUsingCloud && storage) {
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, blobToUpload, {
+          contentType: 'image/jpeg',
+          customMetadata: {
+            userId,
+            role: cleanRole,
+            uploadedAt: new Date().toISOString()
+          }
+        });
+
+        const cloudUrl = await new Promise<string>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              if (onProgress) onProgress(Math.min(95, Math.round(progress)));
+            },
+            (error) => {
+              reject(error);
+            },
+            async () => {
+              try {
+                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                if (onProgress) onProgress(100);
+                resolve(downloadUrl);
+              } catch (err) {
+                reject(err);
+              }
+            }
+          );
+        });
+
+        return cloudUrl;
+      }
+    } catch (e) {
+      console.warn("Firebase Storage profile photo upload bypassed/failed, falling back gracefully:", e);
+    }
+
+    // 2. High-resilience fallback (Optimized data URL)
+    try {
+      let optimizedUrl = '';
+      if (typeof fileOrBlobOrDataUrl === 'string' && fileOrBlobOrDataUrl.startsWith('data:')) {
+        optimizedUrl = fileOrBlobOrDataUrl;
+      } else if (fileOrBlobOrDataUrl instanceof File || fileOrBlobOrDataUrl instanceof Blob) {
+        optimizedUrl = await optimizeImage(fileOrBlobOrDataUrl as File, { maxWidth: 600, maxHeight: 600, quality: 0.85 });
+      }
+      if (onProgress) onProgress(100);
+      return optimizedUrl || (typeof fileOrBlobOrDataUrl === 'string' ? fileOrBlobOrDataUrl : URL.createObjectURL(blobToUpload));
+    } catch (err) {
+      console.warn("Fallback image processing warning:", err);
+      if (onProgress) onProgress(100);
+      return typeof fileOrBlobOrDataUrl === 'string' ? fileOrBlobOrDataUrl : URL.createObjectURL(blobToUpload);
+    }
+  },
+
+  async submitProfilePhotoChange(
+    userId: string,
+    photoUrl: string,
+    role: string,
+    userName = 'User'
+  ): Promise<{ isPending: boolean; photoURL?: string; pendingPhotoURL?: string }> {
+    const isSpecialAdmin = role === 'admin';
+    
+    if (isSpecialAdmin) {
+      // Admins are auto-approved instantly
+      await this.updateUserProfile(userId, {
+        photoURL: photoUrl,
+        pendingPhotoURL: ''
+      });
+      await this.addAuditLog({
+        username: userName || userId,
+        action: 'ADMIN_AVATAR_UPDATED',
+        details: `Admin ${userName} (${userId}) updated profile picture with immediate approval.`
+      });
+      return { isPending: false, photoURL: photoUrl };
+    } else {
+      // Students and Tutors: Kept in pending queue & private until admin approval
+      await this.updateUserProfile(userId, {
+        pendingPhotoURL: photoUrl
+      });
+
+      // Send alert notification to management / admin queue
+      try {
+        const roleLabel = role === 'tutor' ? 'Faculty Tutor' : 'Student Scholar';
+        await this.triggerNotification(
+          'all',
+          `New Profile Photo Approval: ${userName}`,
+          `${roleLabel} ${userName} (${userId}) submitted a new profile picture for administrative review.`,
+          'announcement'
+        );
+      } catch (e) {
+        console.warn("Failed sending admin notification for profile photo", e);
+      }
+
+      await this.addAuditLog({
+        username: userName || userId,
+        action: 'PHOTO_CHANGE_REQUESTED',
+        details: `${role.toUpperCase()} ${userName} (${userId}) submitted photo change to pending review queue.`
+      });
+
+      return { isPending: true, pendingPhotoURL: photoUrl };
+    }
+  },
+
+  async approveProfilePhoto(
+    userId: string,
+    proposedPhotoUrl: string,
+    adminName = 'Administrator'
+  ): Promise<void> {
+    await this.updateUserProfile(userId, {
+      photoURL: proposedPhotoUrl,
+      pendingPhotoURL: ''
+    });
+
+    try {
+      await this.triggerNotification(
+        userId,
+        'Profile Picture Approved!',
+        `Your proposed profile picture has been verified and approved by ${adminName}. It is now publicly visible across the academy.`,
+        'announcement'
+      );
+    } catch (e) {
+      console.warn("Failed triggering user photo approved notification", e);
+    }
+
+    await this.addAuditLog({
+      username: adminName,
+      action: 'PHOTO_APPROVED',
+      details: `Administrator ${adminName} approved profile photo for user ${userId}.`
+    });
+  },
+
+  async rejectProfilePhoto(
+    userId: string,
+    adminName = 'Administrator',
+    reason = 'Photo does not meet academic portal clarity or guidelines'
+  ): Promise<void> {
+    await this.updateUserProfile(userId, {
+      pendingPhotoURL: ''
+    });
+
+    try {
+      await this.triggerNotification(
+        userId,
+        'Profile Picture Request Declined',
+        `Your proposed profile picture was declined by ${adminName} (${reason}). Your current active avatar remains unchanged.`,
+        'reminder'
+      );
+    } catch (e) {
+      console.warn("Failed triggering user photo rejected notification", e);
+    }
+
+    await this.addAuditLog({
+      username: adminName,
+      action: 'PHOTO_REJECTED',
+      details: `Administrator ${adminName} rejected proposed photo for user ${userId}. Reason: ${reason}`
+    });
+  },
+
+  // -------------------------------------------------------------
   // USER ROLE CHANGE WITH ADMIN PASSWORD REQUIREMENT
   // -------------------------------------------------------------
   async changeUserRoleWithPassword(

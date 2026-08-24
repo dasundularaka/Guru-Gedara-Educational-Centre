@@ -145,9 +145,13 @@ export async function sendAttendanceNotifications(
     effectiveGrace
   );
 
-  const notificationTitle = isLate 
-    ? `⚠️ Late Attendance Notice: ${courseTitle}`
-    : `✅ Class Attendance Marked: ${courseTitle}`;
+  const isAbsent = record.status === 'Absent';
+
+  const notificationTitle = isAbsent
+    ? `⚠️ Absence Notice & Catch-Up Reminder: ${courseTitle}`
+    : (isLate 
+        ? `⚠️ Late Attendance Notice: ${courseTitle}`
+        : `✅ Class Attendance Marked: ${courseTitle}`);
   
   // Check parent email link & CC configuration
   const hasParentEmailLinked = !!(activeStudent?.parentEmail && (activeStudent?.isParentEmailLinked || activeStudent?.ccParentOnNotifications));
@@ -157,7 +161,16 @@ export async function sendAttendanceNotifications(
     ? `\n📧 Parent CC: Auto-dispatched to ${activeStudent?.parentEmail}` 
     : '';
 
-  const notificationMessage = `📌 Class Attendance Notification
+  const notificationMessage = isAbsent
+    ? `📌 Class Absence & Catch-Up Advisory
+Class: ${courseTitle}
+Student: ${studentFullIdentifier}
+Status: Absent (Session missed on ${record.date})
+Scheduled Time: ${classTimesFormatted}
+Instructor: ${activeClass?.tutorName || senderUser?.name || 'Faculty Tutor'}
+
+⚠️ Action Required: Please log in to your student portal to access the uploaded study notes, lecture recordings, and complete any missed homework assignments before the next class.${parentCcNote}`
+    : `📌 Class Attendance Notification
 Class: ${courseTitle}
 Student: ${studentFullIdentifier}
 Status: ${statusText}
@@ -175,7 +188,7 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
         studentUid,
         notificationTitle,
         notificationMessage,
-        isLate ? 'reminder' : 'announcement'
+        isAbsent || isLate ? 'reminder' : 'announcement'
       );
 
       // 2. Send Direct Messaging System Message
@@ -195,7 +208,7 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
             activeStudent.parentEmail,
             `[Parent CC] ${notificationTitle}`,
             `Advisory for ${studentFullIdentifier}:\n${notificationMessage}`,
-            isLate ? 'reminder' : 'announcement'
+            isAbsent || isLate ? 'reminder' : 'announcement'
           );
         } catch (parentNotifErr) {
           console.warn("Parent CC notification dispatch warning:", parentNotifErr);
@@ -222,8 +235,8 @@ Configured Grace Period: ${effectiveGrace} minutes${parentCcNote}`;
       const studentEmail = activeStudent?.email || 'N/A';
       await firestoreService.addAuditLog({
         username: senderName,
-        action: isLate ? 'LATE_ATTENDANCE_NOTIFICATION_SENT' : 'ATTENDANCE_EMAIL_SENT',
-        details: `Automated ${isLate ? 'Late' : 'On-Time'} Notification dispatched to ${studentFullIdentifier} (${studentEmail})${isParentAttendanceCcEnabled ? ` [CC'd Parent: ${activeStudent?.parentEmail}]` : ''}: ${statusText} for ${courseTitle} at ${markedTimeFormatted}`
+        action: isAbsent ? 'ABSENT_ATTENDANCE_REMINDER_SENT' : (isLate ? 'LATE_ATTENDANCE_NOTIFICATION_SENT' : 'ATTENDANCE_EMAIL_SENT'),
+        details: `Automated ${isAbsent ? 'Absence Catch-Up Reminder' : (isLate ? 'Late' : 'On-Time')} Notification dispatched to ${studentFullIdentifier} (${studentEmail})${isParentAttendanceCcEnabled ? ` [CC'd Parent: ${activeStudent?.parentEmail}]` : ''}: ${statusText} for ${courseTitle} at ${markedTimeFormatted}`
       });
     } catch (err) {
       console.warn("Failed sending attendance notification / message", err);

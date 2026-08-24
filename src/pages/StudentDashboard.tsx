@@ -474,7 +474,7 @@ export const StudentDashboard: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-center gap-5 w-full lg:w-auto">
             {/* Avatar container with direct click option */}
             <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => setShowCameraModal(true)}>
-              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-indigo-600 shadow-md">
+              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-indigo-600 shadow-md relative">
                 <img 
                   id="student_profile_avatar"
                   src={currentUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentUser.uid}`} 
@@ -482,6 +482,14 @@ export const StudentDashboard: React.FC = () => {
                   className="w-full h-full object-cover transition-all group-hover:scale-105"
                 />
               </div>
+              {currentUser.pendingPhotoURL && (
+                <span 
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-md animate-pulse" 
+                  title="Proposed photo is pending administrator review"
+                >
+                  ⏳
+                </span>
+              )}
               <button 
                 className="absolute inset-0 bg-slate-950/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[9px] font-bold uppercase tracking-wider cursor-pointer"
               >
@@ -496,12 +504,42 @@ export const StudentDashboard: React.FC = () => {
                 Grade Level: <span className="font-extrabold text-indigo-600">{currentUser.studentDetails?.grade || 'Grade 11'}</span> 
                 • Access code: <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">SYNCED_SCHOLAR</span>
               </p>
+
+              {currentUser.pendingPhotoURL && (
+                <div className="mt-2.5 p-2 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-3 max-w-lg">
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={currentUser.pendingPhotoURL} 
+                      className="w-7 h-7 rounded-full object-cover border border-amber-400 flex-shrink-0 shadow-xs" 
+                      alt="Pending avatar preview" 
+                    />
+                    <div className="text-left">
+                      <span className="font-extrabold text-[11px] block text-amber-900 leading-tight">📸 Photo Change In Review</span>
+                      <span className="text-[10px] text-amber-700 leading-none">Proposed photo is stored privately until admin approves it for public view.</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await firestoreService.updateUserProfile(currentUser.uid, { pendingPhotoURL: '' });
+                      if (refreshUserProfile) await refreshUserProfile();
+                      showToast("Pending photo submission cancelled.", "info");
+                    }}
+                    className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline flex-shrink-0 cursor-pointer"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center sm:justify-start">
                 <button 
                   onClick={() => setShowCameraModal(true)}
                   className="text-xs text-indigo-650 hover:text-indigo-800 font-bold flex items-center gap-1.5 bg-indigo-50/50 hover:bg-indigo-50 px-3 py-1.5 border border-indigo-100/40 rounded-xl transition-all cursor-pointer"
+                  id="btn_student_update_photo"
                 >
-                  <Camera className="w-3.5 h-3.5" /> Take Profile Photo
+                  <Camera className="w-3.5 h-3.5" /> Update Profile Photo (Camera & Gallery)
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}

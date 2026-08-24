@@ -1453,19 +1453,33 @@ export const emailNotificationService = {
     const parentEmail = isParentAttendanceCcEnabled ? resolvedStudent.parentEmail : undefined;
 
     const isAbsent = record.status === 'Absent';
-    const eventType: EmailTriggerEventType = isAbsent 
-      ? 'attendance_absent_alert' 
-      : (isLate ? 'attendance_late_alert' : 'attendance_marked');
+
+    // If student was marked absent, use specialized absence reminder flow
+    if (isAbsent) {
+      return await this.notifyAbsentStudentReminder({
+        studentUser: resolvedStudent,
+        studentId: record.studentId,
+        studentName,
+        studentEmail,
+        parentEmail,
+        classItem: resolvedClass,
+        classId: record.classId,
+        classTitle,
+        tutorName,
+        sessionDate: record.date,
+        sessionTime: classTimesFormatted,
+        isAutoTriggered: true,
+        appUrl
+      });
+    }
+
+    const eventType: EmailTriggerEventType = isLate ? 'attendance_late_alert' : 'attendance_marked';
 
     let badgeText = 'Attendance Recorded';
     let badgeColor = '#16a34a';
     let headline = 'Class Check-in Recorded';
 
-    if (isAbsent) {
-      badgeText = 'Absent Marked';
-      badgeColor = '#dc2626';
-      headline = 'Class Absence Notice';
-    } else if (isLate) {
+    if (isLate) {
       badgeText = `Late (${delayMinutes}m Exceeded)`;
       badgeColor = '#ea580c';
       headline = 'Late Attendance Notice';
@@ -1486,17 +1500,12 @@ export const emailNotificationService = {
             <strong>Punctuality Note:</strong> Check-in occurred ${delayMinutes} minutes past the scheduled start time (exceeding the standard ${record.gracePeriodApplied ?? 5}-minute grace window).
           </div>
         ` : ''}
-        ${isAbsent ? `
-          <div style="background-color: #fef2f2; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #dc2626; margin: 14px 0; font-size: 13px; color: #991b1b;">
-            <strong>Absence Notice:</strong> The student was marked Absent for today's session. Please access the portal to review uploaded notes and session materials.
-          </div>
-        ` : ''}
       `,
       metadataList: [
         { label: 'Student', value: `${studentName} (${resolvedStudent?.username || record.studentId})` },
         { label: 'Class', value: classTitle, isHighlight: true },
         { label: 'Date', value: record.date },
-        { label: 'Status', value: punctualityStatusText, isHighlight: isLate || isAbsent },
+        { label: 'Status', value: punctualityStatusText, isHighlight: isLate },
         { label: 'Check-in Time', value: markedTimeFormatted },
         { label: 'Class Time', value: classTimesFormatted },
         { label: 'Instructor', value: tutorName }
@@ -1509,7 +1518,7 @@ export const emailNotificationService = {
     return await this.dispatchEmail({
       to: studentEmail || `${record.studentId}@gurugedara.edu`,
       cc: parentEmail,
-      subject: `${isAbsent ? '⚠️ Absence Alert' : (isLate ? '⏱️ Late Notice' : '✅ Attendance Marked')}: ${classTitle} - ${studentName}`,
+      subject: `${isLate ? '⏱️ Late Notice' : '✅ Attendance Marked'}: ${classTitle} - ${studentName}`,
       htmlContent: html,
       textContent: text,
       eventType,
@@ -1526,6 +1535,193 @@ export const emailNotificationService = {
         tutorName
       }
     });
+  },
+
+  // -------------------------------------------------------------
+  // 5B. DEDICATED ABSENT STUDENT REMINDER & CATCH-UP SYSTEM
+  // -------------------------------------------------------------
+  async notifyAbsentStudentReminder(params: {
+    studentUser?: UserProfile | null;
+    studentId?: string;
+    studentName?: string;
+    studentEmail?: string;
+    parentEmail?: string;
+    classItem?: ClassItem | null;
+    classId?: string;
+    classTitle?: string;
+    tutorUser?: UserProfile | null;
+    tutorName?: string;
+    sessionDate: string;
+    sessionTime?: string;
+    customTutorMessage?: string;
+    recordingUrl?: string;
+    materialsUrl?: string;
+    isAutoTriggered?: boolean;
+    appUrl?: string;
+  }): Promise<EmailNotificationLog> {
+    const {
+      sessionDate,
+      sessionTime,
+      customTutorMessage,
+      recordingUrl,
+      materialsUrl,
+      isAutoTriggered = true,
+      appUrl = window.location.origin
+    } = params;
+
+    // Guaranteed resolution
+    const resolvedStudent = params.studentUser || (params.studentId ? await resolveUserProfile(params.studentId) : null);
+    const resolvedClass = params.classItem || (params.classId ? await resolveClassItem(params.classId) : null);
+
+    const studentName = params.studentName || resolvedStudent?.name || 'Scholar Student';
+    const studentEmail = params.studentEmail || resolvedStudent?.email || (params.studentId ? `${params.studentId}@gurugedara.edu` : '');
+    const classTitle = params.classTitle || resolvedClass?.title || 'Academic Class Session';
+    const tutorName = params.tutorName || resolvedClass?.tutorName || params.tutorUser?.name || 'Your Instructor';
+
+    // Check parent email CC
+    let parentEmail = params.parentEmail;
+    if (parentEmail === undefined && resolvedStudent?.parentEmail) {
+      const isParentLinked = resolvedStudent.isParentEmailLinked || resolvedStudent.ccParentOnNotifications;
+      const isParentAttendanceEnabled = resolvedStudent.parentEmailCcPreferences?.attendance !== false;
+      if (isParentLinked && isParentAttendanceEnabled) {
+        parentEmail = resolvedStudent.parentEmail;
+      }
+    }
+
+    const { html, text } = wrapInMasterHtmlTemplate({
+      title: `Absence Notice & Catch-Up Reminder: ${classTitle}`,
+      preheader: `We missed you in ${classTitle} on ${sessionDate}. Access class resources to catch up!`,
+      badgeText: 'Absence Catch-Up Reminder',
+      badgeColor: '#dc2626',
+      headline: 'We Missed You in Class Today!',
+      subheadline: `${classTitle} • Session Date: ${sessionDate}`,
+      bodyContentHtml: `
+        <p>Dear <strong>${studentName}</strong>${parentEmail ? ' (and Parents)' : ''},</p>
+        
+        <p>This is an automated notification from your tutor <strong>${tutorName}</strong> at Guru Gedara Educational Centre. Our records show that you were marked as <strong>Absent</strong> for the <strong>${classTitle}</strong> session held on <strong>${sessionDate}</strong>.</p>
+        
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 18px; margin: 18px 0; color: #991b1b;">
+          <div style="font-weight: 800; font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            ⚠️ Academic Continuity & Catch-Up Advisory
+          </div>
+          <div style="font-size: 13px; line-height: 1.5; color: #7f1d1d;">
+            Regular classroom participation is critical to your syllabus mastery and examination readiness. Please ensure you catch up on the topics, homework exercises, and examples covered during this lesson.
+          </div>
+        </div>
+
+        ${customTutorMessage ? `
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #4f46e5; border-radius: 10px; padding: 14px 18px; margin: 18px 0;">
+            <div style="font-weight: 700; color: #1e1b4b; font-size: 13px; margin-bottom: 4px;">
+              📝 Direct Message & Lesson Notes from ${tutorName}:
+            </div>
+            <div style="font-size: 13px; color: #334155; line-height: 1.6; white-space: pre-wrap;">
+              ${customTutorMessage}
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="margin: 20px 0; background-color: #f1f5f9; padding: 16px; border-radius: 10px;">
+          <div style="font-weight: 700; color: #0f172a; font-size: 13px; margin-bottom: 8px;">
+            📋 Recommended Next Steps to Stay on Track:
+          </div>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #475569; line-height: 1.6;">
+            <li><strong>Download Class Study Materials:</strong> Review newly uploaded lecture notes, worksheets, or summary PDFs in your student portal.</li>
+            <li><strong>Complete Missed Assignments:</strong> Check for upcoming homework deadlines before the next scheduled class.</li>
+            ${recordingUrl ? `<li><strong>Watch Lecture Recording:</strong> <a href="${recordingUrl}" style="color: #4f46e5; font-weight: 600;">Access video replay here</a>.</li>` : ''}
+            <li><strong>Contact Your Tutor:</strong> Use the Guru Gedara student chat if you need clarification on missed concepts.</li>
+          </ul>
+        </div>
+      `,
+      metadataList: [
+        { label: 'Student', value: studentName, isHighlight: true },
+        { label: 'Course', value: classTitle },
+        { label: 'Instructor', value: tutorName },
+        { label: 'Session Date', value: sessionDate },
+        ...(sessionTime ? [{ label: 'Scheduled Time', value: sessionTime }] : []),
+        { label: 'Attendance Status', value: 'ABSENT', isHighlight: true },
+        { label: 'Trigger Mode', value: isAutoTriggered ? 'Automated Attendance Scan' : 'Tutor Manual Follow-up' }
+      ],
+      actionUrl: materialsUrl || `${appUrl}/classes`,
+      actionText: 'Access Missed Class Resources & Portal',
+      footerNote: parentEmail ? `Parent advisory copy dispatched to ${parentEmail}` : 'You can link parent notifications in your student profile settings.'
+    });
+
+    return await this.dispatchEmail({
+      to: studentEmail,
+      cc: parentEmail,
+      subject: `⚠️ [Guru Gedara] Absence Follow-Up & Study Reminder: ${classTitle} (${sessionDate})`,
+      htmlContent: html,
+      textContent: text,
+      eventType: 'attendance_absent_reminder',
+      recipientName: studentName,
+      metadata: {
+        studentId: params.studentId || resolvedStudent?.uid || 'student',
+        studentName,
+        studentEmail,
+        parentEmail,
+        classId: params.classId || resolvedClass?.id || 'class',
+        classTitle,
+        tutorName,
+        sessionDate,
+        customTutorMessage,
+        isAutoTriggered
+      }
+    });
+  },
+
+  // -------------------------------------------------------------
+  // 5C. BULK ABSENT STUDENTS EMAIL DISPATCH HELPER
+  // -------------------------------------------------------------
+  async notifyBulkAbsentStudents(params: {
+    absentStudents: {
+      studentId: string;
+      studentName: string;
+      studentEmail?: string;
+      parentEmail?: string;
+    }[];
+    classItem: ClassItem;
+    tutorUser?: UserProfile | null;
+    sessionDate: string;
+    sessionTime?: string;
+    customTutorMessage?: string;
+    recordingUrl?: string;
+    appUrl?: string;
+  }): Promise<{ totalSent: number; successful: number; logs: EmailNotificationLog[] }> {
+    const { absentStudents, classItem, tutorUser, sessionDate, sessionTime, customTutorMessage, recordingUrl, appUrl } = params;
+    const logs: EmailNotificationLog[] = [];
+    let successful = 0;
+
+    for (const student of absentStudents) {
+      try {
+        const log = await this.notifyAbsentStudentReminder({
+          studentId: student.studentId,
+          studentName: student.studentName,
+          studentEmail: student.studentEmail,
+          parentEmail: student.parentEmail,
+          classItem,
+          classId: classItem.id,
+          classTitle: classItem.title,
+          tutorUser,
+          tutorName: classItem.tutorName || tutorUser?.name,
+          sessionDate,
+          sessionTime: sessionTime || classItem.timeSlot || classItem.schedule,
+          customTutorMessage,
+          recordingUrl,
+          isAutoTriggered: false,
+          appUrl
+        });
+        logs.push(log);
+        successful++;
+      } catch (err) {
+        console.warn(`[emailService] Failed sending absent reminder to student ${student.studentId}:`, err);
+      }
+    }
+
+    return {
+      totalSent: absentStudents.length,
+      successful,
+      logs
+    };
   },
 
   // -------------------------------------------------------------

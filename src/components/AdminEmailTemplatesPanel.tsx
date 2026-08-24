@@ -452,6 +452,80 @@ export const EMAIL_TEMPLATES: EmailTemplateDefinition[] = [
     })
   },
   {
+    id: 'attendance_absent_reminder',
+    name: 'Absent Scholar Catch-Up & Study Reminder',
+    category: 'attendance',
+    eventType: 'attendance_absent_reminder',
+    description: 'Automated email triggered by tutors to students marked Absent, providing catch-up notes, recording links, and syllabus advice.',
+    triggerEvent: 'Tutor marks student Absent or automated attendance scanning concludes',
+    defaultData: {
+      studentName: 'Nethmi Fernando',
+      studentEmail: 'nethmi.f@example.com',
+      studentId: 'GG10283749',
+      classTitle: 'Advanced Level Combined Mathematics 2026',
+      sessionDate: '2026-08-23',
+      sessionTime: '08:30 AM - 11:30 AM',
+      tutorName: 'Prof. Samantha Perera',
+      customMessage: 'We covered Unit 04 Differential Calculus integration techniques today. Please review the uploaded summary sheet and complete homework set 3 before next Tuesday.',
+      recordingUrl: 'https://gurugedara.edu/recordings/calculus-unit-04',
+      materialsUrl: 'https://gurugedara.edu/classes'
+    },
+    generate: (data) => ({
+      subject: `⚠️ [Guru Gedara] Absence Follow-Up & Study Reminder: ${data.classTitle} (${data.sessionDate})`,
+      preheader: `We missed you in ${data.classTitle} on ${data.sessionDate}. Access class resources to stay on track!`,
+      badgeText: 'Absence Catch-Up Reminder',
+      badgeColor: '#dc2626',
+      headline: 'We Missed You in Class Today!',
+      subheadline: `${data.classTitle} • Session Date: ${data.sessionDate}`,
+      bodyContentHtml: `
+        <p style="margin: 0 0 16px;">Dear <strong>${data.studentName}</strong> (and Parents/Guardians),</p>
+        <p style="margin: 0 0 16px; color: #475569; line-height: 1.6;">
+          Our attendance records indicate that you were marked as <strong>Absent</strong> for the <strong>${data.classTitle}</strong> session held on <strong>${data.sessionDate}</strong>.
+        </p>
+        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 18px; margin: 18px 0; color: #991b1b;">
+          <div style="font-weight: 800; font-size: 14px; margin-bottom: 6px;">
+            ⚠️ Academic Continuity & Catch-Up Advisory
+          </div>
+          <div style="font-size: 13px; line-height: 1.5; color: #7f1d1d;">
+            Regular classroom participation is critical to your examination readiness. Please ensure you catch up on the topics, homework exercises, and examples covered during this lesson.
+          </div>
+        </div>
+        ${data.customMessage ? `
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #4f46e5; border-radius: 10px; padding: 14px 18px; margin: 18px 0;">
+            <div style="font-weight: 700; color: #1e1b4b; font-size: 13px; margin-bottom: 4px;">
+              📝 Direct Message from ${data.tutorName}:
+            </div>
+            <div style="font-size: 13px; color: #334155; line-height: 1.6;">
+              ${data.customMessage}
+            </div>
+          </div>
+        ` : ''}
+        <div style="margin: 20px 0; background-color: #f1f5f9; padding: 16px; border-radius: 10px;">
+          <div style="font-weight: 700; color: #0f172a; font-size: 13px; margin-bottom: 8px;">
+            📋 Recommended Next Steps to Stay on Track:
+          </div>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #475569; line-height: 1.6;">
+            <li><strong>Download Class Study Materials:</strong> Review lecture notes and worksheets in the student portal.</li>
+            <li><strong>Complete Missed Assignments:</strong> Submit homework exercises before the next scheduled class.</li>
+            ${data.recordingUrl ? `<li><strong>Watch Lecture Recording:</strong> <a href="${data.recordingUrl}" style="color: #4f46e5; font-weight: 600;">Access video replay here</a>.</li>` : ''}
+            <li><strong>Contact Your Tutor:</strong> Use student chat if you need clarification on missed concepts.</li>
+          </ul>
+        </div>
+      `,
+      actionUrl: data.materialsUrl || 'https://gurugedara.edu/classes',
+      actionText: 'Access Missed Class Resources & Portal',
+      metadataList: [
+        { label: 'Student', value: data.studentName, isHighlight: true },
+        { label: 'Course', value: data.classTitle },
+        { label: 'Session Date', value: data.sessionDate },
+        { label: 'Scheduled Time', value: data.sessionTime },
+        { label: 'Attendance Status', value: 'ABSENT', isHighlight: true },
+        { label: 'Faculty Tutor', value: data.tutorName }
+      ],
+      footerNote: 'Automated tutor reminder system • Guru Gedara Higher Educational Institute'
+    })
+  },
+  {
     id: 'student_approved',
     name: 'Scholar Intake Account Approved',
     category: 'academic',

@@ -280,6 +280,7 @@ export type EmailTriggerEventType =
   | 'attendance_marked'
   | 'attendance_late_alert'
   | 'attendance_absent_alert'
+  | 'attendance_absent_reminder'
   | 'student_status_changed'
   | 'student_approved'
   | 'account_created'
