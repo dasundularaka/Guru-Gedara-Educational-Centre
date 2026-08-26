@@ -11,6 +11,28 @@ export interface UserEmailPreferences {
   monthlyReports: boolean;
 }
 
+export interface RecurringAvailabilitySlot {
+  id: string;
+  dayOfWeek: string; // e.g. "Monday", "Tuesday", "Wednesday", etc.
+  startTime: string; // e.g. "09:00 AM"
+  endTime: string;   // e.g. "11:00 AM"
+  slotDurationMinutes?: number;
+  isActive: boolean;
+  maxStudents?: number;
+  note?: string;
+  label?: string;
+  subject?: string;
+}
+
+export interface SpecificDateAvailability {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  startTime: string; // "09:00 AM"
+  endTime: string; // "12:00 PM"
+  isAvailable: boolean; // true = extra custom teaching slot, false = blocked / unavailable date & time
+  reason?: string;
+}
+
 export interface UserProfile {
   uid: string;
   authUid?: string;
@@ -34,7 +56,7 @@ export interface UserProfile {
   password?: string;
   isPasswordResetRequired?: boolean;
   createdAt: string;
-  availabilityStatus?: 'active' | 'away';
+  availabilityStatus?: 'active' | 'away' | 'in_class';
   
   // Registration and Fee Details
   admissionFeeCollected?: boolean;
@@ -65,7 +87,9 @@ export interface UserProfile {
     bio: string;
     subjects: string[];
     expertiseAreas?: string[];
+    teachingSpecialty?: string;
     experience: number; // in years
+    experienceYears?: number;
     qualification: string;
     hourlyRate: number;
     rating: number;
@@ -80,6 +104,8 @@ export interface UserProfile {
       day: string; // e.g. "Monday", "Tuesday"
       slots: string[]; // e.g. ["10:00 AM", "02:00 PM"]
     }[];
+    recurringAvailability?: RecurringAvailabilitySlot[];
+    specificDateAvailability?: SpecificDateAvailability[];
   };
   isFeatured?: boolean;
 }
@@ -127,14 +153,21 @@ export interface Payment {
   id: string;
   studentId: string;
   studentName: string;
+  studentEmail?: string;
   classId: string;
   classTitle: string;
   amount: number;
+  currency?: string;
   date: string;
   status: 'paid' | 'pending' | 'failed';
   paymentMethod?: string;
+  gateway?: 'stripe' | 'paypal' | 'manual' | 'free_card';
+  transactionId?: string;
+  receiptUrl?: string;
+  cardLast4?: string;
+  payerEmail?: string;
   dueDate?: string;
-  paymentType?: 'admission' | 'monthly' | 'late_payment' | 'free_card';
+  paymentType?: 'admission' | 'monthly' | 'late_payment' | 'free_card' | 'course_fee' | 'class_fee';
   createdAt?: string;
 }
 

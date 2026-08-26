@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
-import { ClassItem } from '../types';
-import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode } from 'lucide-react';
+import { ClassItem, UserProfile } from '../types';
+import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ReviewsModal } from './ReviewsModal';
+import { checkClassAvailability, AvailabilityCheckResult } from '../utils/tutorAvailability';
 
 interface ClassCardProps {
   item: ClassItem;
@@ -39,6 +40,33 @@ export const ClassCard: React.FC<ClassCardProps> = ({
   const [payPalPassword, setPayPalPassword] = useState("");
   const [isPayPalLoggedIn, setIsPayPalLoggedIn] = useState(false);
   const [showPayPalLoginForm, setShowPayPalLoginForm] = useState(false);
+
+  // State for Tutor Availability Check
+  const [tutorProfile, setTutorProfile] = useState<UserProfile | null>(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTutor = async () => {
+      if (!item.tutorId) return;
+      try {
+        setCheckingAvailability(true);
+        const profile = await firestoreService.getUserProfile(item.tutorId);
+        if (isMounted && profile) {
+          setTutorProfile(profile);
+        }
+      } catch (e) {
+        // Fallback silently
+      } finally {
+        if (isMounted) setCheckingAvailability(false);
+      }
+    };
+    fetchTutor();
+    return () => { isMounted = false; };
+  }, [item.tutorId]);
+
+  const availabilityResult: AvailabilityCheckResult = checkClassAvailability(item, tutorProfile);
+  const isTutorUnavailable = !availabilityResult.isAvailable;
 
   const spotsLeft = item.maxSlots - item.bookedSlots;
   const isFull = spotsLeft <= 0;
@@ -81,6 +109,11 @@ export const ClassCard: React.FC<ClassCardProps> = ({
       return;
     }
 
+    if (isTutorUnavailable) {
+      showToast(availabilityResult.reason || "This tutor is currently unavailable for this class time.", "error");
+      return;
+    }
+
     // Trigger payment sheet mockup
     setShowPayModal(true);
   };
@@ -108,7 +141,14 @@ export const ClassCard: React.FC<ClassCardProps> = ({
 
     setLoading(true);
     try {
-      // 1. Save payment record
+      const txnId = gatewayType === 'stripe' 
+        ? `ch_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`
+        : `PAYID-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+
+      const cleanNum = cardNumber.replace(/\s+/g, '');
+      const lastFour = cleanNum.slice(-4) || '4242';
+
+      // 1. Save payment record with complete gateway details
       await firestoreService.createPayment(
         currentUser.uid, 
         currentUser.name, 
@@ -116,7 +156,16 @@ export const ClassCard: React.FC<ClassCardProps> = ({
         item.title, 
         item.price, 
         transactionDesc,
-        'paid'
+        'paid',
+        {
+          gateway: gatewayType,
+          transactionId: txnId,
+          receiptUrl: `https://pay.tuition.ac/receipt/${item.id}_${Date.now()}`,
+          cardLast4: gatewayType === 'stripe' ? lastFour : undefined,
+          payerEmail: gatewayType === 'stripe' ? (currentUser.email || cardName) : payPalEmail,
+          currency: 'LKR',
+          paymentType: 'class_fee'
+        }
       );
 
       // 2. Clear booking slot
@@ -278,10 +327,32 @@ export const ClassCard: React.FC<ClassCardProps> = ({
         </p>
 
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs text-slate-600">
-            <Calendar className="w-4 h-4 text-indigo-500" />
-            <span className="font-semibold">{item.schedule}</span>
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
+              <span className="font-semibold">{item.schedule}</span>
+            </div>
+            {tutorProfile && (
+              isTutorUnavailable ? (
+                <span 
+                  className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold flex items-center gap-1"
+                  title={availabilityResult.reason}
+                >
+                  <AlertCircle className="w-3 h-3" /> Unavailable
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" /> Available
+                </span>
+              )
+            )}
           </div>
+
+          {isTutorUnavailable && availabilityResult.reason && (
+            <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-700 font-medium leading-tight">
+              {availabilityResult.reason}
+            </div>
+          )}
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-4">
             <div>
@@ -320,17 +391,19 @@ export const ClassCard: React.FC<ClassCardProps> = ({
 
           <button
             onClick={handleBookingClick}
-            disabled={isFull || currentUser?.role === 'tutor' || currentUser?.role === 'admin'}
+            disabled={isFull || isTutorUnavailable || currentUser?.role === 'tutor' || currentUser?.role === 'admin'}
             className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold transition-all duration-230 cursor-pointer ${
               isFull 
                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                : currentUser?.role === 'tutor' || currentUser?.role === 'admin'
-                  ? 'bg-slate-50 text-slate-350 cursor-not-allowed border border-slate-150'
-                  : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10'
+                : isTutorUnavailable
+                  ? 'bg-rose-50 text-rose-500 border border-rose-200 cursor-not-allowed'
+                  : currentUser?.role === 'tutor' || currentUser?.role === 'admin'
+                    ? 'bg-slate-50 text-slate-350 cursor-not-allowed border border-slate-150'
+                    : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10'
             }`}
             id={`enroll_btn_${item.id}`}
           >
-            {isFull ? 'Limit Reached' : 'Secure Premium Seat'}
+            {isFull ? 'Limit Reached' : isTutorUnavailable ? 'Tutor Unavailable' : 'Secure Premium Seat'}
           </button>
         </div>
       </div>

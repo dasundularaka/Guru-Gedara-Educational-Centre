@@ -1041,20 +1041,47 @@ const firestoreServiceRaw = {
     return combined;
   },
 
-  async createPayment(studentId: string, studentName: string, classId: string, classTitle: string, amount: number, paymentMethod: string, status: 'paid' | 'pending' | 'failed' = 'paid'): Promise<Payment> {
+  async createPayment(
+    studentId: string, 
+    studentName: string, 
+    classId: string, 
+    classTitle: string, 
+    amount: number, 
+    paymentMethod: string, 
+    status: 'paid' | 'pending' | 'failed' = 'paid',
+    extraDetails?: {
+      gateway?: 'stripe' | 'paypal' | 'manual' | 'free_card';
+      transactionId?: string;
+      receiptUrl?: string;
+      cardLast4?: string;
+      payerEmail?: string;
+      paymentType?: 'admission' | 'monthly' | 'late_payment' | 'free_card' | 'course_fee';
+      studentEmail?: string;
+      currency?: string;
+      dueDate?: string;
+    }
+  ): Promise<Payment> {
     const id = "pay_" + Math.random().toString(36).substr(2, 9);
     const now = new Date();
-    const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // Due 7 days from now
+    const dueDate = extraDetails?.dueDate || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(); // Due 7 days from now
     const newPay: Payment = {
       id,
       studentId,
       studentName,
+      studentEmail: extraDetails?.studentEmail,
       classId,
       classTitle,
       amount,
+      currency: extraDetails?.currency || 'LKR',
       date: now.toISOString(),
       status,
       paymentMethod,
+      gateway: extraDetails?.gateway || (paymentMethod.toLowerCase().includes('paypal') ? 'paypal' : paymentMethod.toLowerCase().includes('stripe') || paymentMethod.toLowerCase().includes('card') ? 'stripe' : 'manual'),
+      transactionId: extraDetails?.transactionId || `TXN_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+      receiptUrl: extraDetails?.receiptUrl,
+      cardLast4: extraDetails?.cardLast4,
+      payerEmail: extraDetails?.payerEmail,
+      paymentType: extraDetails?.paymentType || 'monthly',
       dueDate
     };
 

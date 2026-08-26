@@ -8,7 +8,7 @@ import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
 import { optimizeImage } from '../lib/imageOptimizer';
 import { binaryStore } from '../lib/binaryStore';
-import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMaterial, ResourceType } from '../types';
+import { ClassItem, Booking, UserProfile, SubjectItem, PathwayItem, StudyMaterial, ResourceType, RecurringAvailabilitySlot, SpecificDateAvailability } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
@@ -150,6 +150,8 @@ export const TutorDashboard: React.FC = () => {
   const [rosterBookings, setRosterBookings] = useState<Booking[]>([]);
   const [allStudents, setAllStudents] = useState<UserProfile[]>([]);
   const [tutorAvailability, setTutorAvailability] = useState<{ day: string; slots: string[] }[]>([]);
+  const [recurringAvailability, setRecurringAvailability] = useState<RecurringAvailabilitySlot[]>([]);
+  const [specificDateAvailability, setSpecificDateAvailability] = useState<SpecificDateAvailability[]>([]);
   
   const [loading, setLoading] = useState(true);
 
@@ -333,6 +335,8 @@ export const TutorDashboard: React.FC = () => {
 
       // Load availability
       setTutorAvailability(currentUser.tutorDetails?.availability || []);
+      setRecurringAvailability(currentUser.tutorDetails?.recurringAvailability || []);
+      setSpecificDateAvailability(currentUser.tutorDetails?.specificDateAvailability || []);
 
       // 3. Fallback or sync in the background if lists are empty
       if (classes.length === 0 || bookings.length === 0) {
@@ -691,6 +695,42 @@ export const TutorDashboard: React.FC = () => {
     }
   };
 
+  const handleUpdateRecurringAvailability = async (slots: RecurringAvailabilitySlot[]) => {
+    if (!currentUser) return;
+    setRecurringAvailability(slots);
+    try {
+      const updatedDetails = {
+        ...currentUser.tutorDetails,
+        recurringAvailability: slots
+      };
+      await firestoreService.updateTutorProfile(currentUser.uid, {
+        tutorDetails: updatedDetails as any
+      });
+      showToast("Weekly recurring availability updated successfully!", "success");
+      if (refreshUserProfile) await refreshUserProfile();
+    } catch {
+      showToast("Failed to update recurring availability.", "error");
+    }
+  };
+
+  const handleUpdateSpecificDateAvailability = async (slots: SpecificDateAvailability[]) => {
+    if (!currentUser) return;
+    setSpecificDateAvailability(slots);
+    try {
+      const updatedDetails = {
+        ...currentUser.tutorDetails,
+        specificDateAvailability: slots
+      };
+      await firestoreService.updateTutorProfile(currentUser.uid, {
+        tutorDetails: updatedDetails as any
+      });
+      showToast("Specific date availability / leave schedule updated!", "success");
+      if (refreshUserProfile) await refreshUserProfile();
+    } catch {
+      showToast("Failed to update date availability.", "error");
+    }
+  };
+
   const handleTutorBroadcastNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tutorNoticeTitle.trim() || !tutorNoticeMsg.trim() || !currentUser) return;
@@ -867,7 +907,9 @@ export const TutorDashboard: React.FC = () => {
           rating: currentUser.tutorDetails?.rating || 5.0,
           workingHours: profWorkingHours,
           daysOff: profDaysOff,
-          availability: tutorAvailability
+          availability: tutorAvailability,
+          recurringAvailability: recurringAvailability,
+          specificDateAvailability: specificDateAvailability
         }
       });
       
@@ -1233,7 +1275,11 @@ export const TutorDashboard: React.FC = () => {
                       userRole="tutor"
                       tutorClasses={tutorClasses}
                       tutorAvailability={tutorAvailability}
+                      recurringAvailability={recurringAvailability}
+                      specificDateAvailability={specificDateAvailability}
                       onAddAvailability={handleAddAvailability}
+                      onUpdateRecurringAvailability={handleUpdateRecurringAvailability}
+                      onUpdateSpecificDateAvailability={handleUpdateSpecificDateAvailability}
                       attendanceRecords={attendanceRecords}
                     />
                   </div>

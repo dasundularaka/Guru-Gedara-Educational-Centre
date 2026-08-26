@@ -32,9 +32,11 @@ export const StudentPaymentHistory: React.FC = () => {
   const [payInvoice, setPayInvoice] = useState<Payment | null>(null);
   
   // Secure Gateway Sim State
+  const [gatewayType, setGatewayType] = useState<'stripe' | 'paypal'>('stripe');
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
+  const [payPalEmail, setPayPalEmail] = useState(currentUser?.email || '');
   const [processingPay, setProcessingPay] = useState(false);
 
   if (!currentUser) return null;
@@ -171,32 +173,61 @@ export const StudentPaymentHistory: React.FC = () => {
     e.preventDefault();
     if (!payInvoice) return;
     
-    if (cardNumber.replace(/\s/g, '').length !== 16) {
-      showToast("Please enter a valid 16-digit card number.", "info");
-      return;
-    }
-    if (!expiry.match(/^(0[1-9]|1[0-2])\/?([0-9]{2})$/)) {
-      showToast("Please enter a valid expiry date (MM/YY).", "info");
-      return;
-    }
-    if (cvv.length !== 3) {
-      showToast("Please enter a valid 3-digit CVV code.", "info");
-      return;
+    let transactionDesc = "";
+    let lastFour: string | undefined = undefined;
+    let txnId = "";
+
+    if (gatewayType === 'stripe') {
+      if (cardNumber.replace(/\s/g, '').length < 15) {
+        showToast("Please enter a valid card number.", "info");
+        return;
+      }
+      if (!expiry.match(/^(0[1-9]|1[0-2])\/?([0-9]{2})$/)) {
+        showToast("Please enter a valid expiry date (MM/YY).", "info");
+        return;
+      }
+      if (cvv.length < 3) {
+        showToast("Please enter a valid 3-digit CVV code.", "info");
+        return;
+      }
+      lastFour = cardNumber.replace(/\s/g, '').slice(-4) || '4242';
+      transactionDesc = `Stripe Card: Visa ending in ${lastFour}`;
+      txnId = `ch_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
+    } else {
+      if (!payPalEmail.includes('@')) {
+        showToast("Please enter a valid PayPal account email.", "info");
+        return;
+      }
+      transactionDesc = `PayPal Account (${payPalEmail})`;
+      txnId = `PAYID-${Math.random().toString(36).substring(2, 8).toUpperCase()}-${Date.now().toString().slice(-6)}`;
     }
 
     setProcessingPay(true);
     try {
-      // Simulate gateway authorization latency
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Gateway authorization latency
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
+      const updatedPayment: Payment = {
+        ...payInvoice,
+        status: 'paid',
+        paymentMethod: transactionDesc,
+        gateway: gatewayType,
+        transactionId: txnId,
+        receiptUrl: `https://pay.tuition.ac/receipt/${payInvoice.id}`,
+        cardLast4: lastFour,
+        payerEmail: gatewayType === 'stripe' ? (currentUser.email || currentUser.name) : payPalEmail,
+        currency: 'LKR',
+        paymentType: 'class_fee'
+      };
+
       // Update Payment state to Firestore/Local database
-      await firestoreService.updatePaymentStatus(payInvoice.id, 'paid', payInvoice);
+      await firestoreService.updatePaymentStatus(payInvoice.id, 'paid', updatedPayment);
       
       // Trigger user alert/notification
       await firestoreService.triggerNotification(
         currentUser.uid,
         "Tuition Invoice Settled Successfully",
-        `LKR ${payInvoice.amount.toLocaleString()} was processed successfully for '${payInvoice.classTitle}' via visa ending in ${cardNumber.slice(-4)}.`,
+        `LKR ${payInvoice.amount.toLocaleString()} was processed successfully for '${payInvoice.classTitle}' via ${transactionDesc} (Txn: ${txnId}).`,
         'payment'
       );
 
@@ -852,76 +883,123 @@ export const StudentPaymentHistory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Secure checkout credit card inputs */}
+              {/* Gateway Channel Selector */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setGatewayType('stripe')}
+                  className={`py-2 px-3 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
+                    gatewayType === 'stripe'
+                      ? 'border-indigo-600 bg-indigo-50/40 text-indigo-900 shadow-xs'
+                      : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  Stripe Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGatewayType('paypal')}
+                  className={`py-2 px-3 rounded-xl border text-center text-xs font-bold transition-all cursor-pointer ${
+                    gatewayType === 'paypal'
+                      ? 'border-indigo-600 bg-indigo-50/40 text-indigo-900 shadow-xs'
+                      : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  PayPal Sandbox
+                </button>
+              </div>
+
+              {/* Secure checkout inputs */}
               <form onSubmit={handleSimulatePayment} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">Cardholder Name</label>
-                  <input 
-                    type="text" 
-                    defaultValue={currentUser.name}
-                    required
-                    disabled={processingPay}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 cursor-not-allowed"
-                    readOnly
-                  />
-                </div>
+                {gatewayType === 'stripe' ? (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">Cardholder Name</label>
+                      <input 
+                        type="text" 
+                        defaultValue={currentUser.name}
+                        required
+                        disabled={processingPay}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 cursor-not-allowed"
+                        readOnly
+                      />
+                    </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">Card Number</label>
-                  <input 
-                    type="text" 
-                    placeholder="4242 4242 4242 4242"
-                    maxLength={19}
-                    required
-                    disabled={processingPay}
-                    value={cardNumber}
-                    onChange={(e) => {
-                      // format with spaces
-                      const val = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
-                      const formatted = val.match(/.{1,4}/g)?.join(' ') || val;
-                      setCardNumber(formatted);
-                    }}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">Card Number</label>
+                      <input 
+                        type="text" 
+                        placeholder="4242 4242 4242 4242"
+                        maxLength={19}
+                        required
+                        disabled={processingPay}
+                        value={cardNumber}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\s/g, '').replace(/\D/g, '');
+                          const formatted = val.match(/.{1,4}/g)?.join(' ') || val;
+                          setCardNumber(formatted);
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">Expiration Date</label>
-                    <input 
-                      type="text" 
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      required
-                      disabled={processingPay}
-                      value={expiry}
-                      onChange={(e) => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        if (val.length > 2) {
-                          val = val.slice(0, 2) + '/' + val.slice(2, 4);
-                        }
-                        setExpiry(val);
-                      }}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500 font-mono text-center"
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">Expiration Date</label>
+                        <input 
+                          type="text" 
+                          placeholder="MM/YY"
+                          maxLength={5}
+                          required
+                          disabled={processingPay}
+                          value={expiry}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '');
+                            if (val.length > 2) {
+                              val = val.slice(0, 2) + '/' + val.slice(2, 4);
+                            }
+                            setExpiry(val);
+                          }}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500 font-mono text-center"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">CVV Code</label>
+                        <input 
+                          type="password" 
+                          placeholder="***"
+                          maxLength={3}
+                          required
+                          disabled={processingPay}
+                          value={cvv}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setCvv(val);
+                          }}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500 font-mono text-center"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">PayPal Account Email</label>
+                      <input 
+                        type="email" 
+                        required
+                        disabled={processingPay}
+                        value={payPalEmail}
+                        onChange={(e) => setPayPalEmail(e.target.value)}
+                        placeholder="student@paypal.com"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      You will authorize a secure one-click charge of <span className="font-bold text-indigo-700 font-mono">LKR {payInvoice.amount.toLocaleString()}</span> directly via your linked PayPal balance or bank card.
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-mono font-bold text-slate-450 block">CVV Code</label>
-                    <input 
-                      type="password" 
-                      placeholder="***"
-                      maxLength={3}
-                      required
-                      disabled={processingPay}
-                      value={cvv}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        setCvv(val);
-                      }}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white focus:outline-none focus:border-indigo-500 font-mono text-center"
-                    />
-                  </div>
-                </div>
+                )}
 
                 {/* PCI Compliance trust indicator */}
                 <div className="flex items-center gap-2 text-[9px] text-slate-400 font-medium py-1 bg-slate-50/50 rounded-lg px-2 border border-slate-100 justify-center">

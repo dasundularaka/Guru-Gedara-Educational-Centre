@@ -19,6 +19,23 @@
         "guardianName": { "type": "string" },
         "guardianPhone": { "type": "string" },
         "selectedClasses": { "type": "array" },
+        "tutorDetails": {
+          "type": "object",
+          "properties": {
+            "bio": { "type": "string" },
+            "subjects": { "type": "array" },
+            "expertiseAreas": { "type": "array" },
+            "experience": { "type": "number" },
+            "qualification": { "type": "string" },
+            "hourlyRate": { "type": "number" },
+            "rating": { "type": "number" },
+            "workingHours": { "type": "array" },
+            "daysOff": { "type": "array" },
+            "availability": { "type": "array" },
+            "recurringAvailability": { "type": "array" },
+            "specificDateAvailability": { "type": "array" }
+          }
+        },
         "createdAt": { "type": "string" }
       },
       "required": ["uid", "email", "name", "role", "createdAt"]
@@ -80,7 +97,13 @@
         "amount": { "type": "number" },
         "date": { "type": "string" },
         "status": { "type": "string", "enum": ["paid", "pending", "failed"] },
-        "paymentMethod": { "type": "string" }
+        "paymentMethod": { "type": "string" },
+        "gateway": { "type": "string", "enum": ["stripe", "paypal", "manual", "free_card"] },
+        "transactionId": { "type": "string" },
+        "receiptUrl": { "type": "string" },
+        "cardLast4": { "type": "string" },
+        "payerEmail": { "type": "string" },
+        "paymentType": { "type": "string" }
       },
       "required": ["id", "studentId", "studentName", "classId", "classTitle", "amount", "date", "status"]
     },

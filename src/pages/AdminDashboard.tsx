@@ -2320,18 +2320,19 @@ export const AdminDashboard: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-gray-100 border-b border-gray-100 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                        <th className="p-3">Ref ID</th>
-                        <th className="p-3">Scholars</th>
+                        <th className="p-3">Ref ID & Gateway</th>
+                        <th className="p-3">Scholar</th>
                         <th className="p-3">Course / Class</th>
-                        <th className="p-3">Tuition Cost</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Gateway Details</th>
                         <th className="p-3">Status</th>
-                        <th className="p-3">Ledger Adjustment Action</th>
+                        <th className="p-3">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 text-xs">
                       {matchingPayments.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-gray-400">
+                          <td colSpan={7} className="p-8 text-center text-gray-400">
                             No ledger logs match selected filters.
                           </td>
                         </tr>
@@ -2341,24 +2342,59 @@ export const AdminDashboard: React.FC = () => {
                           const isFailed = p.status === 'failed';
                           const isPending = p.status === 'pending';
                           return (
-                            <tr key={p.id} className="hover:bg-gray-50/50">
-                              <td className="p-3 font-mono font-bold text-gray-400">{p.id}</td>
-                              <td className="p-3 font-bold text-gray-900">{p.studentName}</td>
-                              <td className="p-3 text-gray-650 truncate max-w-xs font-medium" title={p.classTitle}>{p.classTitle}</td>
-                              <td className="p-3 font-mono font-bold text-blue-700">${p.amount}.00</td>
-                              <td className="p-3">
-                                {isPaid && <span className="inline-block py-0.5 px-2 bg-emerald-50 text-emerald-700 rounded-full font-bold">Paid</span>}
-                                {isFailed && <span className="inline-block py-0.5 px-2 bg-red-50 text-red-700 rounded-full font-bold">Failed</span>}
-                                {isPending && <span className="inline-block py-0.5 px-2 bg-yellow-50 text-yellow-800 rounded-full font-bold">Pending</span>}
+                            <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="p-3 font-mono">
+                                <span className="font-bold text-slate-800 block text-[11px]">{p.id}</span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {p.gateway === 'stripe' ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-150 uppercase">
+                                      Stripe Card
+                                    </span>
+                                  ) : p.gateway === 'paypal' ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-150 uppercase">
+                                      PayPal
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase">
+                                      {p.gateway || 'Direct'}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-3">
-                                <div className="flex gap-1.5">
+                                <span className="font-bold text-gray-900 block">{p.studentName}</span>
+                                {p.payerEmail && (
+                                  <span className="text-[10px] text-gray-400 font-mono block">{p.payerEmail}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-gray-650 max-w-xs" title={p.classTitle}>
+                                <span className="font-semibold text-slate-850 block truncate">{p.classTitle}</span>
+                                <span className="text-[10px] text-gray-400 block font-mono">{new Date(p.date).toLocaleDateString()}</span>
+                              </td>
+                              <td className="p-3 font-mono font-bold text-indigo-700">
+                                LKR {p.amount.toLocaleString()}
+                              </td>
+                              <td className="p-3">
+                                <span className="text-[11px] text-slate-600 block">{p.paymentMethod || 'Credit Card'}</span>
+                                {p.transactionId && (
+                                  <span className="text-[9px] font-mono text-slate-400 block truncate max-w-[140px]" title={p.transactionId}>
+                                    Txn: {p.transactionId}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                {isPaid && <span className="inline-block py-0.5 px-2 bg-emerald-50 text-emerald-700 rounded-full font-bold text-[10px] border border-emerald-200">Paid</span>}
+                                {isFailed && <span className="inline-block py-0.5 px-2 bg-red-50 text-red-700 rounded-full font-bold text-[10px] border border-red-200">Failed</span>}
+                                {isPending && <span className="inline-block py-0.5 px-2 bg-yellow-50 text-yellow-800 rounded-full font-bold text-[10px] border border-yellow-200">Pending</span>}
+                              </td>
+                              <td className="p-3">
+                                <div className="flex gap-1.5 items-center">
                                   {!isPaid && (
                                     <button 
                                       onClick={() => handleUpdatePaymentStatus(p.id, 'paid')}
-                                      className="py-1 px-2.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-100 font-bold hover:bg-emerald-100 cursor-pointer text-[10px]"
+                                      className="py-1 px-2 rounded bg-emerald-50 text-emerald-600 border border-emerald-150 font-bold hover:bg-emerald-100 cursor-pointer text-[10px] whitespace-nowrap"
                                     >
-                                      Approve Paid
+                                      Approve
                                     </button>
                                   )}
                                   <button 
