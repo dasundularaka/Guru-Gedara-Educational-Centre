@@ -35,6 +35,7 @@ import { useEmailNotifications } from '../hooks/useEmailNotifications';
 import { EmailNotificationLog, EmailTriggerEventType } from '../types';
 import { downloadEmlFile, buildGmailComposeUrl, buildMailtoUrl } from '../lib/emailNotificationService';
 import { AdminEmailTemplatesPanel } from './AdminEmailTemplatesPanel';
+import { useApp } from '../context/AppContext';
 
 interface EmailNotificationLogsModalProps {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
   defaultFilter = 'all',
   userEmail
 }) => {
+  const { currentUser } = useApp();
   const { 
     emailLogs, 
     emailSettings,
@@ -98,7 +100,7 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
     setResendApiKey(emailSettings.resendApiKey || '');
   }, [emailSettings]);
 
-  if (!isOpen) return null;
+  if (!isOpen || (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'tutor')) return null;
 
   const showInternalToast = (msg: string) => {
     setToastMessage(msg);

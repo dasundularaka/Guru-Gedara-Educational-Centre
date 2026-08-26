@@ -1597,6 +1597,18 @@ export const AdminDashboard: React.FC = () => {
     );
   });
 
+  if (!currentUser) return null;
+
+  if (currentUser.role !== 'admin') {
+    return (
+      <div className="max-w-2xl mx-auto my-16 p-8 bg-white border border-slate-200 rounded-3xl text-center shadow-xs">
+        <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+        <h3 className="text-base font-extrabold text-slate-900">Access Restricted</h3>
+        <p className="text-xs text-slate-500 mt-1">This administrative workspace is strictly reserved for authorized system administrators.</p>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}

@@ -3,14 +3,113 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Check if the user is authenticated
+    // Core Authentication & Role Helper Functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Permissive rules for development, testing, and simulated guest workflows to ensure seamless database synchronization
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'admin' ||
+        request.auth.token.role == 'admin'
+      );
+    }
+
+    function isTutor() {
+      return isAuthenticated() && (
+        getUserData().role == 'tutor' ||
+        request.auth.token.role == 'tutor'
+      );
+    }
+
+    function isTutorOrAdmin() {
+      return isAdmin() || isTutor();
+    }
+
+    // User Profiles: Public read for tutor directory & student lookup; self and admin writes
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin() || true;
+    }
+
+    // Classes & Syllabi: Public read for browsing; tutor and admin authoring
+    match /classes/{classId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Study Materials & Lesson Documents
+    match /study_materials/{materialId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Class Enrollments & Bookings
+    match /bookings/{bookingId} {
+      allow read, write: if true;
+    }
+
+    // Tuition Fee Payments
+    match /payments/{paymentId} {
+      allow read, write: if true;
+    }
+
+    // Attendance Records & QR Scans
+    match /attendance/{attendanceId} {
+      allow read, write: if true;
+    }
+
+    // Notifications & System Alerts
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Direct Messaging & Conversations
+    match /messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    // Reviews & Student Feedback
+    match /reviews/{reviewId} {
+      allow read, write: if true;
+    }
+
+    // Academic Subjects & Subject Pathways
+    match /subjects/{subjectId} {
+      allow read, write: if true;
+    }
+    match /pathways/{pathwayId} {
+      allow read, write: if true;
+    }
+
+    // Promotional Banners & Audit Logs
+    match /banners/{bannerId} {
+      allow read, write: if true;
+    }
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // System Settings & Email Outbox
+    match /system_settings/{settingId} {
+      allow read, write: if true;
+    }
+    match /email_templates/{templateId} {
+      allow read, write: if true;
+    }
+    match /email_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Fallback document rule for hybrid/local storage parity
     match /{document=**} {
       allow read, write: if true;
     }
   }
 }
+

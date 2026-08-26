@@ -552,16 +552,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                               >
                                 <Settings className="w-3.5 h-3.5" /> Preferences
                               </button>
-                              <button
-                                onClick={() => {
-                                  setShowEmailLogsModal(true);
-                                  setShowNotifications(false);
-                                }}
-                                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60"
-                                title="View automated email notifications"
-                              >
-                                <Mail className="w-3 h-3 text-indigo-500" /> Email Logs
-                              </button>
+                              {(currentUser?.role === 'admin' || currentUser?.role === 'tutor') && (
+                                <button
+                                  onClick={() => {
+                                    setShowEmailLogsModal(true);
+                                    setShowNotifications(false);
+                                  }}
+                                  className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold flex items-center gap-1 cursor-pointer bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60"
+                                  title="View automated email notifications"
+                                >
+                                  <Mail className="w-3 h-3 text-indigo-500" /> Email Logs
+                                </button>
+                              )}
                             </div>
                             <button
                               onClick={() => {

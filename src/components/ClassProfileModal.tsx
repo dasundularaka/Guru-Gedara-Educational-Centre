@@ -72,7 +72,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   showToast
 }) => {
   const isTutorOrAdmin = currentUser.role === 'tutor' || currentUser.role === 'admin';
-  const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'attendance' | 'availability'>('roster');
+  const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'attendance' | 'availability'>(isTutorOrAdmin ? 'roster' : 'materials');
 
   // Roster Filter & Bulk Selection State
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,8 +103,11 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   useEffect(() => {
     if (classItem) {
       setGracePeriod(classItem.gracePeriod !== undefined ? classItem.gracePeriod : 5);
+      if (!isTutorOrAdmin && activeTab === 'roster') {
+        setActiveTab('materials');
+      }
     }
-  }, [classItem?.id, classItem?.gracePeriod]);
+  }, [classItem?.id, classItem?.gracePeriod, isTutorOrAdmin, activeTab]);
 
   const handleSaveGracePeriod = async (newGrace: number) => {
     if (!classItem) return;
@@ -504,17 +507,19 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
           {/* Modal Navigation Tabs & Controls */}
           <div className="bg-slate-50 border-b border-slate-200 px-6 py-2.5 flex items-center justify-between gap-3 overflow-x-auto shrink-0">
             <div className="flex gap-2 text-xs font-bold shrink-0">
-              <button
-                onClick={() => setActiveTab('roster')}
-                className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
-                  activeTab === 'roster' 
-                    ? 'bg-slate-900 text-white shadow-xs' 
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
-                id="tab_class_roster"
-              >
-                <Users className="w-4 h-4" /> Enrolled Roster ({classBookings.length})
-              </button>
+              {isTutorOrAdmin && (
+                <button
+                  onClick={() => setActiveTab('roster')}
+                  className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                    activeTab === 'roster' 
+                      ? 'bg-slate-900 text-white shadow-xs' 
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                  id="tab_class_roster"
+                >
+                  <Users className="w-4 h-4" /> Enrolled Roster ({classBookings.length})
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('materials')}
                 className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
@@ -535,7 +540,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                 }`}
                 id="tab_class_attendance_history"
               >
-                <History className="w-4 h-4" /> Attendance Logs ({classAttendanceLogs.length})
+                <History className="w-4 h-4" /> {isTutorOrAdmin ? `Attendance Logs (${classAttendanceLogs.length})` : 'My Attendance Logs'}
               </button>
               <button
                 onClick={() => setActiveTab('availability')}
@@ -623,8 +628,8 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
           {/* Modal Tab Content Body */}
           <div className="p-6 overflow-y-auto flex-1 space-y-6">
 
-            {/* TAB 1: ENROLLED STUDENT ROSTER */}
-            {activeTab === 'roster' && (
+            {/* TAB 1: ENROLLED STUDENT ROSTER (TUTORS & ADMINS ONLY) */}
+            {activeTab === 'roster' && isTutorOrAdmin && (
               <div className="space-y-4">
                 {/* Suspended Warning Banner for Student */}
                 {isCurrentStudentSuspended && (
@@ -1160,49 +1165,57 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             )}
 
             {/* TAB 3: ATTENDANCE HISTORY LOGS */}
-            {activeTab === 'attendance' && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
-                  <History className="w-4 h-4 text-indigo-600" /> Class Session Attendance Logs
-                </h3>
+            {activeTab === 'attendance' && (() => {
+              const displayedAttendanceLogs = isTutorOrAdmin
+                ? classAttendanceLogs
+                : classAttendanceLogs.filter(log => log.studentId === currentUser.uid || log.studentName === currentUser.name || (currentUser.email && (log as any).studentEmail === currentUser.email));
 
-                {classAttendanceLogs.length === 0 ? (
-                  <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <History className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-extrabold text-slate-700">No Attendance Logs Recorded</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Use the QR scanner at class start to record live student presence.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {classAttendanceLogs.map((log) => (
-                      <div 
-                        key={log.id} 
-                        className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-xl font-bold ${log.status === 'Present' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                            {log.status === 'Present' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              return (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
+                    <History className="w-4 h-4 text-indigo-600" /> {isTutorOrAdmin ? 'Class Session Attendance Logs' : 'My Attendance Logs for this Class'}
+                  </h3>
+
+                  {displayedAttendanceLogs.length === 0 ? (
+                    <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <History className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-extrabold text-slate-700">No Attendance Logs Recorded</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {isTutorOrAdmin ? 'Use the QR scanner at class start to record live student presence.' : 'Your verified attendance check-ins will show up here.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {displayedAttendanceLogs.map((log) => (
+                        <div 
+                          key={log.id} 
+                          className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between text-xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl font-bold ${log.status === 'Present' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                              {log.status === 'Present' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <h4 className="font-extrabold text-slate-900">{log.studentName}</h4>
+                              <p className="text-[10px] text-slate-500 font-mono">
+                                Date: {log.date} • {new Date(log.markedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-extrabold text-slate-900">{log.studentName}</h4>
-                            <p className="text-[10px] text-slate-500 font-mono">
-                              Date: {log.date} • {new Date(log.markedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+
+                          <div className="text-right">
+                            <span className="text-[9px] uppercase font-mono text-slate-400 block">Scanned By</span>
+                            <span className="font-bold text-indigo-700 font-mono text-[10px]">
+                              {log.scannedByName || 'Tutor / Admin'}
+                            </span>
                           </div>
                         </div>
-
-                        <div className="text-right">
-                          <span className="text-[9px] uppercase font-mono text-slate-400 block">Scanned By</span>
-                          <span className="font-bold text-indigo-700 font-mono text-[10px]">
-                            {log.scannedByName || 'Tutor / Admin'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* TAB 4: TUTOR AVAILABILITY & CALENDAR SCHEDULE */}
             {activeTab === 'availability' && (() => {

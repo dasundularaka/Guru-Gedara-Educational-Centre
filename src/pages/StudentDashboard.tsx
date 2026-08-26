@@ -16,7 +16,6 @@ import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
-import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
@@ -906,9 +905,6 @@ export const StudentDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-6"
               >
-                {/* 24-Hour Class Reminder Cron Trigger & Outbox Status */}
-                <ClassReminderCronPanel />
-
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
                   {/* Lists alerts */}
                   <div className="lg:col-span-3 bg-white dark:bg-slate-800 border border-gray-150 dark:border-slate-700 rounded-2xl p-6">

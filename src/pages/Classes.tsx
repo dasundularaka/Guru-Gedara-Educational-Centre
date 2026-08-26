@@ -210,6 +210,11 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     e.preventDefault();
     if (!currentUser) return;
     
+    if (currentUser.role !== 'tutor' && currentUser.role !== 'admin') {
+      showToast("Only tutors and administrators have permission to upload study materials.", "error");
+      return;
+    }
+    
     if (!uploadTitle.trim() || !uploadDesc.trim()) {
       showToast("Please provide a title and description for the material.", "error");
       return;
