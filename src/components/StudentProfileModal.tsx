@@ -30,6 +30,8 @@ import {
 import { UserProfile, ClassItem, AttendanceRecord, Booking } from '../types';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { firestoreService } from '../lib/firestoreService';
+import { DigitalStudentIDCardModal } from './DigitalStudentIDCardModal';
+import { GraduationCap, Printer } from 'lucide-react';
 
 interface StudentProfileModalProps {
   isOpen: boolean;
@@ -60,6 +62,8 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   const [reminderMessage, setReminderMessage] = useState<string>('');
   const [sendingReminder, setSendingReminder] = useState<boolean>(false);
   const [showReminderBox, setShowReminderBox] = useState<boolean>(false);
+
+  const [showIdCardModal, setShowIdCardModal] = useState<boolean>(false);
 
   // Parent Email Linking & CC State
   const [parentEmail, setParentEmail] = useState<string>('');
@@ -791,6 +795,13 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
 
             <div className="flex items-center gap-2">
               <button
+                onClick={() => setShowIdCardModal(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-slate-900 to-indigo-950 text-white hover:from-slate-950 hover:to-indigo-900 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm border border-slate-700/60"
+                id="btn_view_student_id_card_from_profile"
+              >
+                <GraduationCap className="w-4 h-4 text-amber-400" /> Student ID Card
+              </button>
+              <button
                 onClick={() => setShowReminderBox(!showReminderBox)}
                 className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                 id="btn_toggle_student_reminder"
@@ -809,6 +820,18 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
 
         </motion.div>
       </div>
+
+      {/* Embedded Digital Student ID Card Modal */}
+      {showIdCardModal && student && (
+        <DigitalStudentIDCardModal
+          isOpen={showIdCardModal}
+          onClose={() => setShowIdCardModal(false)}
+          currentUser={student}
+          enrolledClasses={classes.filter(c => (student.selectedClasses || []).includes(c.id))}
+          bookings={bookings.filter(b => b.studentId === student.uid || b.studentEmail === student.email)}
+          showToast={showToast}
+        />
+      )}
     </AnimatePresence>
   );
 };

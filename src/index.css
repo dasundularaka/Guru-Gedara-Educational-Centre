@@ -348,3 +348,34 @@ svg text,
   background-color: #1f2937;
   border-color: #4b5563;
 }
+
+/* Print Optimization for Digital Student ID Card & Receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  #student_id_print_root,
+  #student_id_print_root * {
+    visibility: visible;
+  }
+
+  #student_id_print_root {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 15mm;
+  }
+}

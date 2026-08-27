@@ -17,6 +17,7 @@ import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
+import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -42,7 +43,9 @@ import {
   Mail,
   Link as LinkIcon,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  Printer,
+  GraduationCap
 } from 'lucide-react';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
@@ -75,6 +78,7 @@ export const StudentDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
 
@@ -534,18 +538,25 @@ export const StudentDashboard: React.FC = () => {
 
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center sm:justify-start">
                 <button 
-                  onClick={() => setShowCameraModal(true)}
-                  className="text-xs text-indigo-650 hover:text-indigo-800 font-bold flex items-center gap-1.5 bg-indigo-50/50 hover:bg-indigo-50 px-3 py-1.5 border border-indigo-100/40 rounded-xl transition-all cursor-pointer"
-                  id="btn_student_update_photo"
+                  onClick={() => setShowIdCardModal(true)}
+                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-4 py-1.5 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  id="btn_student_view_id_card"
                 >
-                  <Camera className="w-3.5 h-3.5" /> Update Profile Photo (Camera & Gallery)
+                  <GraduationCap className="w-3.5 h-3.5 text-amber-400" /> Digital Student ID Card (Print & Pass)
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}
-                  className="text-xs text-white font-bold flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
                   id="btn_student_view_my_qr"
                 >
-                  <QrCode className="w-3.5 h-3.5" /> View My Student Unique QR Code
+                  <QrCode className="w-3.5 h-3.5 text-indigo-600" /> View QR Code Pass
+                </button>
+                <button 
+                  onClick={() => setShowCameraModal(true)}
+                  className="text-xs text-slate-700 hover:text-slate-900 font-bold flex items-center gap-1.5 bg-white hover:bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs"
+                  id="btn_student_update_photo"
+                >
+                  <Camera className="w-3.5 h-3.5 text-slate-500" /> Photo
                 </button>
               </div>
             </div>
@@ -1180,7 +1191,18 @@ export const StudentDashboard: React.FC = () => {
               Show this QR code pass to your tutors at class check-in or scan for attendance validation.
             </p>
 
-            <div className="pt-2 flex gap-2">
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQrModal(false);
+                  setShowIdCardModal(true);
+                }}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                id="btn_open_full_id_card_from_qr"
+              >
+                <GraduationCap className="w-4 h-4 text-amber-400" /> View & Print Digital Student ID Card
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1194,15 +1216,26 @@ export const StudentDashboard: React.FC = () => {
                     showToast("QR Code downloaded successfully!", "success");
                   }
                 }}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
                 id="btn_download_student_qr"
               >
-                <Download className="w-4 h-4" /> Download QR Code Pass
+                <Download className="w-4 h-4" /> Download QR Image Only
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Official Digital Student ID Card Modal */}
+      <DigitalStudentIDCardModal
+        isOpen={showIdCardModal}
+        onClose={() => setShowIdCardModal(false)}
+        currentUser={currentUser}
+        enrolledClasses={classes.filter(c => (currentUser.selectedClasses || []).includes(c.id))}
+        bookings={studentBookings}
+        showToast={showToast}
+        onOpenPhotoUpload={() => setShowCameraModal(true)}
+      />
 
       {/* Class Profile Modal for Students */}
       {selectedClassForProfile && (
