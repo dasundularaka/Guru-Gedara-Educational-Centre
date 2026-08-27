@@ -68,7 +68,8 @@ import {
   Briefcase,
   Award,
   Eye,
-  Timer
+  Timer,
+  BadgeCheck
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
@@ -78,6 +79,7 @@ import { StudentProfileModal } from '../components/StudentProfileModal';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
+import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -211,6 +213,7 @@ export const TutorDashboard: React.FC = () => {
   const [profDaysOff, setProfDaysOff] = useState<string[]>([]);
   const [newDayOffInput, setNewDayOffInput] = useState("");
   const [showSelfProfileModal, setShowSelfProfileModal] = useState(false);
+  const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [profWorkingHours, setProfWorkingHours] = useState<{ day: string; enabled: boolean; startTime: string; endTime: string }[]>([
     { day: "Monday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
     { day: "Tuesday", enabled: true, startTime: "08:00 AM", endTime: "05:00 PM" },
@@ -1149,8 +1152,16 @@ export const TutorDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Class Creator trigger & QR Pass Trigger */}
+            {/* Class Creator trigger, QR Pass Trigger & Faculty ID Card */}
             <div className="flex items-center gap-2">
+              <button
+                id="tutor_btn_id_card"
+                onClick={() => setShowIdCardModal(true)}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-100 cursor-pointer"
+                title="View, print and export official Faculty Digital ID Card"
+              >
+                <BadgeCheck className="w-4 h-4" /> Faculty ID Card
+              </button>
               <button
                 id="tutor_btn_launch_class"
                 onClick={() => {
@@ -4109,6 +4120,19 @@ export const TutorDashboard: React.FC = () => {
           attendanceRecords={attendanceRecords}
           bookings={rosterBookings.length > 0 ? rosterBookings : bookings}
           showToast={showToast}
+        />
+      )}
+
+      {/* Tutor Digital ID Card Modal */}
+      {currentUser && (
+        <DigitalStudentIDCardModal
+          isOpen={showIdCardModal}
+          onClose={() => setShowIdCardModal(false)}
+          currentUser={currentUser}
+          enrolledClasses={tutorClasses}
+          bookings={[]}
+          showToast={showToast}
+          onOpenPhotoUpload={() => setShowCameraModal(true)}
         />
       )}
     </motion.div>

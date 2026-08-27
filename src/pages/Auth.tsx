@@ -661,18 +661,18 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         {/* ========================================================================= */}
         {activeTab === 'login' && (
           <form onSubmit={handleSubmit} className="space-y-4" id="sign_in_form">
-            {/* Email Field */}
+            {/* Email / Username / Name Field */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-indigo-600" /> Email Address:
+                <Mail className="w-3.5 h-3.5 text-indigo-600" /> Email, Username, or Full Name:
               </label>
               <input
                 required
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. alex@example.com"
-                className="w-full text-xs px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono shadow-2xs"
+                placeholder="e.g. dasundularaka@gmail.com, dasun_dularaka, or Dasun Dularaka"
+                className="w-full text-xs px-4 py-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-sans shadow-2xs"
                 id="login_email_input"
               />
             </div>

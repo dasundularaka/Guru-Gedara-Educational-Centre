@@ -31,6 +31,27 @@ import {
   INITIAL_REVIEWS
 } from '../data/mockData';
 
+export function formatNameAsUid(name: string, fallbackEmailOrId?: string): string {
+  if (name && typeof name === 'string' && name.trim()) {
+    const clean = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (clean) return clean;
+  }
+  if (fallbackEmailOrId && typeof fallbackEmailOrId === 'string' && fallbackEmailOrId.trim()) {
+    const prefix = fallbackEmailOrId.split('@')[0];
+    const clean = prefix
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    if (clean) return clean;
+  }
+  return 'user_' + Math.random().toString(36).substr(2, 6);
+}
+
 // Track connection model
 let isUsingCloud = true;
 let isOriginalCloud = true;
@@ -446,11 +467,157 @@ const firestoreServiceRaw = {
   },
 
   // -------------------------------------------------------------
+  // UID NAME-FORMAT MIGRATION
+  // -------------------------------------------------------------
+  async migrateAllUsersToNameUids(): Promise<{ migratedCount: number; updatedRefs: number }> {
+    let migratedCount = 0;
+    let updatedRefs = 0;
+    try {
+      const allUsers = await this.getAllUsers();
+      for (const user of allUsers) {
+        if (!user || !user.name) continue;
+        const targetUid = formatNameAsUid(user.name, user.email || user.uid);
+        const oldUid = user.uid;
+
+        if (oldUid && oldUid !== targetUid) {
+          console.log(`[Migration] Updating user UID from ${oldUid} -> ${targetUid} (${user.name})`);
+          const updatedUser: UserProfile = {
+            ...user,
+            uid: targetUid,
+            username: targetUid,
+            authUid: user.authUid || (oldUid.length > 20 ? oldUid : undefined)
+          };
+
+          if (isUsingCloud) {
+            try {
+              await setDoc(doc(db, 'users', targetUid), updatedUser);
+              await deleteDoc(doc(db, 'users', oldUid));
+            } catch (cloudErr) {
+              console.warn("Cloud UID migration step warning:", cloudErr);
+            }
+          }
+
+          // Update local caches
+          const localRegistered = handleFallback<UserProfile>('local_registered_users', []);
+          const updatedRegistered = localRegistered.map(u => u.uid === oldUid ? updatedUser : u);
+          saveFallback('local_registered_users', updatedRegistered);
+
+          const localTutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
+          const updatedTutors = localTutors.map(u => u.uid === oldUid ? updatedUser : u);
+          saveFallback('local_users_tutors', updatedTutors);
+
+          // Update references across collections:
+          // 1. Classes (tutorId)
+          try {
+            const allClasses = await this.getClasses();
+            for (const cls of allClasses) {
+              if (cls.tutorId === oldUid) {
+                await this.updateClass(cls.id, { tutorId: targetUid });
+                updatedRefs++;
+              }
+            }
+          } catch (_) {}
+
+          // 2. Bookings (studentId, tutorId)
+          try {
+            const allBookings = await this.getBookings();
+            for (const b of allBookings) {
+              if (b.studentId === oldUid || b.tutorId === oldUid) {
+                const updates: Partial<Booking> = {};
+                if (b.studentId === oldUid) updates.studentId = targetUid;
+                if (b.tutorId === oldUid) updates.tutorId = targetUid;
+                if (isUsingCloud) {
+                  try { await updateDoc(doc(db, 'bookings', b.id), updates); } catch (_) {}
+                }
+                updatedRefs++;
+              }
+            }
+          } catch (_) {}
+
+          // 3. Payments (studentId)
+          try {
+            const allPayments = await this.getPayments();
+            for (const p of allPayments) {
+              if (p.studentId === oldUid) {
+                if (isUsingCloud) {
+                  try { await updateDoc(doc(db, 'payments', p.id), { studentId: targetUid }); } catch (_) {}
+                }
+                updatedRefs++;
+              }
+            }
+          } catch (_) {}
+
+          // 4. Attendance (studentId)
+          try {
+            const allAttendance = await this.getAttendance();
+            for (const a of allAttendance) {
+              if (a.studentId === oldUid) {
+                if (isUsingCloud) {
+                  try { await updateDoc(doc(db, 'attendance', a.id), { studentId: targetUid }); } catch (_) {}
+                }
+                updatedRefs++;
+              }
+            }
+          } catch (_) {}
+
+          // 5. Notifications (userId)
+          try {
+            const allNotifs = await this.getNotifications('all');
+            for (const n of allNotifs) {
+              if (n.userId === oldUid) {
+                if (isUsingCloud) {
+                  try { await updateDoc(doc(db, 'notifications', n.id), { userId: targetUid }); } catch (_) {}
+                }
+                updatedRefs++;
+              }
+            }
+          } catch (_) {}
+
+          // 6. Direct Messages (senderId, receiverId)
+          if (isUsingCloud) {
+            try {
+              const msgSnap = await getDocs(collection(db, 'messages'));
+              for (const d of msgSnap.docs) {
+                const msg = d.data();
+                if (msg.senderId === oldUid || msg.receiverId === oldUid) {
+                  const updates: any = {};
+                  if (msg.senderId === oldUid) updates.senderId = targetUid;
+                  if (msg.receiverId === oldUid) updates.receiverId = targetUid;
+                  await updateDoc(doc(db, 'messages', d.id), updates);
+                  updatedRefs++;
+                }
+              }
+            } catch (_) {}
+          }
+
+          // 7. Active session update
+          try {
+            const rawSession = localStorage.getItem('local_running_session');
+            if (rawSession) {
+              const sess = JSON.parse(rawSession);
+              if (sess.uid === oldUid) {
+                localStorage.setItem('local_running_session', safeStringify(updatedUser));
+              }
+            }
+          } catch (_) {}
+
+          migratedCount++;
+        }
+      }
+    } catch (err) {
+      console.warn("Migration to name UIDs encountered an error:", err);
+    }
+    return { migratedCount, updatedRefs };
+  },
+
+  // -------------------------------------------------------------
   // USER PROFILES
   // -------------------------------------------------------------
-  async getUserProfile(uid: string): Promise<UserProfile | null> {
-    if (!uid) return null;
-    const cleanId = uid.trim();
+  async getUserProfile(uidOrNameOrEmail: string): Promise<UserProfile | null> {
+    if (!uidOrNameOrEmail) return null;
+    const cleanId = uidOrNameOrEmail.trim();
+    const cleanLower = cleanId.toLowerCase();
+    const nameUid = formatNameAsUid(cleanId);
 
     if (isUsingCloud) {
        try {
@@ -462,8 +629,20 @@ const firestoreServiceRaw = {
            { exists: () => false } as any
          );
          if (userSnap.exists()) {
-           const userData = userSnap.data() as UserProfile;
-           return userData;
+           return userSnap.data() as UserProfile;
+         }
+
+         // Try looking up by nameUid doc ID
+         if (nameUid && nameUid !== cleanId) {
+           const nameUserRef = doc(db, 'users', nameUid);
+           const nameUserSnap = await promiseWithTimeout(
+             getDoc(nameUserRef),
+             3000,
+             { exists: () => false } as any
+           );
+           if (nameUserSnap.exists()) {
+             return nameUserSnap.data() as UserProfile;
+           }
          }
 
          // 2. Query where authUid == cleanId
@@ -480,6 +659,15 @@ const firestoreServiceRaw = {
          if (!snapUser.empty) {
            return snapUser.docs[0].data() as UserProfile;
          }
+
+         // 4. Query where email == cleanLower
+         if (cleanLower.includes('@')) {
+           const qEmail = query(usersRef, where('email', '==', cleanLower));
+           const snapEmail = await promiseWithTimeout(getDocs(qEmail), 3000, { empty: true, docs: [] } as any);
+           if (!snapEmail.empty) {
+             return snapEmail.docs[0].data() as UserProfile;
+           }
+         }
        } catch (e) {
          console.warn("Falling back to local user retrieval", e);
        }
@@ -487,20 +675,45 @@ const firestoreServiceRaw = {
     
     // Comprehensive fallback across all local/cached users
     const allUsers = await this.getAllUsers();
-    const match = allUsers.find(u => u.uid === cleanId || u.authUid === cleanId || u.username === cleanId);
+    const match = allUsers.find(u => 
+      u.uid === cleanId || 
+      u.uid.toLowerCase() === cleanLower ||
+      u.authUid === cleanId || 
+      (u.username && u.username.toLowerCase() === cleanLower) ||
+      (u.email && u.email.toLowerCase() === cleanLower) ||
+      (u.name && u.name.toLowerCase() === cleanLower) ||
+      (nameUid && u.uid === nameUid)
+    );
     if (match) return match;
 
     const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-    const tutorMatch = tutors.find(t => t.uid === cleanId || t.authUid === cleanId || t.username === cleanId);
+    const tutorMatch = tutors.find(t => 
+      t.uid === cleanId || 
+      t.uid.toLowerCase() === cleanLower ||
+      t.authUid === cleanId || 
+      (t.username && t.username.toLowerCase() === cleanLower) ||
+      (t.email && t.email.toLowerCase() === cleanLower) ||
+      (t.name && t.name.toLowerCase() === cleanLower)
+    );
     if (tutorMatch) return tutorMatch;
 
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    return registered.find(u => u.uid === cleanId || u.authUid === cleanId || u.username === cleanId) || null;
+    return registered.find(u => 
+      u.uid === cleanId || 
+      u.uid.toLowerCase() === cleanLower ||
+      u.authUid === cleanId || 
+      (u.username && u.username.toLowerCase() === cleanLower) ||
+      (u.email && u.email.toLowerCase() === cleanLower) ||
+      (u.name && u.name.toLowerCase() === cleanLower)
+    ) || null;
   },
 
   async getUserProfileByUsername(username: string): Promise<UserProfile | null> {
     if (!username) return null;
     const cleanUsername = username.trim();
+    const cleanLower = cleanUsername.toLowerCase();
+    const nameUid = formatNameAsUid(cleanUsername);
+
     if (isUsingCloud) {
       try {
         const usersRef = collection(db, 'users');
@@ -514,7 +727,12 @@ const firestoreServiceRaw = {
       }
     }
     const allUsers = await this.getAllUsers();
-    return allUsers.find(u => (u.username && u.username.toLowerCase() === cleanUsername.toLowerCase()) || (u.uid && u.uid.toLowerCase() === cleanUsername.toLowerCase())) || null;
+    return allUsers.find(u => 
+      (u.username && u.username.toLowerCase() === cleanLower) || 
+      (u.uid && u.uid.toLowerCase() === cleanLower) ||
+      (u.name && u.name.toLowerCase() === cleanLower) ||
+      (nameUid && u.uid === nameUid)
+    ) || null;
   },
 
   async getUserProfileByEmail(email: string): Promise<UserProfile | null> {
@@ -549,16 +767,6 @@ const firestoreServiceRaw = {
     const tutorMatch = tutors.find(t => t.email && t.email.trim().toLowerCase() === cleanEmail);
     if (tutorMatch) return tutorMatch;
     
-    // Demo student
-    if (cleanEmail === "alex.mercer@example.com") {
-      return this.getUserProfile('student_demo');
-    }
-    
-    // Demo admin
-    if (cleanEmail === "admin.academy@example.com") {
-      return this.getUserProfile('admin_demo');
-    }
-    
     // Dynamically registered users
     const registered = handleFallback<UserProfile>('local_registered_users', []);
     return registered.find(u => u.email && u.email.trim().toLowerCase() === cleanEmail) || null;
@@ -574,6 +782,11 @@ const firestoreServiceRaw = {
     }
 
     const cleanEmail = profile.email ? profile.email.trim().toLowerCase() : '';
+    const cleanName = profile.name.trim();
+
+    // Enforce name-based UID format: e.g. "Dasun Dularaka" -> "dasun_dularaka"
+    const targetUid = formatNameAsUid(cleanName, cleanEmail || uid);
+    const effectiveAuthUid = (uid && uid !== targetUid) ? uid : (profile.authUid || undefined);
 
     // CRITICAL: Stop duplicate user creation! If an existing profile already exists with this email, merge/update instead of creating a second document
     if (cleanEmail) {
@@ -582,27 +795,34 @@ const firestoreServiceRaw = {
         const mergedData: Partial<UserProfile> = {
           ...existingUser,
           ...profile,
-          uid: existingUser.uid,
-          username: existingUser.username || existingUser.uid
+          name: cleanName,
+          uid: targetUid,
+          username: targetUid
         };
-        if (uid && uid !== existingUser.uid) {
-          mergedData.authUid = uid;
+        if (effectiveAuthUid) {
+          mergedData.authUid = effectiveAuthUid;
         }
         await this.updateUserProfile(existingUser.uid, mergedData);
+        if (existingUser.uid !== targetUid) {
+          // Clean up old doc id if name format changed
+          if (isUsingCloud) {
+            try {
+              await setDoc(doc(db, 'users', targetUid), mergedData);
+              await deleteDoc(doc(db, 'users', existingUser.uid));
+            } catch (_) {}
+          }
+        }
         return mergedData as UserProfile;
       }
     }
 
-    // Requirement 1: In database, username and uid must be equal (username = uid)
-    const effectiveUsername = profile.username || uid;
-
     const baseProfile: Record<string, any> = {
-      uid,
+      uid: targetUid,
       email: cleanEmail,
-      name: profile.name.trim(),
-      displayName: profile.displayName?.trim() || profile.name.trim(),
+      name: cleanName,
+      displayName: profile.displayName?.trim() || cleanName,
       role: profile.role || 'student',
-      photoURL: profile.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
+      photoURL: profile.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${targetUid}`,
       pendingPhotoURL: profile.pendingPhotoURL || '',
       phone: profile.phone || '',
       address: profile.address || '',
@@ -612,7 +832,8 @@ const firestoreServiceRaw = {
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
       isPasswordResetRequired: profile.isPasswordResetRequired ?? false,
-      username: effectiveUsername, // Enforce username = uid
+      username: targetUid, // In database, uid and username must be in user's name format
+      authUid: effectiveAuthUid,
       status: profile.status || (profile.role === 'student' ? 'pending' : 'approved'),
       createdAt: profile.createdAt || new Date().toISOString(),
       admissionFeeCollected: profile.admissionFeeCollected ?? false,
@@ -640,8 +861,8 @@ const firestoreServiceRaw = {
     } else if (profile.role === 'tutor') {
       baseProfile.tutorDetails = {
         bio: profile.tutorDetails?.bio || 'Passionate education tutor ready to instruct.',
-        subjects: profile.tutorDetails?.subjects || ['Science'],
-        experience: profile.tutorDetails?.experience || 1,
+        subjects: profile.tutorDetails?.subjects || ['General Studies'],
+        experience: profile.tutorDetails?.experience || 3,
         qualification: profile.tutorDetails?.qualification || 'Bachelor Degree',
         hourlyRate: profile.tutorDetails?.hourlyRate || 30,
         rating: 5.0,
@@ -653,7 +874,11 @@ const firestoreServiceRaw = {
 
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'users', uid), fullProfile);
+        await setDoc(doc(db, 'users', targetUid), fullProfile);
+        // If uid was different, remove old orphan doc
+        if (uid && uid !== targetUid) {
+          await deleteDoc(doc(db, 'users', uid)).catch(() => {});
+        }
       } catch (e) {
         console.warn("Failed saving user online. Writing locally.", e);
       }
@@ -661,20 +886,20 @@ const firestoreServiceRaw = {
 
     // Save locally
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    const filteredReg = registered.filter(u => u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
+    const filteredReg = registered.filter(u => u.uid !== targetUid && u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
     filteredReg.push(fullProfile);
     saveFallback('local_registered_users', filteredReg);
 
     if (fullProfile.role === 'tutor' || fullProfile.tutorDetails) {
       const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-      const filteredTutors = tutors.filter(u => u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
+      const filteredTutors = tutors.filter(u => u.uid !== targetUid && u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
       filteredTutors.push(fullProfile);
       saveFallback('local_users_tutors', filteredTutors);
     }
 
     // Audit Log for user creation
     await this.addAuditLog({
-      username: profile.email || uid,
+      username: profile.email || targetUid,
       action: 'USER_CREATED',
       details: `Created ${fullProfile.role} profile for ${fullProfile.name} (${fullProfile.uid})`
     });

@@ -553,6 +553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setReconcileStep("Initializing Firestore sync engine...");
       try {
         await firestoreService.seedDatabase();
+        await firestoreService.migrateAllUsersToNameUids();
         setCloudSync(firestoreService.isCloudConnected());
 
         setReconcileProgress(50);
@@ -803,28 +804,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanLower = rawInput.toLowerCase();
 
     try {
-      // 1. First find if there is an existing profile in Firestore by email, username, or UID
-      let existingProfile = await firestoreService.getUserProfileByEmail(cleanLower);
+      // 1. Comprehensive lookup in Firestore/local profiles by email, username, name, or UID
+      let existingProfile = await firestoreService.getUserProfile(rawInput);
+      if (!existingProfile) {
+        existingProfile = await firestoreService.getUserProfileByEmail(cleanLower);
+      }
       if (!existingProfile) {
         existingProfile = await firestoreService.getUserProfileByUsername(rawInput);
       }
       if (!existingProfile) {
-        existingProfile = await firestoreService.getUserProfile(rawInput);
+        const allUsers = await firestoreService.getAllUsers();
+        existingProfile = allUsers.find(u => 
+          (u.email && u.email.toLowerCase() === cleanLower) ||
+          (u.username && u.username.toLowerCase() === cleanLower) ||
+          (u.uid && u.uid.toLowerCase() === cleanLower) ||
+          (u.name && u.name.toLowerCase() === cleanLower)
+        ) || null;
       }
 
-      // The email to use for Firebase Auth
-      const targetEmail = existingProfile?.email || cleanLower;
+      // The email to use for Firebase Auth if available
+      const targetEmail = existingProfile?.email || (cleanLower.includes('@') ? cleanLower : '');
 
       // 2. Attempt Firebase Authentication if it's an email
       let firebaseAuthSuccess = false;
       let firebaseAuthUid: string | null = null;
-      if (targetEmail.includes('@')) {
+      if (targetEmail && targetEmail.includes('@')) {
         try {
           const cred = await signInWithEmailAndPassword(auth, targetEmail, pass);
           firebaseAuthSuccess = true;
           firebaseAuthUid = cred.user.uid;
         } catch (authErr) {
-          // Fall through to database / credential validation below
+          // Fall through to database / stored credential validation below
         }
       }
 
@@ -832,16 +842,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (existingProfile) {
         // Enforce pending student approval
         if (existingProfile.role === 'student' && existingProfile.status === 'pending') {
-          if (firebaseAuthSuccess) await signOut(auth);
-          throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara support.");
+          if (firebaseAuthSuccess) {
+            try { await signOut(auth); } catch (_) {}
+          }
+          throw new Error("Your registration is pending administrator approval. Please contact Guru Gedara administration.");
         }
 
-        // Validate password if Firebase Auth wasn't used or succeeded
+        // Validate password if Firebase Auth didn't explicitly authenticate
         if (!firebaseAuthSuccess) {
           const overridesJSON = localStorage.getItem('local_password_overrides');
           const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
-          const expectedPassword = overrides[cleanLower] || overrides[existingProfile.email?.toLowerCase()] || existingProfile.password || 'test123';
-          if (pass !== expectedPassword && pass !== 'test123') {
+          const expectedPassword = overrides[cleanLower] || overrides[existingProfile.email?.toLowerCase()] || existingProfile.password;
+          
+          const isPasswordValid = 
+            (expectedPassword && pass === expectedPassword) ||
+            pass === 'test123' ||
+            (existingProfile.password && pass === existingProfile.password);
+
+          if (!isPasswordValid) {
             throw new Error("Invalid password credentials.");
           }
         }
@@ -870,7 +888,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cleanLower === 'admin@gg.com' || cleanLower === 'admin' || cleanLower === 'admin_demo') {
         if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('admin');
-        const customUser: UserProfile = { ...dummy, email: 'admin@gg.com', name: 'Academy Administrator', role: 'admin' };
+        const customUser: UserProfile = { ...dummy, uid: 'admin_demo', username: 'admin_demo', email: 'admin@gg.com', name: 'Academy Administrator', role: 'admin' };
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Academy Administrator!", "success");
@@ -880,7 +898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cleanLower === 'tutor@gg.com' || cleanLower === 'tutor' || cleanLower === 'tutor_demo') {
         if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('tutor');
-        const customUser: UserProfile = { ...dummy, email: 'tutor@gg.com', name: 'Faculty Tutor', role: 'tutor' };
+        const customUser: UserProfile = { ...dummy, uid: 'faculty_tutor', username: 'faculty_tutor', email: 'tutor@gg.com', name: 'Faculty Tutor', role: 'tutor' };
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Faculty Tutor!", "success");
@@ -890,15 +908,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cleanLower === 'student@gg.com' || cleanLower === 'student' || cleanLower === 'student_demo') {
         if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('student');
-        const customUser: UserProfile = { ...dummy, email: 'student@gg.com', name: 'Scholar Student', role: 'student', status: 'approved' };
+        const customUser: UserProfile = { ...dummy, uid: 'scholar_student', username: 'scholar_student', email: 'student@gg.com', name: 'Scholar Student', role: 'student', status: 'approved' };
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Student Scholar!", "success");
         return customUser;
       }
 
-      // 5. Account not found - reject rather than creating a duplicate
-      throw new Error("No registered account found with these credentials. Please check your username/email or sign up.");
+      // 5. Account not found
+      throw new Error("No registered account found with these credentials. Please check your username, email, or full name.");
     } catch (e: any) {
       setLoading(false);
       throw e;
@@ -914,36 +932,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     additionalData: any = {}
   ): Promise<UserProfile> => {
     setLoading(true);
+    let authUid = '';
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      const profile = await firestoreService.createUserProfile(cred.user.uid, {
+      authUid = cred.user.uid;
+    } catch (e: any) {
+      console.warn("Firebase Auth direct creation note:", e?.message);
+    }
+
+    try {
+      const profile = await firestoreService.createUserProfile(authUid || email, {
         email,
         name,
         role,
+        password: pass,
         ...additionalData
       });
-      setCurrentUser(profile);
+
+      if (profile.status !== 'pending') {
+        setCurrentUser(profile);
+        try {
+          localStorage.setItem('local_running_session', safeStringify(profile));
+        } catch (_) {}
+      } else {
+        // Pending student approval
+        setCurrentUser(null);
+        localStorage.removeItem('local_running_session');
+      }
+
       showToast(`Registration complete! Welcome, ${name}.`, "success");
       return profile;
-    } catch (e: any) {
+    } catch (createErr: any) {
       setLoading(false);
-      // Fallback: If cloud auth registration rejects, create a fully dynamic offline role session!
-      console.warn("Creating highly resilient local registration session.", e);
-      const localId = "local_user_" + Math.random().toString(36).substr(2, 9);
-      const profile = await firestoreService.createUserProfile(localId, {
-        email,
-        name,
-        role,
-        ...additionalData
-      });
-      try {
-        localStorage.setItem('local_running_session', safeStringify(profile));
-      } catch (err) {
-        console.warn("Failed storing running session", err);
-      }
-      setCurrentUser(profile);
-      showToast("Registered successfully (Local Dev Mode active)!", "success");
-      return profile;
+      throw createErr;
     }
   };
 

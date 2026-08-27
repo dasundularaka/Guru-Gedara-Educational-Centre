@@ -15,6 +15,7 @@ import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
 import { CameraProfileCapture } from '../components/CameraProfileCapture';
+import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -85,7 +86,8 @@ import {
   Award,
   Percent,
   QrCode,
-  Camera
+  Camera,
+  BadgeCheck
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -554,6 +556,7 @@ export const AdminDashboard: React.FC = () => {
   // Admin search states
   const [adminNameQuery, setAdminNameQuery] = useState('');
   const [adminUserQuery, setAdminUserQuery] = useState('');
+  const [selectedUserForIdCard, setSelectedUserForIdCard] = useState<UserProfile | null>(null);
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1631,6 +1634,17 @@ export const AdminDashboard: React.FC = () => {
 
           {/* Controls: Admin Profile Avatar & Navigation Dropdown */}
           <div className="flex items-center gap-3">
+            {/* Executive ID Pass Button */}
+            <button
+              id="admin_my_id_card_btn"
+              onClick={() => setSelectedUserForIdCard(currentUser || null)}
+              className="px-3.5 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-slate-950 text-white rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              title="View, print and export official Executive Admin ID Card"
+            >
+              <BadgeCheck className="w-4 h-4 text-amber-400" />
+              <span>Executive ID Pass</span>
+            </button>
+
             {/* Admin Profile Picture Control */}
             <button
               id="admin_profile_photo_btn"
@@ -2603,6 +2617,14 @@ export const AdminDashboard: React.FC = () => {
                         {/* Card Action Controls */}
                         <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
                           <button
+                            id={`idcard-student-btn-${stud.uid}`}
+                            onClick={() => setSelectedUserForIdCard(stud)}
+                            className="p-1 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all"
+                            title="Generate and print official Student ID Card"
+                          >
+                            <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" /> ID Card
+                          </button>
+                          <button
                             id={`progress-student-btn-${stud.uid}`}
                             onClick={() => {
                               setSelectedProgressStudentId(stud.uid);
@@ -3096,6 +3118,14 @@ export const AdminDashboard: React.FC = () => {
 
                       {/* Card Action Controls */}
                       <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
+                        <button
+                          id={`idcard-tutor-btn-${tut.uid}`}
+                          onClick={() => setSelectedUserForIdCard(tut)}
+                          className="p-1 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all"
+                          title="Generate and print official Faculty ID Card"
+                        >
+                          <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" /> ID Card
+                        </button>
                         <button
                           id={`view-tutor-profile-btn-${tut.uid}`}
                           onClick={() => setSelectedTutorForProfile(tut)}
@@ -3706,22 +3736,33 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                          {admin.uid !== currentUser.uid && (
+                          <div className="flex items-center gap-1.5">
                             <button
-                              onClick={() => {
-                                setDeleteConfirm({
-                                  isOpen: true,
-                                  type: 'user',
-                                  id: admin.uid,
-                                  title: admin.name
-                                });
-                              }}
-                              className="p-1.5 rounded bg-red-50 hover:bg-red-100 border border-red-105 text-red-600 cursor-pointer"
-                              title="Revoke Moderator Status"
+                              id={`idcard-admin-btn-${admin.uid}`}
+                              onClick={() => setSelectedUserForIdCard(admin)}
+                              className="p-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white cursor-pointer flex items-center gap-1 text-[10px] font-bold transition-all shadow-xs"
+                              title="Generate and print official Executive Admin ID Pass"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <BadgeCheck className="w-3.5 h-3.5 text-amber-400" /> ID Pass
                             </button>
-                          )}
+
+                            {admin.uid !== currentUser.uid && (
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirm({
+                                    isOpen: true,
+                                    type: 'user',
+                                    id: admin.uid,
+                                    title: admin.name
+                                  });
+                                }}
+                                className="p-1.5 rounded bg-red-50 hover:bg-red-100 border border-red-105 text-red-600 cursor-pointer"
+                                title="Revoke Moderator Status"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))
                     )}
@@ -5296,6 +5337,19 @@ export const AdminDashboard: React.FC = () => {
             await fetchAdminDatasets();
             showToast('Administrator profile photo updated and synchronized successfully!', 'success');
           }}
+        />
+      )}
+
+      {/* Role-Adaptive Digital ID Card Modal (Executive Admin, Faculty Tutor, Student Scholar) */}
+      {selectedUserForIdCard && (
+        <DigitalStudentIDCardModal
+          isOpen={!!selectedUserForIdCard}
+          onClose={() => setSelectedUserForIdCard(null)}
+          currentUser={selectedUserForIdCard}
+          enrolledClasses={classesList}
+          bookings={bookingsList}
+          showToast={showToast}
+          onOpenPhotoUpload={selectedUserForIdCard.uid === currentUser?.uid ? () => setShowAdminCameraModal(true) : undefined}
         />
       )}
     </motion.div>

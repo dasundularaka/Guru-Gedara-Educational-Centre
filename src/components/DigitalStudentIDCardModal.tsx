@@ -9,25 +9,19 @@ import {
   CheckCircle2, 
   ShieldCheck, 
   Sparkles, 
-  School, 
   GraduationCap, 
-  Mail, 
   Phone, 
-  MapPin, 
-  Calendar, 
-  User, 
   AlertCircle, 
   Check, 
   Copy, 
   Layers, 
-  Eye, 
-  FileText,
   BadgeCheck,
   Building2,
   BookOpen,
   FileDown,
-  Clock,
-  Sparkle
+  Briefcase,
+  Award,
+  Crown
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { toPng } from 'html-to-image';
@@ -44,7 +38,7 @@ interface DigitalStudentIDCardModalProps {
   onOpenPhotoUpload?: () => void;
 }
 
-type CardTheme = 'navy' | 'indigo' | 'emerald' | 'obsidian';
+type CardTheme = 'navy' | 'indigo' | 'emerald' | 'obsidian' | 'crimson';
 type ViewMode = 'single_flip' | 'dual_side' | 'printable_sheet';
 
 export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps> = ({
@@ -57,7 +51,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   onOpenPhotoUpload
 }) => {
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
-  const [selectedTheme, setSelectedTheme] = useState<CardTheme>('navy');
+  const [selectedTheme, setSelectedTheme] = useState<CardTheme>(
+    currentUser.role === 'admin' ? 'obsidian' : currentUser.role === 'tutor' ? 'emerald' : 'navy'
+  );
   const [viewMode, setViewMode] = useState<ViewMode>('single_flip');
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState<boolean>(false);
@@ -69,10 +65,33 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
   if (!isOpen) return null;
 
-  const studentIdCode = currentUser.username || currentUser.uid.slice(0, 10).toUpperCase();
-  const formattedStudentId = `STU-${studentIdCode.toUpperCase()}`;
+  const role = currentUser.role || 'student';
+  const rawId = currentUser.username || currentUser.uid || 'USER';
+  
+  // Format formatted card ID based on role
+  let formattedId = rawId;
+  let roleTitle = 'Digital Student Identity Pass';
+  let roleHeader = 'Official Digital Student ID Card';
+  let roleBadge = currentUser.isFreeCard ? 'Free Card Scholar' : 'Active Scholar';
+
+  if (role === 'tutor') {
+    formattedId = rawId.startsWith('GT') || rawId.startsWith('TUT') ? rawId : `TUT-${rawId.toUpperCase()}`;
+    roleTitle = 'Faculty & Tutor Identity Pass';
+    roleHeader = 'Official Faculty & Tutor ID Card';
+    roleBadge = 'Accredited Faculty';
+  } else if (role === 'admin') {
+    formattedId = rawId.startsWith('GA') || rawId.startsWith('ADM') ? rawId : `ADM-${rawId.toUpperCase()}`;
+    roleTitle = 'Executive Administration Identity Pass';
+    roleHeader = 'Official Executive Admin ID Card';
+    roleBadge = 'Executive Administration';
+  } else {
+    formattedId = rawId.startsWith('GB') || rawId.startsWith('STU') ? rawId : `STU-${rawId.toUpperCase()}`;
+    roleTitle = 'Digital Student Identity Pass';
+    roleHeader = 'Official Digital Student ID Card';
+    roleBadge = currentUser.isFreeCard ? 'Free Card Scholar' : 'Active Scholar';
+  }
+
   const studentGrade = currentUser.studentDetails?.grade || 'Grade 11 - Advanced Level';
-  const studentSchool = currentUser.studentDetails?.school || 'Gurugedara Higher Education Institute';
   const admissionDateStr = currentUser.createdAt 
     ? new Date(currentUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
     : 'Aug 2025';
@@ -82,16 +101,30 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   const enrolledSubjectNames = Array.from(
     new Set([
       ...enrolledClasses.map(c => c.subject || c.title),
-      ...bookings.filter(b => b.status === 'active').map(b => b.classTitle)
+      ...bookings.filter(b => b.status === 'active').map(b => b.classTitle),
+      ...(currentUser.tutorDetails?.subjects || [])
     ])
   ).filter(Boolean);
 
   const displayCourses = enrolledSubjectNames.length > 0
     ? enrolledSubjectNames
-    : ['Combined Mathematics', 'Advanced Physics', 'Chemistry', 'Information Technology'];
+    : role === 'tutor' 
+      ? ['Combined Mathematics', 'Advanced Physics']
+      : ['Combined Mathematics', 'Advanced Physics', 'Chemistry', 'Information Technology'];
 
   // Theme styling definitions
-  const themeStyles = {
+  const themeStyles: Record<CardTheme, {
+    id: CardTheme;
+    name: string;
+    bgGradient: string;
+    accentColor: string;
+    accentBg: string;
+    accentBorder: string;
+    headerBg: string;
+    badgeBg: string;
+    glow: string;
+    watermarkColor: string;
+  }> = {
     navy: {
       id: 'navy',
       name: 'Royal Navy & Gold',
@@ -118,7 +151,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     },
     emerald: {
       id: 'emerald',
-      name: 'Emerald Scholar',
+      name: 'Faculty Emerald',
       bgGradient: 'from-slate-950 via-emerald-950 to-slate-900',
       accentColor: 'text-emerald-400',
       accentBg: 'bg-emerald-500/15',
@@ -139,21 +172,42 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       badgeBg: 'bg-slate-200 text-slate-950',
       glow: 'shadow-[0_10px_35px_rgba(0,0,0,0.4)]',
       watermarkColor: 'text-white/10'
+    },
+    crimson: {
+      id: 'crimson',
+      name: 'Executive Crimson',
+      bgGradient: 'from-rose-950 via-slate-950 to-red-950',
+      accentColor: 'text-rose-400',
+      accentBg: 'bg-rose-500/15',
+      accentBorder: 'border-rose-400/40',
+      headerBg: 'bg-rose-950/90',
+      badgeBg: 'bg-rose-500 text-white',
+      glow: 'shadow-[0_10px_35px_rgba(225,29,72,0.25)]',
+      watermarkColor: 'text-rose-400/10'
     }
   };
 
-  const currentTheme = themeStyles[selectedTheme];
+  const currentTheme = themeStyles[selectedTheme] || themeStyles.navy;
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(studentIdCode);
+    navigator.clipboard.writeText(formattedId);
     setCopiedId(true);
-    showToast(`Student ID '${studentIdCode}' copied to clipboard!`, 'success');
+    showToast(`ID '${formattedId}' copied to clipboard!`, 'success');
     setTimeout(() => setCopiedId(false), 2000);
   };
 
   const handlePrint = () => {
-    // Triggers standard browser print with CSS media query optimization
     window.print();
+  };
+
+  // Helper to capture DOM node as image safely
+  const captureNode = async (node: HTMLElement) => {
+    return await toPng(node, {
+      quality: 0.98,
+      pixelRatio: 2.5,
+      cacheBust: true,
+      skipAutoScale: true
+    });
   };
 
   // Download high-resolution PNG front card
@@ -161,13 +215,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     if (!frontCardRef.current) return;
     setIsExporting(true);
     try {
-      const dataUrl = await toPng(frontCardRef.current, {
-        quality: 0.98,
-        pixelRatio: 3,
-        cacheBust: true
-      });
+      const dataUrl = await captureNode(frontCardRef.current);
       const link = document.createElement('a');
-      link.download = `Gurugedara_StudentID_Front_${studentIdCode}.png`;
+      link.download = `Gurugedara_ID_Front_${formattedId}.png`;
       link.href = dataUrl;
       link.click();
       showToast('Front ID Card downloaded in high resolution!', 'success');
@@ -184,13 +234,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     if (!backCardRef.current) return;
     setIsExporting(true);
     try {
-      const dataUrl = await toPng(backCardRef.current, {
-        quality: 0.98,
-        pixelRatio: 3,
-        cacheBust: true
-      });
+      const dataUrl = await captureNode(backCardRef.current);
       const link = document.createElement('a');
-      link.download = `Gurugedara_StudentID_Back_${studentIdCode}.png`;
+      link.download = `Gurugedara_ID_Back_${formattedId}.png`;
       link.href = dataUrl;
       link.click();
       showToast('Back ID Card downloaded in high resolution!', 'success');
@@ -207,13 +253,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     if (!printableSheetRef.current) return;
     setIsExporting(true);
     try {
-      const dataUrl = await toPng(printableSheetRef.current, {
-        quality: 0.98,
-        pixelRatio: 3,
-        cacheBust: true
-      });
+      const dataUrl = await captureNode(printableSheetRef.current);
       const link = document.createElement('a');
-      link.download = `Gurugedara_StudentID_Print_Sheet_${studentIdCode}.png`;
+      link.download = `Gurugedara_ID_Print_Sheet_${formattedId}.png`;
       link.href = dataUrl;
       link.click();
       showToast('Printable badge sheet downloaded in high resolution!', 'success');
@@ -227,14 +269,16 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
   // Download standalone QR code pass
   const handleDownloadQrOnly = () => {
-    const canvas = document.getElementById('student_id_qr_canvas') as HTMLCanvasElement;
+    const canvas = document.getElementById('digital_id_qr_canvas') as HTMLCanvasElement;
     if (canvas) {
       const url = canvas.toDataURL('image/png');
       const link = document.createElement('a');
-      link.download = `Gurugedara_QR_Attendance_Pass_${studentIdCode}.png`;
+      link.download = `Gurugedara_QR_Pass_${formattedId}.png`;
       link.href = url;
       link.click();
-      showToast('Student attendance QR pass downloaded successfully!', 'success');
+      showToast('Attendance verification QR pass downloaded successfully!', 'success');
+    } else {
+      showToast('QR Canvas not ready. Please try again.', 'error');
     }
   };
 
@@ -243,20 +287,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     if (!frontCardRef.current || !backCardRef.current) return;
     setIsPdfGenerating(true);
     try {
-      // 1. Generate high-resolution image snapshots
-      const frontDataUrl = await toPng(frontCardRef.current, {
-        quality: 0.98,
-        pixelRatio: 3,
-        cacheBust: true
-      });
+      const frontDataUrl = await captureNode(frontCardRef.current);
+      const backDataUrl = await captureNode(backCardRef.current);
 
-      const backDataUrl = await toPng(backCardRef.current, {
-        quality: 0.98,
-        pixelRatio: 3,
-        cacheBust: true
-      });
-
-      // 2. Initialize jsPDF in A4 Portrait mode
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -278,12 +311,12 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.setFontSize(8.5);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(251, 191, 36); // amber-400
-      pdf.text(`OFFICIAL DIGITAL STUDENT IDENTITY CARD • ACADEMIC YEAR ${academicYear}`, pageWidth / 2, 17, { align: 'center' });
+      pdf.text(`OFFICIAL ${role.toUpperCase()} IDENTITY CARD • ACADEMIC YEAR ${academicYear}`, pageWidth / 2, 17, { align: 'center' });
 
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(203, 213, 225); // slate-300
-      pdf.text(`Student: ${currentUser.name}  |  ID: ${formattedStudentId}  |  Stream: ${studentGrade}`, pageWidth / 2, 23, { align: 'center' });
+      pdf.text(`Name: ${currentUser.name}  |  ID: ${formattedId}  |  Role: ${role.toUpperCase()}`, pageWidth / 2, 23, { align: 'center' });
 
       // Verification & Usage Notice
       pdf.setFillColor(248, 250, 252);
@@ -293,16 +326,22 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.setTextColor(15, 23, 42);
       pdf.setFontSize(8.5);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('OFFLINE IDENTIFICATION & ATTENDANCE NOTICE:', 18, 39);
+      pdf.text('OFFLINE IDENTIFICATION & GATE VERIFICATION NOTICE:', 18, 39);
 
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(7.5);
       pdf.setTextColor(71, 85, 105);
       pdf.text('• Present this digital pass on your mobile device or print on cardstock for lecture hall gate verification.', 18, 44);
       pdf.text('• The high-density QR token is cryptographically synced with the Gurugedara attendance logging system.', 18, 48);
-      pdf.text('• Enrolled Courses: ' + displayCourses.slice(0, 4).join(', '), 18, 52);
+      if (role === 'student') {
+        pdf.text('• Enrolled Courses: ' + displayCourses.slice(0, 4).join(', '), 18, 52);
+      } else if (role === 'tutor') {
+        pdf.text(`• Faculty Subjects: ${currentUser.tutorDetails?.subjects?.join(', ') || 'Academic Faculty'}`, 18, 52);
+      } else {
+        pdf.text('• Authorization: Tier-1 Executive Academy Administration Clearance', 18, 52);
+      }
 
-      // Card Dimensions: Standard 85.6mm x 53.98mm scaled for optimal clarity
+      // Standard scaled card dimensions
       const cardWidth = 135; // mm
       const cardHeight = (cardWidth / 1.58); // ~85.4 mm
       const posX = (pageWidth - cardWidth) / 2;
@@ -312,13 +351,13 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.setTextColor(15, 23, 42);
       pdf.setFontSize(9);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('1. FRONT SIDE (SCHOLAR IDENTITY & CHECK-IN QR)', posX, frontY - 2);
+      pdf.text(`1. FRONT SIDE (${role.toUpperCase()} IDENTITY & CHECK-IN QR)`, posX, frontY - 2);
 
       pdf.addImage(frontDataUrl, 'PNG', posX, frontY, cardWidth, cardHeight, undefined, 'FAST');
 
       // 4. Add Back Card Image
       const backY = frontY + cardHeight + 12;
-      pdf.text('2. BACK SIDE (COURSES REGISTRY & EMERGENCY CONTACT)', posX, backY - 2);
+      pdf.text('2. BACK SIDE (CREDENTIALS & EMERGENCY REGISTRY)', posX, backY - 2);
 
       pdf.addImage(backDataUrl, 'PNG', posX, backY, cardWidth, cardHeight, undefined, 'FAST');
 
@@ -333,22 +372,25 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.setTextColor(100, 116, 139);
       pdf.text('Gurugedara Higher Education Institute • Registrar Office: +94 11 234 5678 • portal: www.gurugedara.edu.lk', pageWidth / 2, pageHeight - 8, { align: 'center' });
 
-      // Save PDF
-      pdf.save(`Gurugedara_StudentID_${studentIdCode}.pdf`);
-      showToast('Student ID Card PDF generated and saved for offline use!', 'success');
+      pdf.save(`Gurugedara_ID_${role}_${formattedId}.pdf`);
+      showToast('Digital ID Card PDF generated and saved for offline use!', 'success');
     } catch (err) {
-      console.error('Failed to generate student ID PDF', err);
+      console.error('Failed to generate ID Card PDF', err);
       showToast('Could not generate PDF. Please try again.', 'error');
     } finally {
       setIsPdfGenerating(false);
     }
   };
 
+  // Avatar Photo fallback URL
+  const avatarFallback = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.name || 'User')}`;
+  const userPhoto = currentUser.photoURL || avatarFallback;
+
   // Render Front Side of ID Card
   const renderFrontCard = (forPrint = false) => (
     <div
       ref={frontCardRef}
-      id="student_id_card_front"
+      id="digital_id_card_front"
       className={`relative w-full max-w-[500px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
         forPrint ? 'border-slate-800 shadow-none' : `${currentTheme.accentBorder} ${currentTheme.glow}`
       } bg-gradient-to-br ${currentTheme.bgGradient} p-4 sm:p-5 flex flex-col justify-between select-none shadow-2xl`}
@@ -369,14 +411,20 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-2">
         <div className="flex items-center gap-2">
           <div className="w-7.5 h-7.5 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md border border-amber-300 shrink-0">
-            <GraduationCap className="w-4.5 h-4.5 text-slate-950" />
+            {role === 'admin' ? (
+              <Crown className="w-4.5 h-4.5 text-slate-950" />
+            ) : role === 'tutor' ? (
+              <Briefcase className="w-4.5 h-4.5 text-slate-950" />
+            ) : (
+              <GraduationCap className="w-4.5 h-4.5 text-slate-950" />
+            )}
           </div>
           <div>
             <h3 className="text-[11px] sm:text-xs font-black tracking-wider uppercase text-white leading-tight font-sans">
               Gurugedara Higher Education
             </h3>
             <p className={`text-[8px] sm:text-[9px] font-mono font-bold tracking-widest uppercase ${currentTheme.accentColor}`}>
-              Digital Student Identity Pass
+              {roleTitle}
             </p>
           </div>
         </div>
@@ -387,17 +435,18 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
         </div>
       </div>
 
-      {/* Main Body: Photo, Info, Enrolled Courses & Scannable QR */}
+      {/* Main Body: Photo, Info, Courses/Faculty & Scannable QR */}
       <div className="relative z-10 grid grid-cols-12 gap-2.5 sm:gap-3.5 items-center my-auto py-1">
         {/* Photo Column */}
         <div className="col-span-4 flex flex-col items-center">
           <div className="relative group">
             <div className="w-18 h-22 sm:w-22 sm:h-26 rounded-xl overflow-hidden border-2 border-amber-400/80 shadow-lg bg-slate-800 relative">
               <img
-                src={currentUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentUser.uid}`}
+                src={userPhoto}
                 alt={currentUser.name}
                 className="w-full h-full object-cover"
                 crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
               />
               <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 backdrop-blur-xs py-0.5 text-center">
                 <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-emerald-400 font-bold flex items-center justify-center gap-0.5">
@@ -410,50 +459,87 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               <Sparkles className="w-3 h-3 text-slate-900" />
             </div>
           </div>
-          <span className="text-[8px] sm:text-[9px] font-mono font-bold text-slate-300 mt-1.5">
-            ID: <span className="text-white font-black">{formattedStudentId}</span>
+          <span className="text-[8px] sm:text-[9px] font-mono font-bold text-slate-300 mt-1.5 truncate max-w-[110px]">
+            ID: <span className="text-white font-black">{formattedId}</span>
           </span>
         </div>
 
-        {/* Info & Course List Column */}
+        {/* Info Column */}
         <div className="col-span-5 space-y-1 text-left">
           <div>
-            <span className="text-[7px] sm:text-[8px] font-mono uppercase text-slate-400 tracking-wider block">Student Name</span>
+            <span className="text-[7px] sm:text-[8px] font-mono uppercase text-slate-400 tracking-wider block">
+              {role === 'tutor' ? 'Faculty Lecturer' : role === 'admin' ? 'Administrative Staff' : 'Student Name'}
+            </span>
             <h4 className="text-xs sm:text-sm font-black text-white leading-tight tracking-tight line-clamp-1">
               {currentUser.name}
             </h4>
           </div>
 
           <div>
-            <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-slate-400 tracking-wider block">Academic Stream</span>
-            <p className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-200 truncate">{studentGrade}</p>
+            <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-slate-400 tracking-wider block">
+              {role === 'tutor' ? 'Academic Department' : role === 'admin' ? 'Executive Division' : 'Academic Stream'}
+            </span>
+            <p className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-200 truncate">
+              {role === 'tutor' 
+                ? (currentUser.tutorDetails?.qualification || 'Senior Faculty') 
+                : role === 'admin' 
+                  ? 'Operations & Governance' 
+                  : studentGrade}
+            </p>
           </div>
 
-          {/* Enrolled Courses Showcase */}
-          <div>
-            <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
-              <BookOpen className="w-2.5 h-2.5" /> Enrolled Courses ({displayCourses.length})
-            </span>
-            <div className="flex flex-wrap gap-1 mt-0.5 max-h-9 overflow-hidden">
-              {displayCourses.slice(0, 3).map((course, idx) => (
-                <span 
-                  key={idx}
-                  className="px-1.5 py-0.2 text-[7px] sm:text-[7.5px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[110px]"
-                >
-                  {course}
-                </span>
-              ))}
-              {displayCourses.length > 3 && (
-                <span className="px-1 py-0.2 text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
-                  +{displayCourses.length - 3}
-                </span>
-              )}
+          {/* Role-Specific Showcase */}
+          {role === 'student' && (
+            <div>
+              <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
+                <BookOpen className="w-2.5 h-2.5" /> Enrolled Courses ({displayCourses.length})
+              </span>
+              <div className="flex flex-wrap gap-1 mt-0.5 max-h-9 overflow-hidden">
+                {displayCourses.slice(0, 3).map((course, idx) => (
+                  <span 
+                    key={idx}
+                    className="px-1.5 py-0.2 text-[7px] sm:text-[7.5px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[110px]"
+                  >
+                    {course}
+                  </span>
+                ))}
+                {displayCourses.length > 3 && (
+                  <span className="px-1 py-0.2 text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
+                    +{displayCourses.length - 3}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {role === 'tutor' && (
+            <div>
+              <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-emerald-300 tracking-wider flex items-center gap-1 font-bold">
+                <Award className="w-2.5 h-2.5" /> Specialization
+              </span>
+              <p className="text-[8px] sm:text-[8.5px] text-slate-200 font-medium truncate">
+                {currentUser.tutorDetails?.subjects?.join(', ') || 'Mathematics & Sciences'}
+              </p>
+              <p className="text-[7px] text-slate-400 font-mono">
+                Exp: {currentUser.tutorDetails?.experience || 5}+ Years
+              </p>
+            </div>
+          )}
+
+          {role === 'admin' && (
+            <div>
+              <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-rose-300 tracking-wider flex items-center gap-1 font-bold">
+                <ShieldCheck className="w-2.5 h-2.5" /> Clearance Level
+              </span>
+              <p className="text-[8px] sm:text-[8.5px] text-slate-200 font-medium">
+                Level-1 Full System Authorization
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 pt-0.5">
             <span className={`px-1.5 py-0.5 rounded text-[7px] sm:text-[7.5px] font-bold font-mono uppercase tracking-wider ${currentTheme.badgeBg}`}>
-              {currentUser.isFreeCard ? 'Free Card Scholar' : 'Active Scholar'}
+              {roleBadge}
             </span>
             <span className="text-[7px] font-mono text-slate-400">
               Iss: {admissionDateStr}
@@ -465,15 +551,15 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
         <div className="col-span-3 flex flex-col items-center justify-center text-center">
           <div className="p-1 sm:p-1.5 bg-white rounded-xl shadow-md border border-white/30">
             <QRCodeCanvas
-              id="student_id_qr_canvas"
-              value={studentIdCode}
+              id="digital_id_qr_canvas"
+              value={formattedId}
               size={68}
               level="H"
               includeMargin={false}
             />
           </div>
           <span className="text-[6.5px] sm:text-[7px] font-mono uppercase tracking-widest text-slate-300 mt-1 font-bold">
-            Scan for Entry
+            {role === 'admin' ? 'Security Gate' : 'Scan for Entry'}
           </span>
         </div>
       </div>
@@ -481,14 +567,13 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       {/* Footer Strip with Barcode styling & Microtext */}
       <div className="relative z-10 flex items-center justify-between border-t border-white/15 pt-1.5 text-[7px] sm:text-[8px] font-mono text-slate-400">
         <div className="flex items-center gap-1.5">
-          {/* Simulated mini barcode */}
           <div className="h-3.5 flex items-center gap-0.5 bg-white/90 px-1 rounded-xs">
             {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 2, 3, 1, 2].map((w, i) => (
               <span key={i} className="h-2.5 bg-slate-950 inline-block" style={{ width: `${w}px` }} />
             ))}
           </div>
           <span className="text-[6.5px] sm:text-[7px] text-slate-400 tracking-tight hidden sm:inline">
-            SECURE SCHOLAR VERIFICATION TOKEN
+            SECURE VERIFICATION TOKEN
           </span>
         </div>
 
@@ -504,7 +589,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   const renderBackCard = (forPrint = false) => (
     <div
       ref={backCardRef}
-      id="student_id_card_back"
+      id="digital_id_card_back"
       className={`relative w-full max-w-[500px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
         forPrint ? 'border-slate-800 shadow-none' : `${currentTheme.accentBorder} ${currentTheme.glow}`
       } bg-gradient-to-br ${currentTheme.bgGradient} p-4 sm:p-5 flex flex-col justify-between select-none shadow-2xl`}
@@ -525,50 +610,73 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
         <div className="flex items-center gap-1.5">
           <BadgeCheck className="w-3.5 h-3.5 text-amber-400" />
           <h4 className="text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-white">
-            Academic Courses & Emergency Registry
+            {role === 'tutor' ? 'Faculty Registry & Credentials' : role === 'admin' ? 'Executive Governance Registry' : 'Academic Courses & Emergency Registry'}
           </h4>
         </div>
         <span className="text-[7.5px] sm:text-[8px] font-mono text-slate-400 font-bold">
-          CARD REF #{studentIdCode}
+          REF #{formattedId}
         </span>
       </div>
 
-      {/* Body: Course List & Emergency Contacts */}
+      {/* Body */}
       <div className="relative z-10 grid grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1 text-[8.5px] sm:text-[9px]">
-        {/* Left Column: Student Contact & Emergency Guardian */}
+        {/* Left Column: Contact info */}
         <div className="space-y-1.5 bg-white/5 p-2 sm:p-2.5 rounded-xl border border-white/10">
-          <div>
-            <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Guardian / Emergency Contact</span>
-            <p className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight">
-              {currentUser.guardianName || currentUser.studentDetails?.parentContact || 'Registered Guardian'}
-            </p>
-            <p className="text-[8.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
-              <Phone className="w-2.5 h-2.5 text-amber-400 inline" />
-              {currentUser.guardianPhone || currentUser.phone || '+94 77 123 4567'}
-            </p>
-          </div>
-
-          <div className="pt-1 border-t border-white/10">
-            <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Linked Parent Email</span>
-            <p className="text-[8.5px] sm:text-[9px] text-slate-200 truncate font-mono">
-              {currentUser.parentEmail || currentUser.email}
-            </p>
-            {currentUser.isParentEmailLinked && (
-              <span className="text-[6.5px] sm:text-[7px] text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
-                <CheckCircle2 className="w-2 h-2 inline" /> Auto-CC Active for Attendance Logs
-              </span>
-            )}
-          </div>
+          {role === 'student' ? (
+            <>
+              <div>
+                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Guardian / Emergency Contact</span>
+                <p className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight">
+                  {currentUser.guardianName || currentUser.studentDetails?.parentContact || 'Registered Guardian'}
+                </p>
+                <p className="text-[8.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
+                  <Phone className="w-2.5 h-2.5 text-amber-400 inline" />
+                  {currentUser.guardianPhone || currentUser.phone || '+94 77 123 4567'}
+                </p>
+              </div>
+              <div className="pt-1 border-t border-white/10">
+                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Linked Parent Email</span>
+                <p className="text-[8.5px] sm:text-[9px] text-slate-200 truncate font-mono">
+                  {currentUser.parentEmail || currentUser.email}
+                </p>
+                {currentUser.isParentEmailLinked && (
+                  <span className="text-[6.5px] sm:text-[7px] text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
+                    <CheckCircle2 className="w-2 h-2 inline" /> Auto-CC Active
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Official Communications</span>
+                <p className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight truncate">
+                  {currentUser.email}
+                </p>
+                <p className="text-[8.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
+                  <Phone className="w-2.5 h-2.5 text-amber-400 inline" />
+                  {currentUser.phone || '+94 11 234 5678'}
+                </p>
+              </div>
+              <div className="pt-1 border-t border-white/10">
+                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Institutional Status</span>
+                <span className="text-[7.5px] text-emerald-300 font-mono font-bold flex items-center gap-1 mt-0.5">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" /> Authorized Active Faculty
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Right Column: Full Enrolled Courses Pathways */}
+        {/* Right Column: Roles & Terms */}
         <div className="space-y-1 bg-white/5 p-2 sm:p-2.5 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
             <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-amber-300 block font-bold mb-1 flex items-center gap-1">
-              <BookOpen className="w-2.5 h-2.5" /> Enrolled Course Pathways ({displayCourses.length})
+              <BookOpen className="w-2.5 h-2.5" /> 
+              {role === 'tutor' ? 'Faculty Courses' : role === 'admin' ? 'Supervisory Access' : 'Enrolled Courses'}
             </span>
             <div className="flex flex-col gap-0.5 max-h-16 overflow-y-auto pr-1">
-              {displayCourses.map((sub, i) => (
+              {displayCourses.slice(0, 4).map((sub, i) => (
                 <div
                   key={i}
                   className="px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[7.5px] sm:text-[8px] flex items-center justify-between"
@@ -581,8 +689,8 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           </div>
 
           <div className="pt-1 border-t border-white/10 text-[7.5px] sm:text-[8px] text-slate-300 flex items-center justify-between">
-            <span>DOB: <strong className="font-mono text-white">{currentUser.dob || 'On File'}</strong></span>
-            <span className="truncate max-w-[90px]">Western Province, LK</span>
+            <span>Issue: <strong className="font-mono text-white">{admissionDateStr}</strong></span>
+            <span className="truncate max-w-[90px]">Colombo, LK</span>
           </div>
         </div>
       </div>
@@ -590,11 +698,10 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       {/* Card Terms & Authorization Signature */}
       <div className="relative z-10 border-t border-white/15 pt-1.5 flex items-center justify-between text-[6.5px] sm:text-[7px] text-slate-400 font-sans">
         <p className="max-w-[270px] leading-tight text-slate-300">
-          Property of Gurugedara Higher Education Institute. Valid for examination entry, lab access, and live QR gate check-in.
+          Official property of Gurugedara Higher Education Institute. Valid for examination entry, lab access, and live QR gate check-in.
         </p>
 
         <div className="text-center pl-2">
-          {/* Digital Signature stamp simulation */}
           <div className="font-serif italic text-amber-300 text-[9.5px] sm:text-[10px] font-bold leading-none select-none tracking-wider">
             D. Wickramasinghe
           </div>
@@ -621,15 +728,21 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-                <GraduationCap className="w-5 h-5 text-indigo-400" />
+                {role === 'admin' ? (
+                  <Crown className="w-5 h-5 text-amber-400" />
+                ) : role === 'tutor' ? (
+                  <Briefcase className="w-5 h-5 text-emerald-400" />
+                ) : (
+                  <GraduationCap className="w-5 h-5 text-indigo-400" />
+                )}
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-extrabold text-white tracking-tight">
-                    Official Digital Student ID Card
+                    {roleHeader}
                   </h3>
                   <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-bold rounded-full flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Verified Scholar Pass
+                    <ShieldCheck className="w-3 h-3" /> Verified {role.toUpperCase()}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
@@ -719,7 +832,6 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
             {viewMode === 'single_flip' && (
               <div className="flex flex-col items-center justify-center py-4 space-y-5">
                 <div className="relative group max-w-[500px] w-full">
-                  {/* Flip Card Container */}
                   <motion.div
                     animate={{ rotateY: isFlipped ? 180 : 0 }}
                     transition={{ duration: 0.6, ease: 'easeInOut' }}
@@ -727,7 +839,6 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                     className="relative w-full aspect-[1.58/1] cursor-pointer"
                     onClick={() => setIsFlipped(!isFlipped)}
                   >
-                    {/* Front Face */}
                     <div
                       style={{ backfaceVisibility: 'hidden' }}
                       className="absolute inset-0 w-full h-full"
@@ -735,7 +846,6 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                       {renderFrontCard()}
                     </div>
 
-                    {/* Back Face */}
                     <div
                       style={{
                         backfaceVisibility: 'hidden',
@@ -755,16 +865,16 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                     className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
                     id="btn_flip_id_card"
                   >
-                    <RotateCw className="w-4 h-4 text-indigo-600 animate-spin-reverse" />
-                    Flip to {isFlipped ? 'Front Side' : 'Back Side'} (or tap card)
+                    <RotateCw className="w-4 h-4 text-indigo-600" />
+                    Flip to {isFlipped ? 'Front Side' : 'Back Side'} (or click card)
                   </button>
                   <button
                     onClick={handleCopyId}
                     className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-mono font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                    title="Copy Unique Student ID"
+                    title="Copy Unique ID"
                   >
                     {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
-                    {studentIdCode}
+                    {formattedId}
                   </button>
                 </div>
               </div>
@@ -789,7 +899,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
                   <div className="w-full space-y-2">
                     <div className="flex items-center justify-between px-1 text-xs font-extrabold text-slate-700">
-                      <span>Back Side (Course Registry & Guardian)</span>
+                      <span>Back Side (Registry & Emergency Contact)</span>
                       <button
                         onClick={handleDownloadBack}
                         className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
@@ -803,7 +913,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               </div>
             )}
 
-            {/* 3. Printable Badge Sheet (Cut-Out Template) */}
+            {/* 3. Printable Badge Sheet */}
             {viewMode === 'printable_sheet' && (
               <div className="space-y-4">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-3">
@@ -811,28 +921,26 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                   <div>
                     <h4 className="font-extrabold text-amber-900">Printing & Laminating Instructions:</h4>
                     <p className="text-[11px] text-amber-800 mt-0.5">
-                      Click <strong>"Print Physical ID Card"</strong> below to print in standard CR80 badge format.
-                      After printing on standard cardstock, cut along the dotted border guidelines and fold in half or slip into a plastic badge holder.
+                      Click <strong>"Print ID Card"</strong> below to print in standard CR80 badge format.
+                      After printing on standard cardstock, cut along the dotted border guidelines and fold in half.
                     </p>
                   </div>
                 </div>
 
-                {/* Printable Template Sheet */}
                 <div
                   ref={printableSheetRef}
-                  id="student_id_printable_sheet"
+                  id="digital_id_printable_sheet"
                   className="bg-white p-6 sm:p-8 rounded-2xl border-2 border-dashed border-slate-300 shadow-sm max-w-2xl mx-auto space-y-6 text-center"
                 >
                   <div className="border-b border-slate-200 pb-3">
                     <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                      Gurugedara Higher Education Institute — Printable Student ID Badge
+                      Gurugedara Higher Education Institute — Official {role.toUpperCase()} ID Badge
                     </h4>
                     <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                      Student: {currentUser.name} • ID: {formattedStudentId} • Year: {academicYear}
+                      {currentUser.name} • ID: {formattedId} • Year: {academicYear}
                     </p>
                   </div>
 
-                  {/* Cut-out guide badge */}
                   <div className="border-2 border-dashed border-slate-400 p-4 rounded-3xl bg-slate-50/70 space-y-4">
                     <div className="flex items-center justify-between text-[9px] font-mono font-bold text-slate-500 px-2">
                       <span>✂️ FOLD / CUT-OUT GUIDELINE</span>
@@ -876,7 +984,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                 </div>
                 <div className="text-left">
                   <h5 className="text-xs font-extrabold text-slate-900">Verified Identity</h5>
-                  <p className="text-[10px] text-slate-500">Official student identity card recognized at all halls</p>
+                  <p className="text-[10px] text-slate-500">Official recognized institutional pass</p>
                 </div>
               </div>
 
@@ -885,7 +993,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div className="text-left">
-                  <h5 className="text-xs font-extrabold text-slate-900">Registered Courses</h5>
+                  <h5 className="text-xs font-extrabold text-slate-900">
+                    {role === 'tutor' ? 'Faculty Courses' : role === 'admin' ? 'Executive Access' : 'Registered Courses'}
+                  </h5>
                   <p className="text-[10px] text-slate-500">{displayCourses.length} active subject pathways</p>
                 </div>
               </div>
@@ -963,14 +1073,14 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               GURUGEDARA HIGHER EDUCATION INSTITUTE
             </h1>
             <p className="text-xs font-bold text-slate-700">
-              Official Student Identification Pass • Academic Year {academicYear}
+              Official {role.toUpperCase()} Identification Pass • Academic Year {academicYear}
             </p>
           </div>
 
           <div className="border-2 border-dashed border-slate-500 p-5 rounded-3xl space-y-4 bg-slate-50">
             <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-700 border-b border-slate-300 pb-1.5">
               <span>✂️ CUT ALONG DOTTED BORDER & FOLD IN HALF</span>
-              <span>STUDENT: {currentUser.name} ({formattedStudentId})</span>
+              <span>{currentUser.name} ({formattedId})</span>
             </div>
 
             <div className="flex flex-row items-center justify-center gap-6 py-2">
@@ -986,7 +1096,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           </div>
 
           <div className="text-[9px] text-slate-600 font-mono text-center pt-2">
-            Authorized Digital Student Pass • Contact: +94 11 234 5678 • www.gurugedara.edu.lk
+            Authorized Digital {role.toUpperCase()} Pass • Contact: +94 11 234 5678 • www.gurugedara.edu.lk
           </div>
         </div>
       </div>
