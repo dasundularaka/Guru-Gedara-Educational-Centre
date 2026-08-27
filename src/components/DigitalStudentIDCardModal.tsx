@@ -62,6 +62,8 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   const frontCardRef = useRef<HTMLDivElement>(null);
   const backCardRef = useRef<HTMLDivElement>(null);
   const printableSheetRef = useRef<HTMLDivElement>(null);
+  const exportFrontRef = useRef<HTMLDivElement>(null);
+  const exportBackRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
 
@@ -200,22 +202,24 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     window.print();
   };
 
-  // Helper to capture DOM node as image safely
+  // Helper to capture DOM node as image safely with fallbacks
   const captureNode = async (node: HTMLElement) => {
     return await toPng(node, {
       quality: 0.98,
       pixelRatio: 2.5,
       cacheBust: true,
-      skipAutoScale: true
+      skipAutoScale: true,
+      backgroundColor: '#0f172a'
     });
   };
 
   // Download high-resolution PNG front card
   const handleDownloadFront = async () => {
-    if (!frontCardRef.current) return;
+    const targetNode = exportFrontRef.current || frontCardRef.current;
+    if (!targetNode) return;
     setIsExporting(true);
     try {
-      const dataUrl = await captureNode(frontCardRef.current);
+      const dataUrl = await captureNode(targetNode);
       const link = document.createElement('a');
       link.download = `Gurugedara_ID_Front_${formattedId}.png`;
       link.href = dataUrl;
@@ -231,10 +235,11 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
   // Download high-resolution PNG back card
   const handleDownloadBack = async () => {
-    if (!backCardRef.current) return;
+    const targetNode = exportBackRef.current || backCardRef.current;
+    if (!targetNode) return;
     setIsExporting(true);
     try {
-      const dataUrl = await captureNode(backCardRef.current);
+      const dataUrl = await captureNode(targetNode);
       const link = document.createElement('a');
       link.download = `Gurugedara_ID_Back_${formattedId}.png`;
       link.href = dataUrl;
@@ -284,11 +289,13 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
   // Implement Download-as-PDF function using jsPDF
   const handleDownloadPdf = async () => {
-    if (!frontCardRef.current || !backCardRef.current) return;
+    const targetFront = exportFrontRef.current || frontCardRef.current;
+    const targetBack = exportBackRef.current || backCardRef.current;
+    if (!targetFront || !targetBack) return;
     setIsPdfGenerating(true);
     try {
-      const frontDataUrl = await captureNode(frontCardRef.current);
-      const backDataUrl = await captureNode(backCardRef.current);
+      const frontDataUrl = await captureNode(targetFront);
+      const backDataUrl = await captureNode(targetBack);
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -1063,6 +1070,27 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
             </div>
           </div>
         </motion.div>
+      </div>
+
+      {/* Offscreen unrotated, high-res render container for reliable PNG & PDF export */}
+      <div 
+        style={{ 
+          position: 'fixed', 
+          top: '-10000px', 
+          left: '-10000px', 
+          width: '500px', 
+          opacity: 0, 
+          pointerEvents: 'none', 
+          zIndex: -9999 
+        }} 
+        aria-hidden="true"
+      >
+        <div ref={exportFrontRef} className="w-[500px]">
+          {renderFrontCard(false)}
+        </div>
+        <div ref={exportBackRef} className="w-[500px]">
+          {renderBackCard(false)}
+        </div>
       </div>
 
       {/* Hidden Print Container specifically targeted for window.print() */}

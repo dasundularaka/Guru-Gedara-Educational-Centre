@@ -3,6 +3,29 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+/* Screen Fit & Viewport Normalization */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
 /* Smooth subtle cross-fade transition for Light and Dark theme switching */
 html {
   color-scheme: light;
