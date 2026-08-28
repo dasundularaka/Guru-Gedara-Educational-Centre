@@ -49,7 +49,19 @@ export function formatNameAsUid(name: string, fallbackEmailOrId?: string): strin
       .replace(/^_+|_+$/g, '');
     if (clean) return clean;
   }
-  return 'user_' + Math.random().toString(36).substr(2, 6);
+  return 'user_' + Math.floor(10000000 + Math.random() * 90000000).toString();
+}
+
+export function generateNumericUsername(existingUsers: UserProfile[] = []): string {
+  let attempts = 0;
+  while (attempts < 100) {
+    const num = Math.floor(10000000 + Math.random() * 90000000).toString();
+    if (!existingUsers.some(u => u.username === num)) {
+      return num;
+    }
+    attempts++;
+  }
+  return Math.floor(10000000 + Math.random() * 90000000).toString();
 }
 
 // Track connection model
@@ -343,12 +355,9 @@ const firestoreServiceRaw = {
   // SEEDING / RECOVERY / CLEANUP DATABASE
   // -------------------------------------------------------------
   async seedDatabase() {
-    // 1. Ensure accredited tutors are active and available in local and cloud stores
-    const defaultTutors = INITIAL_TUTORS;
-    const defaultClasses = INITIAL_CLASSES;
     const defaultAdmin: UserProfile = {
       uid: 'dasun_dularaka',
-      username: 'GA00000001',
+      username: '10000001',
       name: 'Dasun Dularaka',
       displayName: 'Dasun Dularaka',
       email: 'dasundularaka@gmail.com',
@@ -361,35 +370,10 @@ const firestoreServiceRaw = {
       createdAt: '2025-01-01T00:00:00.000Z'
     };
 
-    // Populate local cache first
-    const currentLocalTutors = handleFallback<UserProfile>('local_users_tutors', defaultTutors);
-    if (!currentLocalTutors || currentLocalTutors.length === 0) {
-      saveFallback('local_users_tutors', defaultTutors);
-    }
-
-    const currentLocalClasses = handleFallback<ClassItem>('local_classes', defaultClasses);
-    if (!currentLocalClasses || currentLocalClasses.length === 0) {
-      saveFallback('local_classes', defaultClasses);
-    }
-
     if (!isUsingCloud) return;
 
     try {
-      // 2. Recover all certified tutors into Firestore if missing
-      for (const tutor of defaultTutors) {
-        try {
-          const tutorDocRef = doc(db, 'users', tutor.uid);
-          const snap = await getDoc(tutorDocRef).catch(() => null);
-          if (!snap || !snap.exists()) {
-            await setDoc(tutorDocRef, tutor);
-            console.log(`[Recovery] Seeded certified tutor to Firestore: ${tutor.name} (${tutor.uid}, ${tutor.username})`);
-          }
-        } catch (tErr) {
-          console.warn(`[Recovery] Error verifying/seeding tutor ${tutor.uid}:`, tErr);
-        }
-      }
-
-      // 3. Ensure default admin profile in Firestore
+      // Ensure real administrator profile in Firestore
       try {
         const adminDocRef = doc(db, 'users', defaultAdmin.uid);
         const adminSnap = await getDoc(adminDocRef).catch(() => null);
@@ -398,18 +382,7 @@ const firestoreServiceRaw = {
         }
       } catch (_) {}
 
-      // 4. Ensure default course classes in Firestore
-      for (const cls of defaultClasses) {
-        try {
-          const clsDocRef = doc(db, 'classes', cls.id);
-          const clsSnap = await getDoc(clsDocRef).catch(() => null);
-          if (!clsSnap || !clsSnap.exists()) {
-            await setDoc(clsDocRef, cls);
-          }
-        } catch (_) {}
-      }
-
-      // 5. Clean up old legacy mock ids if any remain
+      // Clean up old legacy mock ids if any remain
       const legacyIdsToDelete: { collection: string; id: string }[] = [
         { collection: 'users', id: 'tutor_sarah' },
         { collection: 'users', id: 'tutor_marcus' },
@@ -816,21 +789,18 @@ const firestoreServiceRaw = {
     const targetUid = formatNameAsUid(cleanName, cleanEmail || uid);
     const effectiveAuthUid = (uid && uid !== targetUid) ? uid : (profile.authUid || undefined);
 
-    // Ensure institutional username format (GA / GT / GB / GG + 8 digits)
-    let targetUsername = profile.username;
-    const isInstitutional = targetUsername && /^(GA|GT|GB|GG)\d{6,8}$/i.test(targetUsername);
-    if (!isInstitutional) {
-      const role = profile.role || 'student';
-      const prefix = role === 'admin' ? 'GA' : role === 'tutor' ? 'GT' : (profile.gender === 'female' ? 'GG' : 'GB');
-      const randNum = Math.floor(10000000 + Math.random() * 90000000).toString();
-      targetUsername = `${prefix}${randNum}`;
+    // Ensure username format is strictly numeric (no A-Z letters)
+    let targetUsername = profile.username ? profile.username.trim() : '';
+    const isNumeric = targetUsername && /^\d{6,12}$/.test(targetUsername);
+    if (!isNumeric) {
+      targetUsername = Math.floor(10000000 + Math.random() * 90000000).toString();
     }
 
     // CRITICAL: Stop duplicate user creation! If an existing profile already exists with this email, merge/update instead of creating a second document
     if (cleanEmail) {
       const existingUser = await this.getUserProfileByEmail(cleanEmail);
       if (existingUser) {
-        const mergedUsername = existingUser.username && /^(GA|GT|GB|GG)\d{6,8}$/i.test(existingUser.username)
+        const mergedUsername = existingUser.username && /^\d{6,12}$/.test(existingUser.username)
           ? existingUser.username
           : targetUsername;
         const mergedData: Partial<UserProfile> = {
@@ -873,7 +843,7 @@ const firestoreServiceRaw = {
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
       isPasswordResetRequired: profile.isPasswordResetRequired ?? false,
-      username: targetUsername, // In frontend/system, username is in institutional format (GA/GT/GB/GG + 8 digits)
+      username: targetUsername, // Strictly numeric username (no A-Z)
       authUid: effectiveAuthUid,
       status: profile.status || (profile.role === 'student' ? 'pending' : 'approved'),
       createdAt: profile.createdAt || new Date().toISOString(),

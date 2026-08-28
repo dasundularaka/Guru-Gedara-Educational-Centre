@@ -567,8 +567,7 @@ export const AdminDashboard: React.FC = () => {
 
     setIsCreatingAdmin(true);
     try {
-      const randomNumbers = Math.floor(10000000 + Math.random() * 90000000);
-      const generatedUsername = `GA${randomNumbers}`;
+      const generatedUsername = Math.floor(10000000 + Math.random() * 90000000).toString();
       const targetAdminUid = formatNameAsUid(newAdminName.trim(), newAdminEmail.trim());
 
       try {
@@ -1352,21 +1351,19 @@ export const AdminDashboard: React.FC = () => {
           // Set registration status to approved since it was explicitly added by Admin
           uProfile.status = 'approved';
           
-          // Generate institutional username (GB/GG + 8 digits) and use formatNameAsUid for database UID
+          // Generate unique 8-digit numeric username (strictly numeric, no A-Z characters)
           const allUsers = await firestoreService.getAllUsers();
-          const prefix = studentGender === 'male' ? 'GB' : 'GG';
           let uniqueUsername = "";
           let attempts = 0;
           while (attempts < 100) {
-            const num = Math.floor(10000000 + Math.random() * 90000000).toString();
-            const candidate = prefix + num;
+            const candidate = Math.floor(10000000 + Math.random() * 90000000).toString();
             if (!allUsers.some(u => u.username === candidate)) {
               uniqueUsername = candidate;
               break;
             }
             attempts++;
           }
-          if (!uniqueUsername) uniqueUsername = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
+          if (!uniqueUsername) uniqueUsername = Math.floor(10000000 + Math.random() * 90000000).toString();
           
           const targetStudentUid = formatNameAsUid(userName, userEmail);
           uProfile.username = uniqueUsername;
@@ -1455,20 +1452,19 @@ export const AdminDashboard: React.FC = () => {
           }
           uProfile.password = finalPassword;
 
-          // Generate GT + 8 digits username and formatNameAsUid for database UID
+          // Generate unique 8-digit numeric username (strictly numeric, no A-Z characters)
           const allUsers = await firestoreService.getAllUsers();
           let uniqueUsername = "";
           let attempts = 0;
           while (attempts < 100) {
-            const num = Math.floor(10000000 + Math.random() * 90000000).toString();
-            const candidate = "GT" + num;
+            const candidate = Math.floor(10000000 + Math.random() * 90000000).toString();
             if (!allUsers.some(u => u.username === candidate)) {
               uniqueUsername = candidate;
               break;
             }
             attempts++;
           }
-          if (!uniqueUsername) uniqueUsername = "GT" + Math.floor(10000000 + Math.random() * 90000000).toString();
+          if (!uniqueUsername) uniqueUsername = Math.floor(10000000 + Math.random() * 90000000).toString();
 
           const targetTutorUid = formatNameAsUid(userName, userEmail);
           uProfile.username = uniqueUsername;
@@ -2491,7 +2487,7 @@ export const AdminDashboard: React.FC = () => {
                     <label className="block text-[10px] font-bold text-gray-550 uppercase font-mono mb-1">Filter by Username (Student ID):</label>
                     <input 
                       type="text"
-                      placeholder="Search username (e.g. GB00000000)..."
+                      placeholder="Search username (e.g. 10000001)..."
                       value={studentSearchUsername}
                       onChange={(e) => setStudentSearchUsername(e.target.value)}
                       className="w-full text-xs px-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-550 outline-none"

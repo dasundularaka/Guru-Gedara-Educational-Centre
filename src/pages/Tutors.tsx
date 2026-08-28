@@ -18,7 +18,7 @@ export const Tutors: React.FC = () => {
       setLoading(true);
       try {
         const users = await firestoreService.getAllUsers();
-        const tutors = users.filter(u => u.role === 'tutor' || u.username?.startsWith('GT') || !!u.tutorDetails);
+        const tutors = users.filter(u => u.role === 'tutor' || !!u.tutorDetails);
         setTutorsList(tutors);
         setFilteredTutors(tutors);
       } catch (e) {
