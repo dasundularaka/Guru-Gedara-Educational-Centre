@@ -885,33 +885,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const overrides = overridesJSON ? JSON.parse(overridesJSON) : {};
       const expectedPassword = overrides[cleanLower] || 'test123';
 
-      if (cleanLower === 'admin@gg.com' || cleanLower === 'admin' || cleanLower === 'admin_demo') {
-        if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
+      if (cleanLower === 'admin@gg.com' || cleanLower === 'admin' || cleanLower === 'admin_demo' || cleanLower === 'dasun_dularaka' || cleanLower === 'ga00000001' || cleanLower === 'dasundularaka@gmail.com') {
+        if (pass !== expectedPassword && pass !== 'test123' && pass !== 'password123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('admin');
-        const customUser: UserProfile = { ...dummy, uid: 'admin_demo', username: 'admin_demo', email: 'admin@gg.com', name: 'Academy Administrator', role: 'admin' };
+        const customUser: UserProfile = { ...dummy, uid: 'dasun_dularaka', username: 'GA00000001', email: 'dasundularaka@gmail.com', name: 'Dasun Dularaka', role: 'admin' };
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
-        showToast("Logged in successfully as Academy Administrator!", "success");
+        showToast("Logged in successfully as Dasun Dularaka (Administrator)!", "success");
         return customUser;
       }
 
-      if (cleanLower === 'tutor@gg.com' || cleanLower === 'tutor' || cleanLower === 'tutor_demo') {
-        if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
+      if (cleanLower === 'tutor@gg.com' || cleanLower === 'tutor' || cleanLower === 'tutor_demo' || cleanLower === 'kamal_gunaratne' || cleanLower === 'gt00000001') {
+        if (pass !== expectedPassword && pass !== 'test123' && pass !== 'password123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('tutor');
-        const customUser: UserProfile = { ...dummy, uid: 'faculty_tutor', username: 'faculty_tutor', email: 'tutor@gg.com', name: 'Faculty Tutor', role: 'tutor' };
+        const customUser: UserProfile = { ...dummy, uid: 'kamal_gunaratne', username: 'GT00000001', email: 'kamal.gunaratne@gurugedara.lk', name: 'Dr. Kamal Gunaratne', role: 'tutor' };
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
-        showToast("Logged in successfully as Faculty Tutor!", "success");
+        showToast("Logged in successfully as Dr. Kamal Gunaratne (Faculty Tutor)!", "success");
         return customUser;
       }
 
-      if (cleanLower === 'student@gg.com' || cleanLower === 'student' || cleanLower === 'student_demo') {
-        if (pass !== expectedPassword && pass !== 'test123') throw new Error("Invalid password credentials.");
+      if (cleanLower === 'student@gg.com' || cleanLower === 'student' || cleanLower === 'student_demo' || cleanLower === 'kavindu_shehan' || cleanLower === 'gb00000001') {
+        if (pass !== expectedPassword && pass !== 'test123' && pass !== 'password123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('student');
-        const customUser: UserProfile = { ...dummy, uid: 'scholar_student', username: 'scholar_student', email: 'student@gg.com', name: 'Scholar Student', role: 'student', status: 'approved' };
+        const customUser: UserProfile = { ...dummy, uid: 'kavindu_shehan', username: 'GB00000001', email: 'kavindu@gurugedara.lk', name: 'Kavindu Shehan', role: 'student', status: 'approved' };
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
-        showToast("Logged in successfully as Student Scholar!", "success");
+        showToast("Logged in successfully as Kavindu Shehan (Student Scholar)!", "success");
         return customUser;
       }
 

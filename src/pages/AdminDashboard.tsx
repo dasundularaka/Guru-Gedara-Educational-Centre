@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
-import { firestoreService } from '../lib/firestoreService';
+import { firestoreService, formatNameAsUid } from '../lib/firestoreService';
 import { optimizeImage } from '../lib/imageOptimizer';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord } from '../types';
@@ -569,19 +569,18 @@ export const AdminDashboard: React.FC = () => {
     try {
       const randomNumbers = Math.floor(10000000 + Math.random() * 90000000);
       const generatedUsername = `GA${randomNumbers}`;
+      const targetAdminUid = formatNameAsUid(newAdminName.trim(), newAdminEmail.trim());
 
-      let adminUid = `admin_gen_${Date.now()}`;
       try {
         const tempApp = initializeApp(firebaseConfig, "TempAppAdminAdd_" + Math.floor(Math.random() * 100000));
         const tempAuth = getAuth(tempApp);
-        const userCredentials = await createUserWithEmailAndPassword(tempAuth, newAdminEmail.trim(), newAdminPassword.trim());
-        adminUid = userCredentials.user.uid;
+        await createUserWithEmailAndPassword(tempAuth, newAdminEmail.trim(), newAdminPassword.trim());
         await deleteApp(tempApp);
       } catch (firebaseErr: any) {
         console.warn("Firebase Auth auto-creation failed for admin, using custom local UID. Reason: ", firebaseErr.message);
       }
 
-      await firestoreService.createUserProfile(adminUid, {
+      await firestoreService.createUserProfile(targetAdminUid, {
         email: newAdminEmail.trim(),
         name: newAdminName.trim(),
         displayName: newAdminDisplayName.trim() || newAdminName.trim(),
@@ -1353,7 +1352,7 @@ export const AdminDashboard: React.FC = () => {
           // Set registration status to approved since it was explicitly added by Admin
           uProfile.status = 'approved';
           
-          // Generate system generated immutable username format and use it as database UID
+          // Generate institutional username (GB/GG + 8 digits) and use formatNameAsUid for database UID
           const allUsers = await firestoreService.getAllUsers();
           const prefix = studentGender === 'male' ? 'GB' : 'GG';
           let uniqueUsername = "";
@@ -1361,7 +1360,7 @@ export const AdminDashboard: React.FC = () => {
           while (attempts < 100) {
             const num = Math.floor(10000000 + Math.random() * 90000000).toString();
             const candidate = prefix + num;
-            if (!allUsers.some(u => u.username === candidate || u.uid === candidate)) {
+            if (!allUsers.some(u => u.username === candidate)) {
               uniqueUsername = candidate;
               break;
             }
@@ -1369,9 +1368,9 @@ export const AdminDashboard: React.FC = () => {
           }
           if (!uniqueUsername) uniqueUsername = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
           
+          const targetStudentUid = formatNameAsUid(userName, userEmail);
           uProfile.username = uniqueUsername;
-          uProfile.uid = uniqueUsername;
-          let realUid = uniqueUsername;
+          uProfile.uid = targetStudentUid;
 
           // Enroll into Firebase Auth if required
           let tempApp: any = null;
@@ -1388,12 +1387,12 @@ export const AdminDashboard: React.FC = () => {
           }
 
           // Clean up any orphan user document with same email
-          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== realUid);
+          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== targetStudentUid);
           if (existingSameEmail) {
             await firestoreService.deleteUserProfile(existingSameEmail.uid);
           }
 
-          await firestoreService.createUserProfile(realUid, uProfile);
+          await firestoreService.createUserProfile(targetStudentUid, uProfile);
           showToast(`Student profile '${userName}' enrolled with system identifier: ${uniqueUsername}. Password: ${finalPassword}`, "success");
         } else {
           await firestoreService.updateUserProfile(editingId!, uProfile);
@@ -1456,14 +1455,14 @@ export const AdminDashboard: React.FC = () => {
           }
           uProfile.password = finalPassword;
 
-          // Generate GT + 8 digits username and use it directly as database UID
+          // Generate GT + 8 digits username and formatNameAsUid for database UID
           const allUsers = await firestoreService.getAllUsers();
           let uniqueUsername = "";
           let attempts = 0;
           while (attempts < 100) {
             const num = Math.floor(10000000 + Math.random() * 90000000).toString();
             const candidate = "GT" + num;
-            if (!allUsers.some(u => u.username === candidate || u.uid === candidate)) {
+            if (!allUsers.some(u => u.username === candidate)) {
               uniqueUsername = candidate;
               break;
             }
@@ -1471,9 +1470,9 @@ export const AdminDashboard: React.FC = () => {
           }
           if (!uniqueUsername) uniqueUsername = "GT" + Math.floor(10000000 + Math.random() * 90000000).toString();
 
+          const targetTutorUid = formatNameAsUid(userName, userEmail);
           uProfile.username = uniqueUsername;
-          uProfile.uid = uniqueUsername;
-          let realUid = uniqueUsername;
+          uProfile.uid = targetTutorUid;
 
           let tempApp: any = null;
           try {
@@ -1489,12 +1488,12 @@ export const AdminDashboard: React.FC = () => {
           }
 
           // Clean up any orphan user document with same email
-          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== realUid);
+          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== targetTutorUid);
           if (existingSameEmail) {
             await firestoreService.deleteUserProfile(existingSameEmail.uid);
           }
 
-          await firestoreService.createUserProfile(realUid, uProfile);
+          await firestoreService.createUserProfile(targetTutorUid, uProfile);
           showToast(`Tutor profile '${userName}' created with system ID: ${uniqueUsername}. Password: ${finalPassword}`, "success");
         } else {
           await firestoreService.updateUserProfile(editingId!, uProfile);

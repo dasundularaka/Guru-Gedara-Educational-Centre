@@ -340,80 +340,91 @@ const firestoreServiceRaw = {
   },
 
   // -------------------------------------------------------------
-  // SEEDING / CLEANUP DATABASE
+  // SEEDING / RECOVERY / CLEANUP DATABASE
   // -------------------------------------------------------------
   async seedDatabase() {
-    if (!isUsingCloud) return;
-    const cleanupKey = `db_demo_cleaned_${firebaseConfig.projectId || 'default'}`;
-    if (localStorage.getItem(cleanupKey) === 'true') {
-      return;
+    // 1. Ensure accredited tutors are active and available in local and cloud stores
+    const defaultTutors = INITIAL_TUTORS;
+    const defaultClasses = INITIAL_CLASSES;
+    const defaultAdmin: UserProfile = {
+      uid: 'dasun_dularaka',
+      username: 'GA00000001',
+      name: 'Dasun Dularaka',
+      displayName: 'Dasun Dularaka',
+      email: 'dasundularaka@gmail.com',
+      phone: '+94 77 000 0001',
+      gender: 'male',
+      role: 'admin',
+      status: 'approved',
+      password: 'password123',
+      photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+      createdAt: '2025-01-01T00:00:00.000Z'
+    };
+
+    // Populate local cache first
+    const currentLocalTutors = handleFallback<UserProfile>('local_users_tutors', defaultTutors);
+    if (!currentLocalTutors || currentLocalTutors.length === 0) {
+      saveFallback('local_users_tutors', defaultTutors);
     }
+
+    const currentLocalClasses = handleFallback<ClassItem>('local_classes', defaultClasses);
+    if (!currentLocalClasses || currentLocalClasses.length === 0) {
+      saveFallback('local_classes', defaultClasses);
+    }
+
+    if (!isUsingCloud) return;
+
     try {
-      // Purge demo data documents if they exist in Firestore
-      const demoDocsToDelete: { collection: string; id: string }[] = [
-        { collection: 'classes', id: 'class_calc_abc' },
-        { collection: 'classes', id: 'class_physics_mechanics' },
-        { collection: 'classes', id: 'class_creative_writing' },
-        { collection: 'classes', id: 'class_coding_web' },
-        { collection: 'classes', id: 'class_algebra_basics' },
+      // 2. Recover all certified tutors into Firestore if missing
+      for (const tutor of defaultTutors) {
+        try {
+          const tutorDocRef = doc(db, 'users', tutor.uid);
+          const snap = await getDoc(tutorDocRef).catch(() => null);
+          if (!snap || !snap.exists()) {
+            await setDoc(tutorDocRef, tutor);
+            console.log(`[Recovery] Seeded certified tutor to Firestore: ${tutor.name} (${tutor.uid}, ${tutor.username})`);
+          }
+        } catch (tErr) {
+          console.warn(`[Recovery] Error verifying/seeding tutor ${tutor.uid}:`, tErr);
+        }
+      }
+
+      // 3. Ensure default admin profile in Firestore
+      try {
+        const adminDocRef = doc(db, 'users', defaultAdmin.uid);
+        const adminSnap = await getDoc(adminDocRef).catch(() => null);
+        if (!adminSnap || !adminSnap.exists()) {
+          await setDoc(adminDocRef, defaultAdmin);
+        }
+      } catch (_) {}
+
+      // 4. Ensure default course classes in Firestore
+      for (const cls of defaultClasses) {
+        try {
+          const clsDocRef = doc(db, 'classes', cls.id);
+          const clsSnap = await getDoc(clsDocRef).catch(() => null);
+          if (!clsSnap || !clsSnap.exists()) {
+            await setDoc(clsDocRef, cls);
+          }
+        } catch (_) {}
+      }
+
+      // 5. Clean up old legacy mock ids if any remain
+      const legacyIdsToDelete: { collection: string; id: string }[] = [
         { collection: 'users', id: 'tutor_sarah' },
         { collection: 'users', id: 'tutor_marcus' },
         { collection: 'users', id: 'tutor_elena' },
         { collection: 'users', id: 'tutor_david' },
         { collection: 'users', id: 'student_demo' },
-        { collection: 'users', id: 'admin_demo' },
-        { collection: 'bookings', id: 'booking_abc_1' },
-        { collection: 'bookings', id: 'booking_abc_2' },
-        { collection: 'payments', id: 'pay_1' },
-        { collection: 'payments', id: 'pay_2' },
-        { collection: 'payments', id: 'pay_3' },
-        { collection: 'notifications', id: 'not_1' },
-        { collection: 'notifications', id: 'not_2' },
-        { collection: 'notifications', id: 'not_3' },
-        { collection: 'notifications', id: 'not_tutor' },
-        { collection: 'messages', id: 'msg_1' },
-        { collection: 'messages', id: 'msg_2' },
-        { collection: 'reviews', id: 'review_1' },
-        { collection: 'reviews', id: 'review_2' },
-        { collection: 'reviews', id: 'review_3' },
-        { collection: 'reviews', id: 'review_4' },
-        { collection: 'reviews', id: 'review_5' },
-        { collection: 'study_materials', id: 'mat_1' },
-        { collection: 'study_materials', id: 'mat_2' },
-        { collection: 'study_materials', id: 'mat_3' }
+        { collection: 'users', id: 'admin_demo' }
       ];
-
-      await Promise.all(
-        demoDocsToDelete.map(item => 
-          deleteDoc(doc(db, item.collection, item.id)).catch(() => {})
-        )
-      );
-
-      // Wipe local storage keys if they contain demo data
-      const scopedProj = firebaseConfig.projectId || 'default';
-      const cacheKeys = [
-        `local_classes_${scopedProj}`,
-        `local_users_tutors_${scopedProj}`,
-        `local_bookings_${scopedProj}`,
-        `local_payments_${scopedProj}`,
-        `local_notifications_${scopedProj}`,
-        `local_messages_${scopedProj}`,
-        `local_reviews_${scopedProj}`,
-        `local_study_materials_${scopedProj}`
-      ];
-      cacheKeys.forEach(k => {
+      for (const item of legacyIdsToDelete) {
         try {
-          const raw = localStorage.getItem(k);
-          if (raw && (raw.includes('student_demo') || raw.includes('tutor_sarah') || raw.includes('class_calc_abc') || raw.includes('mat_1'))) {
-            localStorage.removeItem(k);
-          }
-        } catch (e) {}
-      });
-
-      localStorage.setItem(cleanupKey, 'true');
-      console.log("Demo data cleaned up successfully!");
+          await deleteDoc(doc(db, item.collection, item.id)).catch(() => {});
+        } catch (_) {}
+      }
     } catch (e) {
-      console.warn("Demo cleanup warning:", e);
+      console.warn("Database seed/recovery check warning:", e);
     }
   },
 
@@ -463,11 +474,13 @@ const firestoreServiceRaw = {
       }
     }
 
-    console.log("Database successfully reset to default state.");
+    // Re-seed with certified tutors and classes
+    await this.seedDatabase();
+    console.log("Database successfully reset and re-seeded with certified faculty & curriculum.");
   },
 
   // -------------------------------------------------------------
-  // UID NAME-FORMAT MIGRATION
+  // UID NAME-FORMAT & USERNAME MIGRATION
   // -------------------------------------------------------------
   async migrateAllUsersToNameUids(): Promise<{ migratedCount: number; updatedRefs: number }> {
     let migratedCount = 0;
@@ -479,19 +492,34 @@ const firestoreServiceRaw = {
         const targetUid = formatNameAsUid(user.name, user.email || user.uid);
         const oldUid = user.uid;
 
-        if (oldUid && oldUid !== targetUid) {
-          console.log(`[Migration] Updating user UID from ${oldUid} -> ${targetUid} (${user.name})`);
+        // Ensure institutional username format (GA / GT / GB / GG + 8 digits)
+        let correctUsername = user.username;
+        const isAlreadyInstitutional = correctUsername && /^(GA|GT|GB|GG)\d{6,8}$/i.test(correctUsername);
+        if (!isAlreadyInstitutional) {
+          const role = user.role || 'student';
+          const prefix = role === 'admin' ? 'GA' : role === 'tutor' ? 'GT' : (user.gender === 'female' ? 'GG' : 'GB');
+          const randNum = Math.floor(10000000 + Math.random() * 90000000).toString();
+          correctUsername = `${prefix}${randNum}`;
+        }
+
+        const needsDocIdMigration = oldUid && oldUid !== targetUid;
+        const needsUsernameMigration = user.username !== correctUsername;
+
+        if (needsDocIdMigration || needsUsernameMigration) {
+          console.log(`[Migration] Updating user (${user.name}): UID ${oldUid} -> ${targetUid}, Username: ${user.username} -> ${correctUsername}`);
           const updatedUser: UserProfile = {
             ...user,
             uid: targetUid,
-            username: targetUid,
+            username: correctUsername,
             authUid: user.authUid || (oldUid.length > 20 ? oldUid : undefined)
           };
 
           if (isUsingCloud) {
             try {
               await setDoc(doc(db, 'users', targetUid), updatedUser);
-              await deleteDoc(doc(db, 'users', oldUid));
+              if (needsDocIdMigration && oldUid) {
+                await deleteDoc(doc(db, 'users', oldUid)).catch(() => {});
+              }
             } catch (cloudErr) {
               console.warn("Cloud UID migration step warning:", cloudErr);
             }
@@ -499,11 +527,11 @@ const firestoreServiceRaw = {
 
           // Update local caches
           const localRegistered = handleFallback<UserProfile>('local_registered_users', []);
-          const updatedRegistered = localRegistered.map(u => u.uid === oldUid ? updatedUser : u);
+          const updatedRegistered = localRegistered.map(u => (u.uid === oldUid || u.email === user.email) ? updatedUser : u);
           saveFallback('local_registered_users', updatedRegistered);
 
           const localTutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-          const updatedTutors = localTutors.map(u => u.uid === oldUid ? updatedUser : u);
+          const updatedTutors = localTutors.map(u => (u.uid === oldUid || u.email === user.email) ? updatedUser : u);
           saveFallback('local_users_tutors', updatedTutors);
 
           // Update references across collections:
@@ -595,7 +623,7 @@ const firestoreServiceRaw = {
             const rawSession = localStorage.getItem('local_running_session');
             if (rawSession) {
               const sess = JSON.parse(rawSession);
-              if (sess.uid === oldUid) {
+              if (sess.uid === oldUid || sess.email === user.email) {
                 localStorage.setItem('local_running_session', safeStringify(updatedUser));
               }
             }
@@ -788,16 +816,29 @@ const firestoreServiceRaw = {
     const targetUid = formatNameAsUid(cleanName, cleanEmail || uid);
     const effectiveAuthUid = (uid && uid !== targetUid) ? uid : (profile.authUid || undefined);
 
+    // Ensure institutional username format (GA / GT / GB / GG + 8 digits)
+    let targetUsername = profile.username;
+    const isInstitutional = targetUsername && /^(GA|GT|GB|GG)\d{6,8}$/i.test(targetUsername);
+    if (!isInstitutional) {
+      const role = profile.role || 'student';
+      const prefix = role === 'admin' ? 'GA' : role === 'tutor' ? 'GT' : (profile.gender === 'female' ? 'GG' : 'GB');
+      const randNum = Math.floor(10000000 + Math.random() * 90000000).toString();
+      targetUsername = `${prefix}${randNum}`;
+    }
+
     // CRITICAL: Stop duplicate user creation! If an existing profile already exists with this email, merge/update instead of creating a second document
     if (cleanEmail) {
       const existingUser = await this.getUserProfileByEmail(cleanEmail);
       if (existingUser) {
+        const mergedUsername = existingUser.username && /^(GA|GT|GB|GG)\d{6,8}$/i.test(existingUser.username)
+          ? existingUser.username
+          : targetUsername;
         const mergedData: Partial<UserProfile> = {
           ...existingUser,
           ...profile,
           name: cleanName,
           uid: targetUid,
-          username: targetUid
+          username: mergedUsername
         };
         if (effectiveAuthUid) {
           mergedData.authUid = effectiveAuthUid;
@@ -832,7 +873,7 @@ const firestoreServiceRaw = {
       selectedClasses: profile.selectedClasses || [],
       password: profile.password || '',
       isPasswordResetRequired: profile.isPasswordResetRequired ?? false,
-      username: targetUid, // In database, uid and username must be in user's name format
+      username: targetUsername, // In frontend/system, username is in institutional format (GA/GT/GB/GG + 8 digits)
       authUid: effectiveAuthUid,
       status: profile.status || (profile.role === 'student' ? 'pending' : 'approved'),
       createdAt: profile.createdAt || new Date().toISOString(),
