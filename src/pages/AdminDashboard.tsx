@@ -1306,16 +1306,29 @@ export const AdminDashboard: React.FC = () => {
     setLoading(true);
     try {
       if (modalType === 'student') {
+        const cleanName = userName.trim();
+        const cleanEmail = userEmail.trim();
+        if (!cleanName) {
+          showToast("Student full name is required.", "error");
+          setLoading(false);
+          return;
+        }
+        if (!cleanEmail || !cleanEmail.includes('@')) {
+          showToast("A valid email address is required.", "error");
+          setLoading(false);
+          return;
+        }
+
         const studentDetails = {
           grade: studentGrade,
           parentContact: studentParentContact,
           interests: []
         };
         const uProfile: Partial<UserProfile> = {
-          name: userName,
-          displayName: userName, // Ensure display name is also updated to mirror full name options by default
-          email: userEmail,
-          phone: userPhone,
+          name: cleanName,
+          displayName: cleanName,
+          email: cleanEmail,
+          phone: userPhone.trim(),
           role: 'student',
           gender: studentGender,
           address: studentAddress,
@@ -1365,7 +1378,7 @@ export const AdminDashboard: React.FC = () => {
           }
           if (!uniqueUsername) uniqueUsername = Math.floor(10000000 + Math.random() * 90000000).toString();
           
-          const targetStudentUid = formatNameAsUid(userName, userEmail);
+          const targetStudentUid = formatNameAsUid(cleanName, cleanEmail);
           uProfile.username = uniqueUsername;
           uProfile.uid = targetStudentUid;
 
@@ -1374,7 +1387,7 @@ export const AdminDashboard: React.FC = () => {
           try {
             tempApp = initializeApp(firebaseConfig, "TempAppStudentAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
-            await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
+            await createUserWithEmailAndPassword(tempAuth, cleanEmail, finalPassword);
           } catch (firebaseErr: any) {
             console.warn("Firebase Auth auto-creation failed, using custom local UID. Reason: ", firebaseErr.message);
           } finally {
@@ -1384,13 +1397,15 @@ export const AdminDashboard: React.FC = () => {
           }
 
           // Clean up any orphan user document with same email
-          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== targetStudentUid);
+          const existingSameEmail = allUsers.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase() && u.uid !== targetStudentUid);
           if (existingSameEmail) {
-            await firestoreService.deleteUserProfile(existingSameEmail.uid);
+            try {
+              await firestoreService.deleteUserProfile(existingSameEmail.uid);
+            } catch (_) {}
           }
 
           await firestoreService.createUserProfile(targetStudentUid, uProfile);
-          showToast(`Student profile '${userName}' enrolled with system identifier: ${uniqueUsername}. Password: ${finalPassword}`, "success");
+          showToast(`Student profile '${cleanName}' enrolled with system identifier: ${uniqueUsername}. Password: ${finalPassword}`, "success");
         } else {
           await firestoreService.updateUserProfile(editingId!, uProfile);
           showToast(`Student profile updated.`, "success");
@@ -1401,7 +1416,7 @@ export const AdminDashboard: React.FC = () => {
           const targetUid = modalMode === 'add' ? uProfile.uid! : editingId!;
           const allBookings = await firestoreService.getBookings();
           const existingStudentBookings = allBookings.filter(b => 
-            (b.studentId === targetUid || b.studentEmail === userEmail) && b.status !== 'cancelled'
+            (b.studentId === targetUid || b.studentEmail === cleanEmail) && b.status !== 'cancelled'
           );
 
           // Enroll student into newly selected classes
@@ -1410,7 +1425,7 @@ export const AdminDashboard: React.FC = () => {
             if (!hasBooking) {
               const cls = classesList.find(c => c.id === cId);
               if (cls) {
-                await firestoreService.bookClass(targetUid, userName, cls);
+                await firestoreService.bookClass(targetUid, cleanName, cls);
               }
             }
           }
@@ -1425,20 +1440,35 @@ export const AdminDashboard: React.FC = () => {
           console.warn("Failed syncing student class enrollments:", enrollErr);
         }
       } else if (modalType === 'tutor') {
+        const cleanName = userName.trim();
+        const cleanEmail = userEmail.trim();
+        if (!cleanName) {
+          showToast("Tutor full name is required.", "error");
+          setLoading(false);
+          return;
+        }
+        if (!cleanEmail || !cleanEmail.includes('@')) {
+          showToast("A valid email address is required.", "error");
+          setLoading(false);
+          return;
+        }
+
         const tutorDetails = {
-          bio: tutorBio,
-          subjects: tutorSubjects.split(",").map(s => s.trim()),
+          bio: tutorBio || "Certified educator ready to instruct.",
+          subjects: (tutorSubjects || "General").split(",").map(s => s.trim()).filter(Boolean),
           experience: Number(tutorExperience) || 5,
-          qualification: tutorQualification,
+          qualification: tutorQualification || "Bachelor Degree",
           hourlyRate: Number(tutorHourlyRate) || 45,
           rating: 5.0,
           availability: [{ day: "Monday", slots: ["10:00 AM", "02:00 PM"] }]
         };
         const uProfile: Partial<UserProfile> = {
-          name: userName,
-          email: userEmail,
-          phone: userPhone,
+          name: cleanName,
+          displayName: cleanName,
+          email: cleanEmail,
+          phone: userPhone.trim(),
           role: 'tutor',
+          status: 'approved',
           tutorDetails
         };
         if (modalMode === 'add') {
@@ -1466,7 +1496,7 @@ export const AdminDashboard: React.FC = () => {
           }
           if (!uniqueUsername) uniqueUsername = Math.floor(10000000 + Math.random() * 90000000).toString();
 
-          const targetTutorUid = formatNameAsUid(userName, userEmail);
+          const targetTutorUid = formatNameAsUid(cleanName, cleanEmail);
           uProfile.username = uniqueUsername;
           uProfile.uid = targetTutorUid;
 
@@ -1474,9 +1504,9 @@ export const AdminDashboard: React.FC = () => {
           try {
             tempApp = initializeApp(firebaseConfig, "TempAppTutorAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
-            await createUserWithEmailAndPassword(tempAuth, userEmail, finalPassword);
+            await createUserWithEmailAndPassword(tempAuth, cleanEmail, finalPassword);
           } catch (firebaseErr: any) {
-            console.warn("Firebase Auth auto-creation failed for tutor. Reason: ", firebaseErr.message);
+            console.warn("Firebase Auth auto-creation failed for tutor. Reason: ", firebaseErr?.message);
           } finally {
             if (tempApp) {
               try { await deleteApp(tempApp); } catch (e) {}
@@ -1484,13 +1514,15 @@ export const AdminDashboard: React.FC = () => {
           }
 
           // Clean up any orphan user document with same email
-          const existingSameEmail = allUsers.find(u => u.email.toLowerCase() === userEmail.toLowerCase() && u.uid !== targetTutorUid);
+          const existingSameEmail = allUsers.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase() && u.uid !== targetTutorUid);
           if (existingSameEmail) {
-            await firestoreService.deleteUserProfile(existingSameEmail.uid);
+            try {
+              await firestoreService.deleteUserProfile(existingSameEmail.uid);
+            } catch (_) {}
           }
 
           await firestoreService.createUserProfile(targetTutorUid, uProfile);
-          showToast(`Tutor profile '${userName}' created with system ID: ${uniqueUsername}. Password: ${finalPassword}`, "success");
+          showToast(`Tutor profile '${cleanName}' created with system ID: ${uniqueUsername}. Password: ${finalPassword}`, "success");
         } else {
           await firestoreService.updateUserProfile(editingId!, uProfile);
           showToast(`Tutor profile updated.`, "success");
@@ -4906,15 +4938,15 @@ export const AdminDashboard: React.FC = () => {
                           .filter(stud => {
                             if (!paymentStudentSearch.trim()) return true;
                             const query = paymentStudentSearch.toLowerCase().trim();
-                            const nameMatch = stud.name.toLowerCase().includes(query);
+                            const nameMatch = (stud.name || '').toLowerCase().includes(query);
                             const usernameMatch = (stud.username || '').toLowerCase().includes(query);
-                            const uidMatch = stud.uid.toLowerCase().includes(query);
-                            const emailMatch = stud.email.toLowerCase().includes(query);
+                            const uidMatch = (stud.uid || '').toLowerCase().includes(query);
+                            const emailMatch = (stud.email || '').toLowerCase().includes(query);
                             return nameMatch || usernameMatch || uidMatch || emailMatch;
                           })
                           .map(stud => (
                             <option key={stud.uid} value={stud.uid}>
-                              {stud.name} [{stud.username || stud.uid.slice(0, 8)}] ({stud.email})
+                              {stud.name || 'Student'} [{stud.username || (stud.uid || '').slice(0, 8)}] ({stud.email || 'No email'})
                             </option>
                           ))
                         }

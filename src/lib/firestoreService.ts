@@ -897,23 +897,27 @@ const firestoreServiceRaw = {
 
     // Save locally
     const registered = handleFallback<UserProfile>('local_registered_users', []);
-    const filteredReg = registered.filter(u => u.uid !== targetUid && u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
+    const filteredReg = registered.filter(u => u.uid !== targetUid && u.uid !== uid && (u.email || '').toLowerCase() !== (fullProfile.email || '').toLowerCase());
     filteredReg.push(fullProfile);
     saveFallback('local_registered_users', filteredReg);
 
     if (fullProfile.role === 'tutor' || fullProfile.tutorDetails) {
       const tutors = handleFallback<UserProfile>('local_users_tutors', INITIAL_TUTORS);
-      const filteredTutors = tutors.filter(u => u.uid !== targetUid && u.uid !== uid && u.email?.toLowerCase() !== fullProfile.email?.toLowerCase());
+      const filteredTutors = tutors.filter(u => u.uid !== targetUid && u.uid !== uid && (u.email || '').toLowerCase() !== (fullProfile.email || '').toLowerCase());
       filteredTutors.push(fullProfile);
       saveFallback('local_users_tutors', filteredTutors);
     }
 
     // Audit Log for user creation
-    await this.addAuditLog({
-      username: profile.email || targetUid,
-      action: 'USER_CREATED',
-      details: `Created ${fullProfile.role} profile for ${fullProfile.name} (${fullProfile.uid})`
-    });
+    try {
+      await this.addAuditLog({
+        username: profile.email || targetUid,
+        action: 'USER_CREATED',
+        details: `Created ${fullProfile.role} profile for ${fullProfile.name} (${fullProfile.uid})`
+      });
+    } catch (auditErr) {
+      console.warn("Audit log creation skipped:", auditErr);
+    }
 
     // Send automated account creation welcome email
     if (fullProfile.email && fullProfile.email.includes('@')) {
