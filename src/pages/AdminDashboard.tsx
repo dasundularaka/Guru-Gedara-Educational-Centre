@@ -87,7 +87,13 @@ import {
   Percent,
   QrCode,
   Camera,
-  BadgeCheck
+  BadgeCheck,
+  AlertTriangle,
+  Loader2,
+  CheckCircle2,
+  Info,
+  RefreshCw,
+  Activity
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -515,6 +521,19 @@ export const AdminDashboard: React.FC = () => {
   const [tutorHourlyRate, setTutorHourlyRate] = useState("45");
   const [tutorExperience, setTutorExperience] = useState("5");
   const [tutorQualification, setTutorQualification] = useState("M.Sc. in Physics");
+
+  // Tutor Validation & Visual Loading State
+  interface TutorValidationError {
+    field: string;
+    message: string;
+    fixHint: string;
+  }
+  const [tutorErrors, setTutorErrors] = useState<TutorValidationError[]>([]);
+  const [tutorErrorSummary, setTutorErrorSummary] = useState<string | null>(null);
+  const [isSavingTutor, setIsSavingTutor] = useState(false);
+  const [tutorSavingStep, setTutorSavingStep] = useState(1);
+  const [tutorSavingMessage, setTutorSavingMessage] = useState("");
+  const [tutorSavingProgress, setTutorSavingProgress] = useState(0);
 
   // New User Password & Auto-generation States
   const [userPassword, setUserPassword] = useState("");
@@ -970,6 +989,12 @@ export const AdminDashboard: React.FC = () => {
     setTutorHourlyRate("45");
     setTutorExperience("5");
     setTutorQualification("M.Sc. in Physics");
+    setTutorErrors([]);
+    setTutorErrorSummary(null);
+    setIsSavingTutor(false);
+    setTutorSavingStep(1);
+    setTutorSavingMessage("");
+    setTutorSavingProgress(0);
     setUserPassword("");
     setAutoGeneratePassword(true);
     setShowPasswordText(false);
@@ -1440,25 +1465,138 @@ export const AdminDashboard: React.FC = () => {
           console.warn("Failed syncing student class enrollments:", enrollErr);
         }
       } else if (modalType === 'tutor') {
+        setTutorErrors([]);
+        setTutorErrorSummary(null);
+
         const cleanName = userName.trim();
         const cleanEmail = userEmail.trim();
+        const cleanPhone = userPhone.trim();
+        const cleanBio = tutorBio.trim();
+        const cleanSubjects = tutorSubjects.trim();
+        const cleanQual = tutorQualification.trim();
+        const numRate = Number(tutorHourlyRate);
+        const numExp = Number(tutorExperience);
+
+        const validationIssues: TutorValidationError[] = [];
+
+        // 1. Name validation
         if (!cleanName) {
-          showToast("Tutor full name is required.", "error");
-          setLoading(false);
-          return;
+          validationIssues.push({
+            field: "Tutor Full Name",
+            message: "Tutor full name is required and cannot be blank.",
+            fixHint: "Enter the tutor's official title and full name (e.g., Dr. Sarah Jenkins)."
+          });
+        } else if (cleanName.length < 2) {
+          validationIssues.push({
+            field: "Tutor Full Name",
+            message: "Tutor name must be at least 2 characters long.",
+            fixHint: "Provide the complete name instead of single initials."
+          });
         }
-        if (!cleanEmail || !cleanEmail.includes('@')) {
-          showToast("A valid email address is required.", "error");
+
+        // 2. Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!cleanEmail) {
+          validationIssues.push({
+            field: "Contact Email",
+            message: "A valid email address is required.",
+            fixHint: "Enter an active email (e.g., sarah.jenkins@gurugedara.lk)."
+          });
+        } else if (!emailRegex.test(cleanEmail)) {
+          validationIssues.push({
+            field: "Contact Email",
+            message: `The email format '${cleanEmail}' is invalid.`,
+            fixHint: "Ensure the email contains '@' and a domain name (e.g., tutor@example.com)."
+          });
+        } else if (modalMode === 'add') {
+          const existingWithEmail = users.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase() && u.role === 'tutor' && u.uid !== editingId);
+          if (existingWithEmail) {
+            validationIssues.push({
+              field: "Contact Email",
+              message: `An instructor profile with email '${cleanEmail}' already exists in the faculty directory.`,
+              fixHint: "Use a different email address or edit the existing instructor profile."
+            });
+          }
+        }
+
+        // 3. Hourly Rate validation
+        if (!tutorHourlyRate || isNaN(numRate) || numRate <= 0) {
+          validationIssues.push({
+            field: "Hourly Rate",
+            message: "Hourly rate must be a valid positive number greater than $0.",
+            fixHint: "Enter the tutor's hourly fee in USD or LKR (e.g., 45)."
+          });
+        }
+
+        // 4. Experience validation
+        if (tutorExperience === "" || isNaN(numExp) || numExp < 0 || numExp > 60) {
+          validationIssues.push({
+            field: "Experience",
+            message: "Teaching experience must be a realistic numeric value between 0 and 60 years.",
+            fixHint: "Enter the number of years of teaching experience (e.g., 5)."
+          });
+        }
+
+        // 5. Qualification validation
+        if (!cleanQual || cleanQual.length < 2) {
+          validationIssues.push({
+            field: "Qualification",
+            message: "Academic qualification is required.",
+            fixHint: "Specify degrees or certifications (e.g., M.Sc. in Physics, B.Ed. in Mathematics)."
+          });
+        }
+
+        // 6. Subjects validation
+        const parsedSubjects = cleanSubjects.split(",").map(s => s.trim()).filter(Boolean);
+        if (parsedSubjects.length === 0) {
+          validationIssues.push({
+            field: "Syllabus Subjects",
+            message: "At least one syllabus subject or domain category is required.",
+            fixHint: "Enter comma-separated subject tags (e.g., Physics, Calculus, Chemistry)."
+          });
+        }
+
+        // 7. Bio validation
+        if (!cleanBio || cleanBio.length < 10) {
+          validationIssues.push({
+            field: "Professional Bio",
+            message: "Professional bio must be at least 10 characters long to provide sufficient context for students.",
+            fixHint: "Describe the tutor's teaching background, methodology, and specializations."
+          });
+        }
+
+        // 8. Password validation (if adding and not auto-generating)
+        if (modalMode === 'add' && !autoGeneratePassword) {
+          if (!userPassword || userPassword.length < 6) {
+            validationIssues.push({
+              field: "Account Password",
+              message: "Password must be at least 6 characters long.",
+              fixHint: "Enter a secure password or select 'Generate Password Automatically'."
+            });
+          }
+        }
+
+        if (validationIssues.length > 0) {
+          setTutorErrors(validationIssues);
+          setTutorErrorSummary(`Validation failed: Please resolve the ${validationIssues.length} issue${validationIssues.length > 1 ? 's' : ''} listed below before submitting.`);
           setLoading(false);
+          setIsSavingTutor(false);
           return;
         }
 
+        // Visual multi-stage loading progress indicator
+        setIsSavingTutor(true);
+        setTutorSavingStep(1);
+        setTutorSavingMessage("Validating faculty credentials & allocating system identity...");
+        setTutorSavingProgress(25);
+        await new Promise(r => setTimeout(r, 150));
+
         const tutorDetails = {
-          bio: tutorBio || "Certified educator ready to instruct.",
-          subjects: (tutorSubjects || "General").split(",").map(s => s.trim()).filter(Boolean),
-          experience: Number(tutorExperience) || 5,
-          qualification: tutorQualification || "Bachelor Degree",
-          hourlyRate: Number(tutorHourlyRate) || 45,
+          bio: cleanBio,
+          subjects: parsedSubjects,
+          experience: numExp,
+          qualification: cleanQual,
+          hourlyRate: numRate,
           rating: 5.0,
           availability: [{ day: "Monday", slots: ["10:00 AM", "02:00 PM"] }]
         };
@@ -1466,11 +1604,12 @@ export const AdminDashboard: React.FC = () => {
           name: cleanName,
           displayName: cleanName,
           email: cleanEmail,
-          phone: userPhone.trim(),
+          phone: cleanPhone,
           role: 'tutor',
           status: 'approved',
           tutorDetails
         };
+
         if (modalMode === 'add') {
           let finalPassword = userPassword;
           if (autoGeneratePassword) {
@@ -1481,6 +1620,11 @@ export const AdminDashboard: React.FC = () => {
             uProfile.isPasswordResetRequired = false;
           }
           uProfile.password = finalPassword;
+
+          setTutorSavingStep(2);
+          setTutorSavingMessage("Allocating unique collision-free 8-digit GT System ID...");
+          setTutorSavingProgress(50);
+          await new Promise(r => setTimeout(r, 150));
 
           // Generate unique 8-digit numeric username (strictly numeric, no A-Z characters)
           const allUsers = await firestoreService.getAllUsers();
@@ -1500,18 +1644,26 @@ export const AdminDashboard: React.FC = () => {
           uProfile.username = uniqueUsername;
           uProfile.uid = targetTutorUid;
 
+          setTutorSavingStep(3);
+          setTutorSavingMessage("Provisioning Firebase Authentication security account...");
+          setTutorSavingProgress(75);
+
           let tempApp: any = null;
           try {
             tempApp = initializeApp(firebaseConfig, "TempAppTutorAdd_" + Math.floor(Math.random() * 100000));
             const tempAuth = getAuth(tempApp);
             await createUserWithEmailAndPassword(tempAuth, cleanEmail, finalPassword);
           } catch (firebaseErr: any) {
-            console.warn("Firebase Auth auto-creation failed for tutor. Reason: ", firebaseErr?.message);
+            console.warn("Firebase Auth auto-creation note for tutor: ", firebaseErr?.message);
           } finally {
             if (tempApp) {
               try { await deleteApp(tempApp); } catch (e) {}
             }
           }
+
+          setTutorSavingStep(4);
+          setTutorSavingMessage("Writing faculty document to Cloud Firestore database...");
+          setTutorSavingProgress(90);
 
           // Clean up any orphan user document with same email
           const existingSameEmail = allUsers.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase() && u.uid !== targetTutorUid);
@@ -1522,9 +1674,15 @@ export const AdminDashboard: React.FC = () => {
           }
 
           await firestoreService.createUserProfile(targetTutorUid, uProfile);
+          setTutorSavingProgress(100);
+          setTutorSavingMessage("Faculty record published successfully!");
           showToast(`Tutor profile '${cleanName}' created with system ID: ${uniqueUsername}. Password: ${finalPassword}`, "success");
         } else {
+          setTutorSavingStep(4);
+          setTutorSavingMessage("Updating faculty document in Cloud Firestore database...");
+          setTutorSavingProgress(85);
           await firestoreService.updateUserProfile(editingId!, uProfile);
+          setTutorSavingProgress(100);
           showToast(`Tutor profile updated.`, "success");
         }
       } else if (modalType === 'class') {
@@ -1588,9 +1746,38 @@ export const AdminDashboard: React.FC = () => {
       await fetchAdminDatasets();
     } catch (err: any) {
       console.error("Error saving modal data:", err);
-      showToast(`Administrative saving command failed: ${err?.message || String(err)}`, "error");
+      const rawErrorMsg = err?.message || String(err);
+      
+      if (modalType === 'tutor') {
+        let userFriendlyMsg = rawErrorMsg;
+        let fixHint = "Please check your network connection and verify input parameters before re-submitting.";
+
+        if (rawErrorMsg.includes('auth/email-already-in-use')) {
+          userFriendlyMsg = "This email address is already registered in Firebase Authentication.";
+          fixHint = "Use a distinct email address or update the existing tutor account.";
+        } else if (rawErrorMsg.includes('auth/invalid-email')) {
+          userFriendlyMsg = "The email address format is not recognized by the security provider.";
+          fixHint = "Check for typos in the email address (e.g., tutor@example.com).";
+        } else if (rawErrorMsg.includes('permission-denied') || rawErrorMsg.includes('PERMISSION_DENIED')) {
+          userFriendlyMsg = "Cloud Firestore security rules denied the write permission.";
+          fixHint = "Verify your administrative privileges or refresh your active session.";
+        } else if (rawErrorMsg.includes('unavailable') || rawErrorMsg.includes('network')) {
+          userFriendlyMsg = "Cloud database is temporarily unreachable due to network latency.";
+          fixHint = "Ensure your internet connection is active and retry.";
+        }
+
+        setTutorErrors([{
+          field: "Administrative Cloud Operation",
+          message: userFriendlyMsg,
+          fixHint
+        }]);
+        setTutorErrorSummary(`Administrative saving command failed: ${userFriendlyMsg}`);
+      }
+
+      showToast(`Administrative saving command failed: ${rawErrorMsg}`, "error");
     } finally {
       setLoading(false);
+      setIsSavingTutor(false);
     }
   };
 
@@ -4599,86 +4786,352 @@ export const AdminDashboard: React.FC = () => {
               {/* TUTOR FORM */}
               {modalType === 'tutor' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Detailed Error Summary Banner */}
+                  {(tutorErrors.length > 0 || tutorErrorSummary) && (
+                    <div className="bg-red-50 dark:bg-red-950/40 border-2 border-red-200 dark:border-red-800/80 rounded-2xl p-4 sm:p-5 text-xs text-red-900 dark:text-red-200 shadow-sm animate-fade-in space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="p-2 bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 rounded-xl shrink-0 mt-0.5 shadow-xs">
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-sm text-red-900 dark:text-red-100 flex items-center gap-1.5">
+                              Unable to Save Faculty Profile
+                            </h4>
+                            <p className="text-xs text-red-700 dark:text-red-300 mt-0.5 font-medium leading-relaxed">
+                              {tutorErrorSummary || `Please resolve the ${tutorErrors.length} validation issue${tutorErrors.length > 1 ? 's' : ''} listed below before re-submitting:`}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setTutorErrors([]); setTutorErrorSummary(null); }}
+                          className="text-red-400 hover:text-red-700 dark:hover:text-red-200 p-1.5 rounded-lg hover:bg-red-100/60 transition-colors cursor-pointer"
+                          title="Dismiss Notice"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {tutorErrors.length > 0 && (
+                        <div className="bg-white/90 dark:bg-slate-900/70 border border-red-200/80 dark:border-red-800/60 rounded-xl p-3.5 space-y-2.5">
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-red-700 dark:text-red-400 block border-b border-red-100 dark:border-red-900/40 pb-1.5">
+                            Actionable Validation Breakdown ({tutorErrors.length})
+                          </span>
+                          <ul className="space-y-2.5 text-xs">
+                            {tutorErrors.map((err, idx) => (
+                              <li key={idx} className="flex items-start gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                                <div className="space-y-0.5">
+                                  <div className="text-slate-800 dark:text-slate-200 leading-snug">
+                                    <strong className="font-bold text-red-800 dark:text-red-300 mr-1">{err.field}:</strong>
+                                    <span>{err.message}</span>
+                                  </div>
+                                  {err.fixHint && (
+                                    <div className="text-[11px] text-red-600 dark:text-red-400 italic flex items-center gap-1 font-sans mt-0.5">
+                                      <Sparkles className="w-3 h-3 shrink-0 text-red-500" />
+                                      <span>Fix: {err.fixHint}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Visual Loading Progress Indicator & Skeleton State */}
+                  {isSavingTutor && (
+                    <div className="bg-gradient-to-br from-indigo-50/95 via-blue-50/90 to-purple-50/95 dark:from-slate-800 dark:via-indigo-950/50 dark:to-slate-800 border-2 border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 shadow-md animate-fade-in space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-xs animate-spin">
+                            <Loader2 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                              Administrative Saving in Progress
+                            </h4>
+                            <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium mt-0.5">
+                              {tutorSavingMessage || "Synchronizing faculty profile with cloud database..."}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-xs font-mono font-black shadow-xs">
+                          {tutorSavingProgress}%
+                        </span>
+                      </div>
+
+                      {/* Animated Gradient Progress Bar */}
+                      <div className="space-y-1.5">
+                        <div className="w-full bg-indigo-100 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden p-0.5 shadow-inner">
+                          <div 
+                            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 h-full rounded-full transition-all duration-300 ease-out animate-pulse"
+                            style={{ width: `${tutorSavingProgress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                          <span>Stage {tutorSavingStep} of 4</span>
+                          <span>Cloud Firestore & Firebase Auth</span>
+                        </div>
+                      </div>
+
+                      {/* Multi-Step Stages */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        {[
+                          { step: 1, label: "Validate Input" },
+                          { step: 2, label: "Allocate GT-ID" },
+                          { step: 3, label: "Security Auth" },
+                          { step: 4, label: "Firestore Sync" },
+                        ].map((s) => {
+                          const isDone = tutorSavingStep > s.step || tutorSavingProgress >= 100;
+                          const isCurrent = tutorSavingStep === s.step && tutorSavingProgress < 100;
+                          return (
+                            <div 
+                              key={s.step} 
+                              className={`p-2 rounded-xl border text-center transition-all ${
+                                isDone 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-bold'
+                                  : isCurrent
+                                  ? 'bg-white dark:bg-slate-800 border-indigo-400 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 font-extrabold shadow-xs ring-2 ring-indigo-200 dark:ring-indigo-800'
+                                  : 'bg-white/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-400'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-1 text-[10px] font-mono mb-0.5">
+                                {isDone ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                ) : isCurrent ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                                ) : (
+                                  <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600" />
+                                )}
+                                <span>Stage {s.step}</span>
+                              </div>
+                              <span className="text-[11px] block truncate">{s.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Visual Form Skeleton Simulation Overlay */}
+                      <div className="bg-white/80 dark:bg-slate-900/60 border border-indigo-100 dark:border-slate-700 rounded-xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 uppercase font-bold">
+                          <span className="flex items-center gap-1.5">
+                            <Activity className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                            Writing Data Stream
+                          </span>
+                          <span className="text-indigo-600 font-semibold">Active Pipeline</span>
+                        </div>
+                        <div className="space-y-2 animate-pulse">
+                          <div className="h-4 bg-indigo-100/70 dark:bg-slate-800 rounded-md w-3/4" />
+                          <div className="h-4 bg-indigo-50 dark:bg-slate-850 rounded-md w-full" />
+                          <div className="h-4 bg-indigo-100/50 dark:bg-slate-800 rounded-md w-5/6" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Form input fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Tutor Full Name</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                        Tutor Full Name <span className="text-red-500">*</span>
+                      </label>
                       <input 
                         required 
+                        disabled={isSavingTutor}
                         type="text" 
                         value={userName} 
-                        onChange={(e) => setUserName(e.target.value)}
+                        onChange={(e) => {
+                          setUserName(e.target.value);
+                          setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('name')));
+                        }}
                         placeholder="Dr. Sarah Jenkins"
-                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                        className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
+                          tutorErrors.some(e => e.field.toLowerCase().includes('name'))
+                            ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                            : 'border-gray-200 focus:border-blue-500'
+                        } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                       />
+                      {tutorErrors.find(e => e.field.toLowerCase().includes('name')) && (
+                        <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {tutorErrors.find(e => e.field.toLowerCase().includes('name'))?.message}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Contact Email</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                        Contact Email <span className="text-red-500">*</span>
+                      </label>
                       <input 
                         required 
+                        disabled={isSavingTutor}
                         type="email" 
                         value={userEmail} 
-                        onChange={(e) => setUserEmail(e.target.value)}
+                        onChange={(e) => {
+                          setUserEmail(e.target.value);
+                          setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('email')));
+                        }}
                         placeholder="sarah@example.com"
-                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                        className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
+                          tutorErrors.some(e => e.field.toLowerCase().includes('email'))
+                            ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                            : 'border-gray-200 focus:border-blue-500'
+                        } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                       />
+                      {tutorErrors.find(e => e.field.toLowerCase().includes('email')) && (
+                        <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {tutorErrors.find(e => e.field.toLowerCase().includes('email'))?.message}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Hourly Rate ($)</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                        Hourly Rate ($) <span className="text-red-500">*</span>
+                      </label>
                       <input 
                         required 
+                        disabled={isSavingTutor}
                         type="number" 
+                        min="1"
                         value={tutorHourlyRate} 
-                        onChange={(e) => setTutorHourlyRate(e.target.value)}
+                        onChange={(e) => {
+                          setTutorHourlyRate(e.target.value);
+                          setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('rate')));
+                        }}
                         placeholder="45"
-                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                        className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
+                          tutorErrors.some(e => e.field.toLowerCase().includes('rate'))
+                            ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                            : 'border-gray-200 focus:border-blue-500'
+                        } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                       />
+                      {tutorErrors.find(e => e.field.toLowerCase().includes('rate')) && (
+                        <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {tutorErrors.find(e => e.field.toLowerCase().includes('rate'))?.message}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Experience (Yrs)</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                        Experience (Yrs) <span className="text-red-500">*</span>
+                      </label>
                       <input 
                         required 
+                        disabled={isSavingTutor}
                         type="number" 
+                        min="0"
+                        max="60"
                         value={tutorExperience} 
-                        onChange={(e) => setTutorExperience(e.target.value)}
+                        onChange={(e) => {
+                          setTutorExperience(e.target.value);
+                          setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('experience')));
+                        }}
                         placeholder="5"
-                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                        className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
+                          tutorErrors.some(e => e.field.toLowerCase().includes('experience'))
+                            ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                            : 'border-gray-200 focus:border-blue-500'
+                        } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                       />
+                      {tutorErrors.find(e => e.field.toLowerCase().includes('experience')) && (
+                        <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {tutorErrors.find(e => e.field.toLowerCase().includes('experience'))?.message}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Qualification</label>
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                        Qualification <span className="text-red-500">*</span>
+                      </label>
                       <input 
                         required 
+                        disabled={isSavingTutor}
                         type="text" 
                         value={tutorQualification} 
-                        onChange={(e) => setTutorQualification(e.target.value)}
+                        onChange={(e) => {
+                          setTutorQualification(e.target.value);
+                          setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('qualification')));
+                        }}
                         placeholder="M.Sc. in Physics"
-                        className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                        className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
+                          tutorErrors.some(e => e.field.toLowerCase().includes('qualification'))
+                            ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                            : 'border-gray-200 focus:border-blue-500'
+                        } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                       />
+                      {tutorErrors.find(e => e.field.toLowerCase().includes('qualification')) && (
+                        <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          {tutorErrors.find(e => e.field.toLowerCase().includes('qualification'))?.message}
+                        </p>
+                      )}
                     </div>
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Syllabus Subjects (comma-delimited)</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                      Syllabus Subjects (comma-delimited) <span className="text-red-500">*</span>
+                    </label>
                     <input 
                       required 
+                      disabled={isSavingTutor}
                       type="text" 
                       value={tutorSubjects} 
-                      onChange={(e) => setTutorSubjects(e.target.value)}
+                      onChange={(e) => {
+                        setTutorSubjects(e.target.value);
+                        setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('subject')));
+                      }}
                       placeholder="Physics, Calculus, Chemistry"
-                      className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                      className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
+                        tutorErrors.some(e => e.field.toLowerCase().includes('subject'))
+                          ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                          : 'border-gray-200 focus:border-blue-500'
+                      } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                     />
+                    {tutorErrors.find(e => e.field.toLowerCase().includes('subject')) && (
+                      <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {tutorErrors.find(e => e.field.toLowerCase().includes('subject'))?.message}
+                      </p>
+                    )}
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Tutor Professional Bio</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
+                      Tutor Professional Bio <span className="text-red-500">*</span>
+                    </label>
                     <textarea 
                       required 
+                      disabled={isSavingTutor}
                       rows={3}
                       value={tutorBio} 
-                      onChange={(e) => setTutorBio(e.target.value)}
-                      placeholder="Certified expert in senior Calculus and classical mechanics..."
-                      className="w-full p-2.5 border border-gray-200 rounded-xl outline-none focus:border-blue-500 leading-relaxed"
+                      onChange={(e) => {
+                        setTutorBio(e.target.value);
+                        setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('bio')));
+                      }}
+                      placeholder="Certified expert in senior Calculus and classical mechanics with over 5 years of coaching..."
+                      className={`w-full p-2.5 border rounded-xl outline-none leading-relaxed transition-colors ${
+                        tutorErrors.some(e => e.field.toLowerCase().includes('bio'))
+                          ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                          : 'border-gray-200 focus:border-blue-500'
+                      } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                     ></textarea>
+                    {tutorErrors.find(e => e.field.toLowerCase().includes('bio')) && (
+                      <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        {tutorErrors.find(e => e.field.toLowerCase().includes('bio'))?.message}
+                      </p>
+                    )}
                   </div>
 
                   {modalMode === 'add' && (
@@ -4690,6 +5143,7 @@ export const AdminDashboard: React.FC = () => {
                         <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-blue-700">
                           <input 
                             type="checkbox" 
+                            disabled={isSavingTutor}
                             checked={autoGeneratePassword}
                             onChange={(e) => setAutoGeneratePassword(e.target.checked)}
                             className="w-4 h-4 rounded text-blue-700 focus:ring-blue-500 border-slate-200"
@@ -4704,11 +5158,19 @@ export const AdminDashboard: React.FC = () => {
                           <div className="relative">
                             <input 
                               required={!autoGeneratePassword}
+                              disabled={isSavingTutor}
                               type={showPasswordText ? "text" : "password"} 
                               value={userPassword} 
-                              onChange={(e) => setUserPassword(e.target.value)}
+                              onChange={(e) => {
+                                setUserPassword(e.target.value);
+                                setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('password')));
+                              }}
                               placeholder="Min 6 characters e.g. Pass123!"
-                              className="w-full p-2.5 pr-10 border border-gray-200 rounded-xl outline-none focus:border-blue-500"
+                              className={`w-full p-2.5 pr-10 border rounded-xl outline-none ${
+                                tutorErrors.some(e => e.field.toLowerCase().includes('password'))
+                                  ? 'border-red-400 bg-red-50/30 focus:border-red-500'
+                                  : 'border-gray-200 focus:border-blue-500'
+                              } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
                             />
                             <button
                               type="button"
@@ -4718,6 +5180,12 @@ export const AdminDashboard: React.FC = () => {
                               {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
+                          {tutorErrors.find(e => e.field.toLowerCase().includes('password')) && (
+                            <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              {tutorErrors.find(e => e.field.toLowerCase().includes('password'))?.message}
+                            </p>
+                          )}
                         </div>
                       )}
 
@@ -5011,17 +5479,28 @@ export const AdminDashboard: React.FC = () => {
                 <button 
                   type="button" 
                   id="admin_cancel_edit_btn"
+                  disabled={loading || isSavingTutor}
                   onClick={() => setModalType(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl cursor-pointer hover:bg-gray-200"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl cursor-pointer hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   id="admin_confirm_edit_btn"
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 cursor-pointer"
+                  disabled={loading || isSavingTutor}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Save Entity Record
+                  {isSavingTutor ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Publishing Faculty Profile...</span>
+                    </>
+                  ) : modalType === 'tutor' ? (
+                    modalMode === 'add' ? 'Publish Faculty Tutor' : 'Update Faculty Tutor'
+                  ) : (
+                    'Save Entity Record'
+                  )}
                 </button>
               </div>
             </form>
