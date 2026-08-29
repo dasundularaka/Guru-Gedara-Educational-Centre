@@ -152,61 +152,105 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
     <div className="bg-slate-50/20" id="homepage_container">
       
       {/* 1. HERO SECTION */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-white py-12 sm:py-16">
+      <div className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-white py-8 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             
             <motion.div
-              initial={{ opacity: 0, x: -30 }}
+              initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-              className="space-y-6"
+              transition={{ duration: 0.5 }}
+              className="space-y-4 sm:space-y-6"
             >
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50 border border-indigo-100 rounded-full">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="text-[10px] font-extrabold text-indigo-850 uppercase tracking-wider font-mono">
-                  The Premium standard in academic tutoring
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900 rounded-full">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="text-[10px] font-extrabold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider font-mono">
+                  Premier Academic Tutoring
                 </span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+              <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
                 Unlock Academic <span className="text-indigo-600 bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Excellence</span> with Verified Faculty.
               </h1>
 
-              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-lg">
-                Connect with highly experienced Ph.D. academics and programming veterans. Access real-time class booking schedules, direct student-tutor chats, dynamic notifications, and a transparent progress ledger dashboard.
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg">
+                Connect with verified subject experts. Real-time class booking, student-tutor chats, dynamic notifications, and progress tracking.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              {/* Action buttons */}
+              <div className="flex flex-row gap-2.5 pt-1">
                 <button
                   onClick={() => onNavigateTab('classes')}
-                  className="px-6 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 sm:flex-initial px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                   id="hero_classes_cta"
                 >
-                  Explore Class Subjects <ArrowRight className="w-4 h-4" />
+                  <BookOpen className="w-4 h-4" /> Explore Classes
                 </button>
                 <button
                   onClick={() => onNavigateTab('tutors')}
-                  className="px-6 py-3.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-extrabold text-xs transition-colors text-center cursor-pointer"
+                  className="flex-1 sm:flex-initial px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-extrabold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                   id="hero_tutors_cta"
                 >
-                  Meet Faculty Tutors
+                  <GraduationCap className="w-4 h-4 text-indigo-600" /> Faculty
+                </button>
+              </div>
+
+              {/* Mobile Quick Action Tiles */}
+              <div className="grid grid-cols-4 gap-2 pt-3 sm:hidden" id="mobile_quick_action_grid">
+                <button
+                  onClick={() => onNavigateTab('classes')}
+                  className="flex flex-col items-center justify-center p-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 active:scale-95 transition-all text-center"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center mb-1.5 shadow-xs">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Classes</span>
+                </button>
+
+                <button
+                  onClick={() => onNavigateTab('tutors')}
+                  className="flex flex-col items-center justify-center p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-2xl border border-emerald-100 dark:border-emerald-900/60 active:scale-95 transition-all text-center"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-1.5 shadow-xs">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Faculty</span>
+                </button>
+
+                <button
+                  onClick={() => onNavigateTab(currentUser ? 'dashboard' : 'classes')}
+                  className="flex flex-col items-center justify-center p-2.5 bg-amber-50/70 dark:bg-amber-950/40 rounded-2xl border border-amber-100 dark:border-amber-900/60 active:scale-95 transition-all text-center"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center mb-1.5 shadow-xs">
+                    <Cpu className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Schedule</span>
+                </button>
+
+                <button
+                  onClick={() => onNavigateTab(currentUser ? 'dashboard' : 'auth')}
+                  className="flex flex-col items-center justify-center p-2.5 bg-purple-50/70 dark:bg-purple-950/40 rounded-2xl border border-purple-100 dark:border-purple-900/60 active:scale-95 transition-all text-center"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center mb-1.5 shadow-xs">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 leading-tight">{currentUser ? 'Portal' : 'Sign In'}</span>
                 </button>
               </div>
 
               {/* Verified badges */}
-              <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4.5 h-4.5 text-emerald-600" />
-                  <span className="text-xs font-bold text-slate-700 font-sans">100% Certified</span>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-3 sm:pt-6 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300">Verified Faculty</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
-                  <span className="text-xs font-bold text-slate-700 font-sans">No Hidden Fees</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300">Live Booking</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4.5 h-4.5 text-emerald-600" />
-                  <span className="text-xs font-bold text-slate-700 font-sans">98% Grade Match</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300">Fast Progress</span>
                 </div>
               </div>
             </motion.div>

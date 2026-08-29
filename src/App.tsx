@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { Home } from './pages/Home';
 import { Classes } from './pages/Classes';
 import { Tutors } from './pages/Tutors';
@@ -263,7 +264,7 @@ function MainAppContent() {
       <Navbar currentTab={currentTab} onChangeTab={setCurrentTab} />
 
       {/* Primary tab views selection container */}
-      <main className="flex-grow">
+      <main className="flex-grow pb-16 md:pb-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentTab}
@@ -282,7 +283,7 @@ function MainAppContent() {
       </main>
 
       {/* Global Academic footer */}
-      <footer className="bg-blue-950 border-t border-blue-900 text-white py-12" id="academy_footer">
+      <footer className="bg-blue-950 border-t border-blue-900 text-white py-10 md:py-12 mb-14 md:mb-0" id="academy_footer">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="space-y-4">
@@ -421,7 +422,7 @@ function MainAppContent() {
                     id="reconcile_cloud_btn"
                   >
                     <RefreshCw className={`w-3 h-3 ${isReconciling ? 'animate-spin text-cyan-400' : ''}`} />
-                    <span>{isReconciling ? "Syncing..." : "Reconcile Cloud Data"}</span>
+                    <span>{isReconciling ? "Syncing..." : "Reconcile"}</span>
                   </button>
 
                   <button
@@ -442,10 +443,16 @@ function MainAppContent() {
           </div>
 
           <div className="mt-8 border-t border-blue-900 pt-6 text-center text-xs text-blue-300">
-            <p>© {new Date().getFullYear()} Guru Gedara Educational Centre. All rights reserved. Registered Educational Faculty center.</p>
+            <p>© {new Date().getFullYear()} Guru Gedara Educational Centre. All rights reserved.</p>
           </div>
         </div>
       </footer>
+
+      {/* Mobile Bottom Navigation Dock */}
+      <MobileBottomNav 
+        currentTab={currentTab} 
+        onChangeTab={setCurrentTab} 
+      />
 
       {/* Global active feedback Toast Notification message Banner */}
       <ToastNotification 

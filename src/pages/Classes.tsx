@@ -376,36 +376,53 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
           <div>
             {/* Student View Toggle */}
             {currentUser?.role === 'student' && enrolledClassIds.length > 0 && (
-              <div className="mb-6 flex items-center gap-2 bg-indigo-50/70 p-1.5 rounded-2xl border border-indigo-100/80 w-fit">
+              <div className="mb-6 flex items-center gap-2 bg-indigo-50/70 dark:bg-indigo-950/40 p-1.5 rounded-2xl border border-indigo-100/80 dark:border-indigo-900/50 w-full sm:w-fit">
                 <button
                   onClick={() => setShowEnrolledOnly(true)}
-                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer text-center ${
                     showEnrolledOnly 
                       ? 'bg-indigo-650 text-white shadow-sm' 
-                      : 'text-indigo-900 hover:bg-indigo-100/70'
+                      : 'text-indigo-900 dark:text-indigo-300 hover:bg-indigo-100/70'
                   }`}
                 >
-                  My Enrolled Classes ({enrolledClassIds.length})
+                  My Classes ({enrolledClassIds.length})
                 </button>
                 <button
                   onClick={() => setShowEnrolledOnly(false)}
-                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer text-center ${
                     !showEnrolledOnly 
                       ? 'bg-indigo-650 text-white shadow-sm' 
-                      : 'text-indigo-900 hover:bg-indigo-100/70'
+                      : 'text-indigo-900 dark:text-indigo-300 hover:bg-indigo-100/70'
                   }`}
                 >
-                  Browse All Available Classes
+                  All Classes
                 </button>
               </div>
             )}
 
+            {/* Mobile Category Pill Scroller */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mb-4">
+              {subjectCategories.map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setSelectedSubject(sub)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
+                    selectedSubject === sub 
+                      ? 'bg-indigo-600 text-white shadow-sm font-extrabold' 
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+
             {/* Filters and search blocks */}
-            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.01)] p-5 sm:p-7 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4 sm:p-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-center">
                 
                 {/* Search Input */}
-                <div className="relative md:col-span-5">
+                <div className="relative sm:col-span-2 md:col-span-6">
                   <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
                     <Search className="w-4 h-4" />
                   </span>
@@ -413,81 +430,74 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search classes by title, topic tags, or tutor name..."
-                    className="w-full text-xs pl-9 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-sans"
+                    placeholder="Search classes or tutors..."
+                    className="w-full text-xs pl-9 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-900 transition-all font-sans text-slate-900 dark:text-white"
                   />
-                </div>
-
-                {/* Subject Selector */}
-                <div className="md:col-span-2">
-                  <select
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
-                  >
-                    {subjectCategories.map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm("")}
+                      className="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Availability status Selector */}
-                <div className="md:col-span-3">
+                <div className="sm:col-span-1 md:col-span-3">
                   <select
                     value={availabilityFilter}
                     onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'open' | 'full')}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
                   >
-                    <option value="all">Availability: All Classes</option>
-                    <option value="open">Availability: Available Slots</option>
-                    <option value="full">Availability: Fully Booked</option>
+                    <option value="all">Availability: All</option>
+                    <option value="open">Available Slots</option>
+                    <option value="full">Fully Booked</option>
                   </select>
                 </div>
 
                 {/* Sort order Selector */}
-                <div className="md:col-span-2">
+                <div className="sm:col-span-1 md:col-span-3">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
                   >
-                    <option value="default">Sort by: Default</option>
+                    <option value="default">Sort: Default</option>
                     <option value="price_asc">Price: Low to High</option>
                     <option value="price_desc">Price: High to Low</option>
-                    <option value="spots_left">Available Seats Left</option>
+                    <option value="spots_left">Seats Left</option>
                   </select>
                 </div>
 
               </div>
 
               {/* Advanced Course Level, Day of Week, and Time of Day Filters */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 {/* Level Selector */}
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Class Level</label>
                   <select
                     value={selectedLevel}
                     onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
                   >
-                    <option value="All Levels">All Levels / Grades</option>
-                    <option value="Beginner">Beginner / Elementary</option>
-                    <option value="Middle School">Middle School / Foundations</option>
-                    <option value="High School">High School / Senior</option>
-                    <option value="AP Prep">AP Prep / Exams</option>
-                    <option value="Advanced">Advanced / Honors</option>
+                    <option value="All Levels">Level: All Grades</option>
+                    <option value="Beginner">Beginner</option>
+                    <option value="Middle School">Middle School</option>
+                    <option value="High School">High School</option>
+                    <option value="AP Prep">AP Prep</option>
+                    <option value="Advanced">Advanced</option>
                   </select>
                 </div>
 
                 {/* Day of the Week Selector */}
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Day of Week</label>
                   <select
                     value={selectedDay}
                     onChange={(e) => setSelectedDay(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
                   >
-                    <option value="All Days">All Days of Week</option>
+                    <option value="All Days">Day: All Days</option>
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -500,37 +510,17 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
 
                 {/* Time of Day Selector */}
                 <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Time of Day</label>
                   <select
                     value={selectedTimeOfDay}
                     onChange={(e) => setSelectedTimeOfDay(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white transition-all font-bold text-slate-700 cursor-pointer"
+                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
                   >
-                    <option value="All Times">All Times of Day</option>
-                    <option value="Morning">Morning (AM / early slots)</option>
-                    <option value="Afternoon">Afternoon (12:00 PM - 05:00 PM)</option>
-                    <option value="Evening">Evening (05:00 PM onwards)</option>
+                    <option value="All Times">Time: All Times</option>
+                    <option value="Morning">Morning</option>
+                    <option value="Afternoon">Afternoon</option>
+                    <option value="Evening">Evening</option>
                   </select>
                 </div>
-              </div>
-
-              {/* Quick pills */}
-              <div className="flex gap-2 flex-wrap items-center mt-5 border-t border-slate-100 pt-5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest font-mono">Quick Filters:</span>
-                {subjectCategories.map(sub => (
-                  <button
-                    key={sub}
-                    onClick={() => setSelectedSubject(sub)}
-                    className={`px-3 py-1 rounded-full border text-[11px] transition-all font-bold cursor-pointer ${
-                      selectedSubject === sub 
-                        ? 'bg-slate-900 text-white border-slate-900 font-extrabold shadow-sm' 
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
-                    }`}
-                  >
-                    {sub}
-                  </button>
-                ))}
               </div>
             </div>
 

@@ -366,11 +366,11 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             <div className="text-right">
               {isFull ? (
                 <span className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700 text-[10px] font-bold font-mono">
-                  Fully Booked
+                  Full
                 </span>
               ) : (
                 <span className={`text-[10px] font-bold font-mono px-2.5 py-1 rounded-lg ${spotsLeft <= 3 ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-800 border border-emerald-100'}`}>
-                  {spotsLeft} Seats Ready
+                  {spotsLeft} Left
                 </span>
               )}
             </div>
@@ -382,7 +382,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({
           <button
             onClick={() => setShowReviewsModal(true)}
             className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            title="View course student reviews"
+            title="View student reviews"
           >
             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
             <span className="font-mono text-xs">{avgRating.toFixed(1)}</span>
@@ -403,7 +403,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             }`}
             id={`enroll_btn_${item.id}`}
           >
-            {isFull ? 'Limit Reached' : isTutorUnavailable ? 'Tutor Unavailable' : 'Secure Premium Seat'}
+            {isFull ? 'Full' : isTutorUnavailable ? 'Unavailable' : 'Enroll Now'}
           </button>
         </div>
       </div>

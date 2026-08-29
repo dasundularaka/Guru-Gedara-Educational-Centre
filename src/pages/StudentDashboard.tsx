@@ -536,24 +536,25 @@ export const StudentDashboard: React.FC = () => {
                 </div>
               )}
 
+              {/* Quick action bar */}
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center sm:justify-start">
                 <button 
                   onClick={() => setShowIdCardModal(true)}
-                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-4 py-1.5 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-1.5 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95"
                   id="btn_student_view_id_card"
                 >
-                  <GraduationCap className="w-3.5 h-3.5 text-amber-400" /> Digital Student ID Card (Print & Pass)
+                  <GraduationCap className="w-3.5 h-3.5 text-amber-400" /> ID Card
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}
-                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
                   id="btn_student_view_my_qr"
                 >
-                  <QrCode className="w-3.5 h-3.5 text-indigo-600" /> View QR Code Pass
+                  <QrCode className="w-3.5 h-3.5 text-indigo-600" /> QR Pass
                 </button>
                 <button 
                   onClick={() => setShowCameraModal(true)}
-                  className="text-xs text-slate-700 hover:text-slate-900 font-bold flex items-center gap-1.5 bg-white hover:bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs"
+                  className="text-xs text-slate-700 hover:text-slate-900 font-bold flex items-center gap-1.5 bg-white hover:bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
                   id="btn_student_update_photo"
                 >
                   <Camera className="w-3.5 h-3.5 text-slate-500" /> Photo
@@ -580,18 +581,15 @@ export const StudentDashboard: React.FC = () => {
                   {activeSubTab === 'notifications' && <Bell className="w-4 h-4" />}
                 </span>
                 <span className="capitalize">
-                  {activeSubTab === 'schedule' && 'Calendar & Timetable'}
-                  {activeSubTab === 'classes' && 'Classes & Enrolled Ledger'}
-                  {activeSubTab === 'payments' && 'Payment History'}
+                  {activeSubTab === 'schedule' && 'Timetable'}
+                  {activeSubTab === 'classes' && 'Enrolled Classes'}
+                  {activeSubTab === 'payments' && 'Payments'}
                   {activeSubTab === 'performance' && 'Progress & Attendance'}
                   {activeSubTab === 'roadmap' && 'Syllabus Roadmap'}
-                  {activeSubTab === 'chat' && 'Message Chat'}
-                  {activeSubTab === 'notifications' && 'Alerts & System Notices'}
+                  {activeSubTab === 'chat' && 'Chat'}
+                  {activeSubTab === 'notifications' && 'Notifications'}
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
-                Navigation
-              </span>
               <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -600,15 +598,15 @@ export const StudentDashboard: React.FC = () => {
                 <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
                 <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
                   <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
-                    Scholar Menu Options
+                    Student Menu
                   </div>
                   {[
-                    { id: 'schedule', label: 'Calendar & Timetable', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
-                    { id: 'classes', label: 'Classes & Enrolled Ledger', icon: <BookOpen className="w-4 h-4 text-blue-500" /> },
-                    { id: 'payments', label: 'Payment History', icon: <FileText className="w-4 h-4 text-emerald-500" /> },
+                    { id: 'schedule', label: 'Timetable & Calendar', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
+                    { id: 'classes', label: 'Enrolled Classes', icon: <BookOpen className="w-4 h-4 text-blue-500" /> },
+                    { id: 'payments', label: 'Payment Receipts', icon: <FileText className="w-4 h-4 text-emerald-500" /> },
                     { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" /> },
                     { id: 'roadmap', label: 'Syllabus Roadmap', icon: <Compass className="w-4 h-4 text-purple-500" /> },
-                    { id: 'chat', label: 'Message Chat', icon: <MessageSquare className="w-4 h-4 text-cyan-500" /> },
+                    { id: 'chat', label: 'Live Chat', icon: <MessageSquare className="w-4 h-4 text-cyan-500" /> },
                     { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length },
                   ].map(opt => (
                     <button
@@ -639,6 +637,35 @@ export const StudentDashboard: React.FC = () => {
               </>
             )}
           </div>
+        </div>
+
+        {/* Horizontal Subtab Quick Scroll on Mobile */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 mb-6">
+          {[
+            { id: 'schedule', label: 'Timetable', icon: <Calendar className="w-3.5 h-3.5" /> },
+            { id: 'classes', label: 'Classes', icon: <BookOpen className="w-3.5 h-3.5" /> },
+            { id: 'payments', label: 'Payments', icon: <FileText className="w-3.5 h-3.5" /> },
+            { id: 'performance', label: 'Progress', icon: <TrendingUp className="w-3.5 h-3.5" /> },
+            { id: 'roadmap', label: 'Roadmap', icon: <Compass className="w-3.5 h-3.5" /> },
+            { id: 'chat', label: 'Chat', icon: <MessageSquare className="w-3.5 h-3.5" /> },
+            { id: 'notifications', label: 'Alerts', icon: <Bell className="w-3.5 h-3.5" />, badge: notifications.filter(n => !n.isRead).length },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
+                activeSubTab === tab.id
+                  ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+              {tab.badge && tab.badge > 0 ? (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse ml-0.5" />
+              ) : null}
+            </button>
+          ))}
         </div>
 
         {/* Dynamic Display boards */}

@@ -627,132 +627,202 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             )}
           </div>
 
-          {/* Mobile hamburger menu */}
-          <div className="flex md:hidden items-center gap-3">
+          {/* Mobile actions & hamburger menu */}
+          <div className="flex md:hidden items-center gap-1.5 sm:gap-2">
+            {/* Mobile Live Sync icon badge */}
+            <div 
+              className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700" 
+              title={cloudSync ? 'Live Database Connected' : 'Sandbox (Offline)'}
+            >
+              <Database className={`w-4 h-4 ${cloudSync ? 'text-emerald-500 animate-pulse' : 'text-amber-500'}`} />
+            </div>
+
             {/* Mobile Theme Switcher */}
             <button
               onClick={toggleDarkMode}
-              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors overflow-hidden relative cursor-pointer"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700 transition-colors overflow-hidden relative cursor-pointer"
               id="mobile_theme_switcher_btn"
-              title={darkMode ? "Switch to Day Study Mode" : "Switch to Night Study Dark Mode"}
+              title={darkMode ? "Day Study Mode" : "Night Study Mode"}
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={darkMode ? 'dark' : 'light'}
-                  initial={{ y: -10, opacity: 0, rotate: -45, scale: 0.8 }}
-                  animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
-                  exit={{ y: 10, opacity: 0, rotate: 45, scale: 0.8 }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  initial={{ y: -8, opacity: 0, scale: 0.8 }}
+                  animate={{ y: 0, opacity: 1, scale: 1 }}
+                  exit={{ y: 8, opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-indigo-500" />}
+                  {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-500" />}
                 </motion.div>
               </AnimatePresence>
             </button>
-            {currentUser && (
-              <div className="p-1 text-slate-500 dark:text-slate-400 relative">
-                <button
-                  onClick={() => {
-                    setShowNotifications(!showNotifications);
-                    setShowSettings(false);
-                  }}
-                  className="p-1 rounded-lg hover:text-indigo-600 cursor-pointer relative"
-                  id="mobile_notifications_bell_btn"
-                  title="View Tuition Alerts & Notifications"
-                >
-                  <Bell className="w-5.5 h-5.5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-0 right-0 block h-3.5 w-3.5 rounded-full bg-red-500 text-[9px] font-bold text-white text-center leading-3.5 animate-bounce">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
+
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  setShowSettings(false);
+                }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700 cursor-pointer relative"
+                id="mobile_notifications_bell_btn"
+                title="Notifications"
+              >
+                <Bell className="w-4.5 h-4.5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 block h-4 w-4 rounded-full bg-red-500 text-[9px] font-extrabold text-white text-center leading-4 ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Mobile User Avatar or Login Button */}
+            {currentUser ? (
+              <div 
+                className="cursor-pointer"
+                onClick={() => setShowProfileDetails(true)}
+              >
+                {currentUser.photoURL ? (
+                  <img 
+                    referrerPolicy="no-referrer"
+                    src={currentUser.photoURL} 
+                    alt={currentUser.name} 
+                    className="w-8 h-8 rounded-xl object-cover ring-1.5 ring-indigo-500/50"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold flex items-center justify-center text-xs border border-indigo-200 dark:border-indigo-800">
+                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+                  </div>
+                )}
               </div>
+            ) : (
+              <button
+                onClick={() => onChangeTab('auth')}
+                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm"
+                id="mobile_header_login_btn"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
             )}
+
+            {/* Mobile Menu Dropdown Toggle */}
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-200/40"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700 cursor-pointer"
               id="mobile_menu_trigger"
             >
-              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {isOpen ? <X className="w-4.5 h-4.5" /> : <Menu className="w-4.5 h-4.5" />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile menus */}
+      {/* Mobile Menu Dropdown Overlay Sheet */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-slate-200/80 bg-white dark:bg-slate-100 shadow-lg"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="md:hidden border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-xl px-4 py-4 space-y-3"
             id="mobile_dropdown_menu"
           >
-            <div className="pt-2 pb-3 px-4 space-y-1">
+            {/* Quick Navigation Links */}
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => { onChangeTab('home'); setIsOpen(false); }}
-                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-200/40 hover:text-indigo-600 dark:hover:text-indigo-400"
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all cursor-pointer ${
+                  currentTab === 'home' 
+                    ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-black' 
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold'
+                }`}
               >
-                Home
+                <BookOpen className="w-5 h-5 mb-1 text-indigo-500" />
+                <span className="text-xs">Home</span>
               </button>
+
               <button
                 onClick={() => { onChangeTab('classes'); setIsOpen(false); }}
-                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-200/40 hover:text-indigo-600 dark:hover:text-indigo-400"
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all cursor-pointer ${
+                  currentTab === 'classes' 
+                    ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-black' 
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold'
+                }`}
               >
-                Classes
+                <BookOpen className="w-5 h-5 mb-1 text-blue-500" />
+                <span className="text-xs">Classes</span>
               </button>
+
               <button
                 onClick={() => { onChangeTab('tutors'); setIsOpen(false); }}
-                className="block text-left w-full px-3 py-2 rounded-md text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-200/40 hover:text-indigo-600 dark:hover:text-indigo-400"
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all cursor-pointer ${
+                  currentTab === 'tutors' 
+                    ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-black' 
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold'
+                }`}
               >
-                Tutors
+                <Sparkles className="w-5 h-5 mb-1 text-emerald-500" />
+                <span className="text-xs">Faculty</span>
               </button>
-              
-
             </div>
 
-            {/* User status */}
-            <div className="pt-4 pb-3 border-t border-slate-200/80 px-4">
-              {currentUser ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+            {/* Logged in User Profile Card in Menu */}
+            {currentUser ? (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700">
+                  <div 
+                    className="flex items-center gap-3 cursor-pointer flex-1"
+                    onClick={() => { setShowProfileDetails(true); setIsOpen(false); }}
+                  >
                     {currentUser.photoURL ? (
                       <img 
-                        className="h-10 w-10 rounded-full cursor-pointer hover:scale-105 transition-transform" 
+                        className="h-10 w-10 rounded-xl object-cover ring-2 ring-indigo-500/30" 
                         src={currentUser.photoURL} 
-                        alt="" 
-                        onClick={() => { setShowProfileDetails(true); setIsOpen(false); }}
+                        alt={currentUser.name} 
                       />
                     ) : (
-                      <div 
-                        className="h-10 w-10 bg-indigo-50 dark:bg-slate-200/20 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold cursor-pointer hover:bg-indigo-100 transition-all"
-                        onClick={() => { setShowProfileDetails(true); setIsOpen(false); }}
-                      >
-                        <User className="w-5.5 h-5.5" />
+                      <div className="h-10 w-10 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center font-black">
+                        <User className="w-5 h-5" />
                       </div>
                     )}
-                    <div>
-                      <p className="text-sm font-bold text-gray-800">{currentUser.name}</p>
-                      <p className="text-xs text-gray-500">{currentUser.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{currentUser.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {getRoleBadge(currentUser.role)}
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{currentUser.email}</span>
+                      </div>
                     </div>
                   </div>
+
                   <button
                     onClick={() => { setShowLogoutConfirm(true); setIsOpen(false); }}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors"
+                    title="Sign Out"
                   >
-                    <LogOut className="w-5.5 h-5.5" />
+                    <LogOut className="w-5 h-5" />
                   </button>
                 </div>
-              ) : (
+
+                <button
+                  onClick={() => { onChangeTab('dashboard'); setIsOpen(false); }}
+                  className="w-full py-2.5 px-4 bg-slate-900 dark:bg-slate-800 hover:bg-slate-950 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Shield className="w-4 h-4 text-indigo-400" /> Go to {currentUser.role === 'admin' ? 'Admin Dashboard' : currentUser.role === 'tutor' ? 'Tutor Portal' : 'Student Portal'}
+                </button>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   onClick={() => { onChangeTab('auth'); setIsOpen(false); }}
-                  className="w-full text-center py-2.5 px-4 bg-blue-600 text-white font-bold rounded-lg"
+                  className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md"
                 >
-                  Log In / Sign Up
+                  <User className="w-4 h-4" /> Sign In / Enroll
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
