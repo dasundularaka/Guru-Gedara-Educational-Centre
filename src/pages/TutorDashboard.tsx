@@ -14,7 +14,6 @@ import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
-import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { 
   Users, 
   Calendar, 
@@ -166,7 +165,6 @@ export const TutorDashboard: React.FC = () => {
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
-  const [showCameraModal, setShowCameraModal] = useState<boolean>(false);
 
   // Quick Attendance Widget state
   const [widgetClassId, setWidgetClassId] = useState<string>('');
@@ -814,34 +812,6 @@ export const TutorDashboard: React.FC = () => {
       showToast("Failed to delete class.", "error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !currentUser) return;
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("Profile image must be under 10MB", "error");
-      return;
-    }
-    try {
-      showToast("Uploading photo to Firebase Storage...", "info");
-      const storageUrl = await firestoreService.uploadProfilePhoto(file, currentUser.uid, 'tutor');
-      await firestoreService.submitProfilePhotoChange(
-        currentUser.uid,
-        storageUrl,
-        'tutor',
-        currentUser.name
-      );
-      if (refreshUserProfile) {
-        await refreshUserProfile();
-      }
-      showToast(
-        "📸 Profile picture uploaded to Firebase Storage and submitted for Admin approval! It will appear publicly once verified.",
-        "info"
-      );
-    } catch (err: any) {
-      showToast("Failed to upload photo: " + (err.message || "Unknown error"), "error");
     }
   };
 
@@ -2739,35 +2709,8 @@ export const TutorDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Photo Upload & Live Camera Controls */}
-                  <div className="border border-dashed border-gray-200 hover:border-indigo-400 bg-slate-50/60 rounded-xl p-3 text-center transition-all space-y-2.5">
-                    <div className="flex justify-center">
-                      <Camera className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <p className="text-[11px] font-bold text-gray-700">Update Profile Picture (Camera / Gallery)</p>
-                    <p className="text-[10px] text-gray-400">Takes or uploads directly to Firebase Storage</p>
-                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                      <button
-                        type="button"
-                        onClick={() => setShowCameraModal(true)}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Camera className="w-3.5 h-3.5" /> Camera & Gallery
-                      </button>
-                      <label className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-bold cursor-pointer transition-all shadow-xs flex items-center justify-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5 text-indigo-600" /> Quick File
-                        <input
-                          type="file"
-                          accept="image/png, image/jpeg, image/jpg, image/webp"
-                          onChange={handlePhotoFileUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
                   {/* Avatar Presets */}
-                  <div className="border-t border-gray-100 pt-4 text-left">
+                  <div className="border-t border-gray-100 pt-3 text-left">
                     <label className="block text-xs font-bold text-gray-700 mb-2">Or Choose Professional Avatar Preset:</label>
                     <div className="grid grid-cols-4 gap-2">
                       {[
@@ -4103,12 +4046,6 @@ export const TutorDashboard: React.FC = () => {
         />
       )}
 
-      {/* Camera and Gallery Profile Capture Modal */}
-      <CameraProfileCapture
-        isOpen={showCameraModal}
-        onClose={() => setShowCameraModal(false)}
-      />
-
       {/* Student Profile & Attendance History Inspector Modal */}
       {selectedStudentForProfile && (
         <StudentProfileModal
@@ -4132,7 +4069,6 @@ export const TutorDashboard: React.FC = () => {
           enrolledClasses={tutorClasses}
           bookings={[]}
           showToast={showToast}
-          onOpenPhotoUpload={() => setShowCameraModal(true)}
         />
       )}
     </motion.div>

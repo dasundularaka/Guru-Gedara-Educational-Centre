@@ -113,25 +113,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     }
   }, [currentUser]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        showToast("Please upload a PNG or JPG image file.", "error");
-        return;
-      }
-      try {
-        const optimized = await optimizeImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
-        if (optimized) {
-          setPhotoURL(optimized);
-          showToast("Profile image uploaded and optimized for cloud sync!", "success");
-        }
-      } catch (err) {
-        showToast("Failed to process image. Please try another.", "error");
-      }
-    }
-  };
-
   const handleClassToggle = (classId: string) => {
     if (selectedClasses.includes(classId)) {
       setSelectedClasses(prev => prev.filter(id => id !== classId));
@@ -1000,24 +981,14 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                 ))}
               </div>
 
-              {/* Upload Custom Avatar Button */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-1 items-center">
-                <label className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer text-center flex items-center justify-center gap-2 shrink-0 shadow-2xs transition-colors">
-                  <Upload className="w-3.5 h-3.5 text-indigo-600" />
-                  Upload Custom Image
-                  <input 
-                    type="file" 
-                    accept="image/png, image/jpeg, image/jpg" 
-                    onChange={handleFileUpload} 
-                    className="hidden" 
-                  />
-                </label>
+              {/* Image URL Input */}
+              <div className="pt-1">
                 <input
                   type="text"
                   value={photoURL}
                   onChange={(e) => setPhotoURL(e.target.value)}
-                  placeholder="Or paste image URL (https://...)"
-                  className="w-full text-[11px] px-3.5 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono shadow-2xs text-slate-600"
+                  placeholder="Or paste profile image web link (https://...)"
+                  className="w-full text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono shadow-2xs text-slate-700 placeholder:text-slate-400"
                 />
               </div>
             </div>

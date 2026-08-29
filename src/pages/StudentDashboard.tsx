@@ -12,7 +12,6 @@ import { StudentProgressTracker } from '../components/StudentProgressTracker';
 import { StudentModuleRoadmap } from '../components/StudentModuleRoadmap';
 import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { UpcomingDeadlines } from '../components/UpcomingDeadlines';
-import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
@@ -76,7 +75,6 @@ export const StudentDashboard: React.FC = () => {
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCameraModal, setShowCameraModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false);
@@ -473,91 +471,43 @@ export const StudentDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Workspace Title Header with Profile Avatar */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 bg-white p-6 rounded-3xl border border-slate-150/80 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
-          <div className="flex flex-col sm:flex-row items-center gap-5 w-full lg:w-auto">
-            {/* Avatar container with direct click option */}
-            <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => setShowCameraModal(true)}>
-              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-indigo-600 shadow-md relative">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 sm:mb-10 gap-4 sm:gap-6 bg-white p-4 sm:p-6 rounded-3xl border border-slate-150/80 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 w-full lg:w-auto">
+            {/* Avatar container */}
+            <div className="relative flex-shrink-0">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-indigo-600 shadow-md relative">
                 <img 
                   id="student_profile_avatar"
                   src={currentUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentUser.uid}`} 
                   alt={currentUser.name} 
-                  className="w-full h-full object-cover transition-all group-hover:scale-105"
+                  className="w-full h-full object-cover"
                 />
               </div>
-              {currentUser.pendingPhotoURL && (
-                <span 
-                  className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-md animate-pulse" 
-                  title="Proposed photo is pending administrator review"
-                >
-                  ⏳
-                </span>
-              )}
-              <button 
-                className="absolute inset-0 bg-slate-950/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[9px] font-bold uppercase tracking-wider cursor-pointer"
-              >
-                Change
-              </button>
             </div>
 
-            <div className="text-center sm:text-left">
+            <div className="text-center sm:text-left flex-1 min-w-0">
               <span className="text-[10px] font-mono font-bold text-indigo-650 uppercase tracking-widest block leading-none">Scholar Portal</span>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight mt-2">Welcome Back, {currentUser.name}!</h1>
-              <p className="text-xs text-slate-400 mt-1.5">
-                Grade Level: <span className="font-extrabold text-indigo-600">{currentUser.studentDetails?.grade || 'Grade 11'}</span> 
-                • Access code: <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">SYNCED_SCHOLAR</span>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-1.5 truncate">Welcome Back, {currentUser.name}!</h1>
+              <p className="text-xs text-slate-400 mt-1">
+                Grade: <span className="font-extrabold text-indigo-600">{currentUser.studentDetails?.grade || 'Grade 11'}</span> 
+                • Code: <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">SYNCED_SCHOLAR</span>
               </p>
-
-              {currentUser.pendingPhotoURL && (
-                <div className="mt-2.5 p-2 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-3 max-w-lg">
-                  <div className="flex items-center gap-2">
-                    <img 
-                      src={currentUser.pendingPhotoURL} 
-                      className="w-7 h-7 rounded-full object-cover border border-amber-400 flex-shrink-0 shadow-xs" 
-                      alt="Pending avatar preview" 
-                    />
-                    <div className="text-left">
-                      <span className="font-extrabold text-[11px] block text-amber-900 leading-tight">📸 Photo Change In Review</span>
-                      <span className="text-[10px] text-amber-700 leading-none">Proposed photo is stored privately until admin approves it for public view.</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      await firestoreService.updateUserProfile(currentUser.uid, { pendingPhotoURL: '' });
-                      if (refreshUserProfile) await refreshUserProfile();
-                      showToast("Pending photo submission cancelled.", "info");
-                    }}
-                    className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline flex-shrink-0 cursor-pointer"
-                  >
-                    Withdraw
-                  </button>
-                </div>
-              )}
 
               {/* Quick action bar */}
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center sm:justify-start">
                 <button 
                   onClick={() => setShowIdCardModal(true)}
-                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-1.5 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95"
+                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-2 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95 min-h-[38px]"
                   id="btn_student_view_id_card"
                 >
                   <GraduationCap className="w-3.5 h-3.5 text-amber-400" /> ID Card
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}
-                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
                   id="btn_student_view_my_qr"
                 >
                   <QrCode className="w-3.5 h-3.5 text-indigo-600" /> QR Pass
-                </button>
-                <button 
-                  onClick={() => setShowCameraModal(true)}
-                  className="text-xs text-slate-700 hover:text-slate-900 font-bold flex items-center gap-1.5 bg-white hover:bg-slate-50 px-3 py-1.5 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
-                  id="btn_student_update_photo"
-                >
-                  <Camera className="w-3.5 h-3.5 text-slate-500" /> Photo
                 </button>
               </div>
             </div>
@@ -1171,12 +1121,6 @@ export const StudentDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Camera Profile Capture Modal */}
-      <CameraProfileCapture 
-        isOpen={showCameraModal} 
-        onClose={() => setShowCameraModal(false)} 
-      />
-
       {/* Student Personal Unique QR Code Modal */}
       {showQrModal && (
         <div 
@@ -1261,7 +1205,6 @@ export const StudentDashboard: React.FC = () => {
         enrolledClasses={classes.filter(c => (currentUser.selectedClasses || []).includes(c.id))}
         bookings={studentBookings}
         showToast={showToast}
-        onOpenPhotoUpload={() => setShowCameraModal(true)}
       />
 
       {/* Class Profile Modal for Students */}

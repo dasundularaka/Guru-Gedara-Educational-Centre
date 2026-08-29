@@ -14,7 +14,6 @@ import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRSc
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
-import { CameraProfileCapture } from '../components/CameraProfileCapture';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -130,7 +129,6 @@ export const AdminDashboard: React.FC = () => {
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
-  const [showAdminCameraModal, setShowAdminCameraModal] = useState<boolean>(false);
   const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
   const [progressGradeFilter, setProgressGradeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -759,51 +757,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("Image file size must be less than 10MB.", "error");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 800;
-
-        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
-          if (width / height > MAX_WIDTH / MAX_HEIGHT) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-          } else {
-            width = Math.round((width * MAX_HEIGHT) / height);
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
-          setBannerImageUrl(compressedBase64);
-          showToast("Banner image compressed & attached!", "success");
-        }
-      };
-      img.onerror = () => {
-        showToast("Failed to process image file.", "error");
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
   // Pathways Handlers
   const handleOpenPathwayModal = (pathway?: PathwayItem) => {
     if (pathway) {
@@ -1017,25 +970,6 @@ export const AdminDashboard: React.FC = () => {
     setPaymentAmount("120");
     setPaymentStatus("paid");
     setPaymentMethod("Credit Card");
-  };
-
-  const handleStudentFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        showToast("Image file size should be less than 10MB.", "error");
-        return;
-      }
-      try {
-        const optimized = await optimizeImage(file, { maxWidth: 600, maxHeight: 600, quality: 0.82 });
-        if (optimized) {
-          setStudentPhotoURL(optimized);
-          showToast("Profile image uploaded and optimized for cloud sync!", "success");
-        }
-      } catch (err) {
-        showToast("Failed to process profile image.", "error");
-      }
-    }
   };
 
   // Actions Opening modals helper
@@ -1859,12 +1793,10 @@ export const AdminDashboard: React.FC = () => {
               <span>Executive ID Pass</span>
             </button>
 
-            {/* Admin Profile Picture Control */}
-            <button
-              id="admin_profile_photo_btn"
-              onClick={() => setShowAdminCameraModal(true)}
-              className="relative group p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-2.5 px-3 py-1.5 cursor-pointer"
-              title="Capture photo with Camera or select from Gallery (Instant Admin Direct Approval)"
+            {/* Admin Profile Display */}
+            <div
+              id="admin_profile_avatar_badge"
+              className="relative p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm flex items-center gap-2.5 px-3 py-1.5"
             >
               <div className="relative">
                 <img
@@ -1873,7 +1805,7 @@ export const AdminDashboard: React.FC = () => {
                   className="w-8 h-8 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
                 />
                 <div className="absolute -bottom-1 -right-1 bg-red-600 text-white p-0.5 rounded-full ring-2 ring-white dark:ring-slate-800 shadow-xs">
-                  <Camera className="w-2.5 h-2.5" />
+                  <ShieldCheck className="w-2.5 h-2.5" />
                 </div>
               </div>
               <div className="text-left hidden sm:block">
@@ -1881,10 +1813,10 @@ export const AdminDashboard: React.FC = () => {
                   {currentUser?.name || 'Administrator'}
                 </p>
                 <span className="text-[9px] font-mono font-bold text-red-600 dark:text-red-400">
-                  Admin Avatar
+                  System Admin
                 </span>
               </div>
-            </button>
+            </div>
 
             {/* Sub menu controls - Modern Dropdown Navigation */}
             <div className="relative">
@@ -4668,30 +4600,19 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Profile Image (PNG/JPG File or Image Link)</label>
-                    <div className="flex flex-col sm:flex-row gap-2 items-center">
-                      <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 shrink-0">
-                        <Upload className="w-3.5 h-3.5 text-indigo-600" /> Upload Photo (PNG/JPG)
-                        <input 
-                          type="file" 
-                          accept="image/png, image/jpeg, image/jpg" 
-                          onChange={handleStudentFileUpload} 
-                          className="hidden" 
-                        />
-                      </label>
-                      <input 
-                        type="text" 
-                        value={studentPhotoURL} 
-                        onChange={(e) => setStudentPhotoURL(e.target.value)}
-                        placeholder="Or paste image URL link..."
-                        className="w-full p-2 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono"
-                      />
-                    </div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">Profile Photo Link (URL)</label>
+                    <input 
+                      type="text" 
+                      value={studentPhotoURL} 
+                      onChange={(e) => setStudentPhotoURL(e.target.value)}
+                      placeholder="Paste image web link (https://...)"
+                      className="w-full p-2.5 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500 font-mono"
+                    />
                     {studentPhotoURL && (
                       <div className="mt-2 flex items-center gap-2">
                         <img src={studentPhotoURL} alt="Preview" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                        <span className="text-[10px] text-emerald-600 font-bold">Image selected</span>
-                        <button type="button" onClick={() => setStudentPhotoURL('')} className="text-[10px] text-red-500 underline ml-auto">Remove</button>
+                        <span className="text-[10px] text-emerald-600 font-bold">Image preview loaded</span>
+                        <button type="button" onClick={() => setStudentPhotoURL('')} className="text-[10px] text-red-500 underline ml-auto cursor-pointer">Remove</button>
                       </div>
                     )}
                   </div>
@@ -5672,22 +5593,8 @@ export const AdminDashboard: React.FC = () => {
               {/* Banner Image Selection */}
               <div className="space-y-3 pt-1 border-t border-gray-100">
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono">
-                  Banner Image Source
+                  Banner Image Web URL (HTTPS Link)
                 </label>
-
-                {/* Upload Local Image File */}
-                <div className="flex items-center gap-3">
-                  <label className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 cursor-pointer flex items-center gap-2 transition-all">
-                    <Upload className="w-4 h-4" /> Upload Local Image
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleBannerFileUpload} 
-                      className="hidden" 
-                    />
-                  </label>
-                  <span className="text-[11px] text-gray-400">or enter image web URL below</span>
-                </div>
 
                 <input 
                   type="text"
@@ -5833,19 +5740,6 @@ export const AdminDashboard: React.FC = () => {
         onClose={() => setShowEmailLogsModal(false)}
       />
 
-      {/* Admin Profile Camera & Gallery Avatar Capture Modal */}
-      {showAdminCameraModal && currentUser && (
-        <CameraProfileCapture
-          isOpen={showAdminCameraModal}
-          onClose={() => setShowAdminCameraModal(false)}
-          targetUser={currentUser}
-          onPhotoUpdated={async ({ isPending, url }) => {
-            await fetchAdminDatasets();
-            showToast('Administrator profile photo updated and synchronized successfully!', 'success');
-          }}
-        />
-      )}
-
       {/* Role-Adaptive Digital ID Card Modal (Executive Admin, Faculty Tutor, Student Scholar) */}
       {selectedUserForIdCard && (
         <DigitalStudentIDCardModal
@@ -5855,7 +5749,6 @@ export const AdminDashboard: React.FC = () => {
           enrolledClasses={classesList}
           bookings={bookingsList}
           showToast={showToast}
-          onOpenPhotoUpload={selectedUserForIdCard.uid === currentUser?.uid ? () => setShowAdminCameraModal(true) : undefined}
         />
       )}
     </motion.div>
