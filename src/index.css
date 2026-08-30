@@ -372,6 +372,36 @@ svg text,
   border-color: #4b5563;
 }
 
+/* Mobile Usability & Touch Target Optimization (Accessibility Standard 44px Minimum) */
+@media (max-width: 768px) {
+  button:not(.no-touch-expand),
+  a[role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  select,
+  .touch-target {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="search"],
+  textarea {
+    min-height: 42px;
+    font-size: 16px; /* Prevents auto-zoom on iOS mobile browsers */
+  }
+}
+
+/* Smooth Tap Highlight for Mobile */
+button, a, input, select, textarea, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Print Optimization for Digital Student ID Card & Receipts */
 @media print {
   html, body {

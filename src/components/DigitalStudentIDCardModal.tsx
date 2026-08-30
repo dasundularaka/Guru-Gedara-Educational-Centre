@@ -11,7 +11,6 @@ import {
   Sparkles, 
   GraduationCap, 
   Phone, 
-  AlertCircle, 
   Check, 
   Copy, 
   Layers, 
@@ -97,7 +96,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   const admissionDateStr = currentUser.createdAt 
     ? new Date(currentUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
     : 'Aug 2025';
-  const academicYear = '2025 / 2026';
+  const validityPeriod = '2025 / 2026';
 
   // Extract enrolled course & subject names
   const enrolledSubjectNames = Array.from(
@@ -203,14 +202,22 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   };
 
   // Helper to capture DOM node as image safely with fallbacks
-  const captureNode = async (node: HTMLElement) => {
-    return await toPng(node, {
-      quality: 0.98,
-      pixelRatio: 2.5,
-      cacheBust: true,
-      skipAutoScale: true,
-      backgroundColor: '#0f172a'
-    });
+  const captureNode = async (node: HTMLElement): Promise<string> => {
+    try {
+      return await toPng(node, {
+        quality: 0.98,
+        pixelRatio: 2,
+        cacheBust: true,
+        skipAutoScale: true,
+        backgroundColor: '#0f172a'
+      });
+    } catch (err) {
+      console.warn('Standard toPng capture failed, trying relaxed config', err);
+      return await toPng(node, {
+        pixelRatio: 1.5,
+        cacheBust: true
+      });
+    }
   };
 
   // Download high-resolution PNG front card
@@ -318,7 +325,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.setFontSize(8.5);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(251, 191, 36); // amber-400
-      pdf.text(`OFFICIAL ${role.toUpperCase()} IDENTITY CARD • ACADEMIC YEAR ${academicYear}`, pageWidth / 2, 17, { align: 'center' });
+      pdf.text(`OFFICIAL ${role.toUpperCase()} IDENTITY CARD • VALID ${validityPeriod}`, pageWidth / 2, 17, { align: 'center' });
 
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'normal');
@@ -398,9 +405,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     <div
       ref={frontCardRef}
       id="digital_id_card_front"
-      className={`relative w-full max-w-[500px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
+      className={`relative w-full max-w-[480px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
         forPrint ? 'border-slate-800 shadow-none' : `${currentTheme.accentBorder} ${currentTheme.glow}`
-      } bg-gradient-to-br ${currentTheme.bgGradient} p-4 sm:p-5 flex flex-col justify-between select-none shadow-2xl`}
+      } bg-gradient-to-br ${currentTheme.bgGradient} p-3 sm:p-4 md:p-5 flex flex-col justify-between select-none shadow-xl`}
       style={{
         boxShadow: forPrint ? 'none' : undefined
       }}
@@ -409,45 +416,45 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
         <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full border-[12px] border-white/10" />
         <div className="absolute -right-6 -bottom-6 w-48 h-48 rounded-full border-[6px] border-white/10" />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-8xl font-black tracking-widest text-white/5 whitespace-nowrap rotate-[-25deg]">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-7xl sm:text-8xl font-black tracking-widest text-white/5 whitespace-nowrap rotate-[-25deg]">
           GURUGEDARA
         </div>
       </div>
 
       {/* Header Bar */}
-      <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-7.5 h-7.5 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md border border-amber-300 shrink-0">
+      <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-1.5 sm:pb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md border border-amber-300 shrink-0">
             {role === 'admin' ? (
-              <Crown className="w-4.5 h-4.5 text-slate-950" />
+              <Crown className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-slate-950" />
             ) : role === 'tutor' ? (
-              <Briefcase className="w-4.5 h-4.5 text-slate-950" />
+              <Briefcase className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-slate-950" />
             ) : (
-              <GraduationCap className="w-4.5 h-4.5 text-slate-950" />
+              <GraduationCap className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-slate-950" />
             )}
           </div>
           <div>
-            <h3 className="text-[11px] sm:text-xs font-black tracking-wider uppercase text-white leading-tight font-sans">
+            <h3 className="text-[10px] sm:text-xs font-black tracking-wider uppercase text-white leading-tight font-sans">
               Gurugedara Higher Education
             </h3>
-            <p className={`text-[8px] sm:text-[9px] font-mono font-bold tracking-widest uppercase ${currentTheme.accentColor}`}>
+            <p className={`text-[7.5px] sm:text-[9px] font-mono font-bold tracking-widest uppercase ${currentTheme.accentColor}`}>
               {roleTitle}
             </p>
           </div>
         </div>
         <div className="text-right">
-          <span className="inline-block px-1.5 py-0.5 rounded text-[7.5px] sm:text-[8px] font-mono font-black uppercase tracking-wider bg-white/10 border border-white/20 text-slate-200">
-            AY {academicYear}
+          <span className="inline-block px-1.5 py-0.5 rounded text-[7px] sm:text-[8px] font-mono font-black uppercase tracking-wider bg-white/10 border border-white/20 text-slate-200">
+            VALID PASS
           </span>
         </div>
       </div>
 
       {/* Main Body: Photo, Info, Courses/Faculty & Scannable QR */}
-      <div className="relative z-10 grid grid-cols-12 gap-2.5 sm:gap-3.5 items-center my-auto py-1">
+      <div className="relative z-10 grid grid-cols-12 gap-2 sm:gap-3 items-center my-auto py-1">
         {/* Photo Column */}
         <div className="col-span-4 flex flex-col items-center">
           <div className="relative group">
-            <div className="w-18 h-22 sm:w-22 sm:h-26 rounded-xl overflow-hidden border-2 border-amber-400/80 shadow-lg bg-slate-800 relative">
+            <div className="w-14 h-18 sm:w-20 sm:h-24 rounded-xl overflow-hidden border-2 border-amber-400/80 shadow-lg bg-slate-800 relative">
               <img
                 src={userPhoto}
                 alt={currentUser.name}
@@ -456,37 +463,37 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                 referrerPolicy="no-referrer"
               />
               <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 backdrop-blur-xs py-0.5 text-center">
-                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-emerald-400 font-bold flex items-center justify-center gap-0.5">
-                  <ShieldCheck className="w-2.5 h-2.5 inline" /> Verified
+                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-emerald-400 font-bold flex items-center justify-center gap-0.5">
+                  <ShieldCheck className="w-2 sm:w-2.5 h-2 sm:h-2.5 inline" /> Verified
                 </span>
               </div>
             </div>
             {/* Holographic Seal Badge */}
-            <div className="absolute -bottom-1.5 -right-1.5 w-5.5 h-5.5 rounded-full bg-gradient-to-tr from-amber-300 via-amber-100 to-amber-400 border border-amber-200 shadow-md flex items-center justify-center text-slate-950">
-              <Sparkles className="w-3 h-3 text-slate-900" />
+            <div className="absolute -bottom-1 -right-1 sm:-bottom-1.5 sm:-right-1.5 w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 rounded-full bg-gradient-to-tr from-amber-300 via-amber-100 to-amber-400 border border-amber-200 shadow-md flex items-center justify-center text-slate-950">
+              <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-900" />
             </div>
           </div>
-          <span className="text-[8px] sm:text-[9px] font-mono font-bold text-slate-300 mt-1.5 truncate max-w-[110px]">
+          <span className="text-[7.5px] sm:text-[9px] font-mono font-bold text-slate-300 mt-1 truncate max-w-[100px] sm:max-w-[110px]">
             ID: <span className="text-white font-black">{formattedId}</span>
           </span>
         </div>
 
         {/* Info Column */}
-        <div className="col-span-5 space-y-1 text-left">
+        <div className="col-span-5 space-y-0.5 sm:space-y-1 text-left">
           <div>
-            <span className="text-[7px] sm:text-[8px] font-mono uppercase text-slate-400 tracking-wider block">
+            <span className="text-[6.5px] sm:text-[7.5px] font-mono uppercase text-slate-400 tracking-wider block">
               {role === 'tutor' ? 'Faculty Lecturer' : role === 'admin' ? 'Administrative Staff' : 'Student Name'}
             </span>
-            <h4 className="text-xs sm:text-sm font-black text-white leading-tight tracking-tight line-clamp-1">
+            <h4 className="text-[11px] sm:text-xs md:text-sm font-black text-white leading-tight tracking-tight line-clamp-1">
               {currentUser.name}
             </h4>
           </div>
 
           <div>
-            <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-slate-400 tracking-wider block">
+            <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 tracking-wider block">
               {role === 'tutor' ? 'Academic Department' : role === 'admin' ? 'Executive Division' : 'Academic Stream'}
             </span>
-            <p className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-200 truncate">
+            <p className="text-[8.5px] sm:text-[10px] font-bold text-slate-200 truncate">
               {role === 'tutor' 
                 ? (currentUser.tutorDetails?.qualification || 'Senior Faculty') 
                 : role === 'admin' 
@@ -498,20 +505,20 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           {/* Role-Specific Showcase */}
           {role === 'student' && (
             <div>
-              <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
-                <BookOpen className="w-2.5 h-2.5" /> Enrolled Courses ({displayCourses.length})
+              <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
+                <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> Enrolled Courses ({displayCourses.length})
               </span>
-              <div className="flex flex-wrap gap-1 mt-0.5 max-h-9 overflow-hidden">
+              <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-0.5 max-h-7 sm:max-h-9 overflow-hidden">
                 {displayCourses.slice(0, 3).map((course, idx) => (
                   <span 
                     key={idx}
-                    className="px-1.5 py-0.2 text-[7px] sm:text-[7.5px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[110px]"
+                    className="px-1 sm:px-1.5 py-0.2 text-[6.5px] sm:text-[7.5px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[90px] sm:max-w-[110px]"
                   >
                     {course}
                   </span>
                 ))}
                 {displayCourses.length > 3 && (
-                  <span className="px-1 py-0.2 text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
+                  <span className="px-1 py-0.2 text-[6px] sm:text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
                     +{displayCourses.length - 3}
                   </span>
                 )}
@@ -521,34 +528,31 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
           {role === 'tutor' && (
             <div>
-              <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-emerald-300 tracking-wider flex items-center gap-1 font-bold">
-                <Award className="w-2.5 h-2.5" /> Specialization
+              <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-emerald-300 tracking-wider flex items-center gap-1 font-bold">
+                <Award className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> Specialization
               </span>
-              <p className="text-[8px] sm:text-[8.5px] text-slate-200 font-medium truncate">
+              <p className="text-[7.5px] sm:text-[8.5px] text-slate-200 font-medium truncate">
                 {currentUser.tutorDetails?.subjects?.join(', ') || 'Mathematics & Sciences'}
-              </p>
-              <p className="text-[7px] text-slate-400 font-mono">
-                Exp: {currentUser.tutorDetails?.experience || 5}+ Years
               </p>
             </div>
           )}
 
           {role === 'admin' && (
             <div>
-              <span className="text-[7px] sm:text-[7.5px] font-mono uppercase text-rose-300 tracking-wider flex items-center gap-1 font-bold">
-                <ShieldCheck className="w-2.5 h-2.5" /> Clearance Level
+              <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-rose-300 tracking-wider flex items-center gap-1 font-bold">
+                <ShieldCheck className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> Clearance Level
               </span>
-              <p className="text-[8px] sm:text-[8.5px] text-slate-200 font-medium">
+              <p className="text-[7.5px] sm:text-[8.5px] text-slate-200 font-medium">
                 Level-1 Full System Authorization
               </p>
             </div>
           )}
 
           <div className="flex items-center gap-1 pt-0.5">
-            <span className={`px-1.5 py-0.5 rounded text-[7px] sm:text-[7.5px] font-bold font-mono uppercase tracking-wider ${currentTheme.badgeBg}`}>
+            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[6.5px] sm:text-[7px] font-bold font-mono uppercase tracking-wider ${currentTheme.badgeBg}`}>
               {roleBadge}
             </span>
-            <span className="text-[7px] font-mono text-slate-400">
+            <span className="text-[6.5px] sm:text-[7px] font-mono text-slate-400">
               Iss: {admissionDateStr}
             </span>
           </div>
@@ -560,32 +564,32 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
             <QRCodeCanvas
               id="digital_id_qr_canvas"
               value={formattedId}
-              size={68}
+              size={58}
               level="H"
               includeMargin={false}
             />
           </div>
-          <span className="text-[6.5px] sm:text-[7px] font-mono uppercase tracking-widest text-slate-300 mt-1 font-bold">
+          <span className="text-[6px] sm:text-[7px] font-mono uppercase tracking-widest text-slate-300 mt-1 font-bold">
             {role === 'admin' ? 'Security Gate' : 'Scan for Entry'}
           </span>
         </div>
       </div>
 
       {/* Footer Strip with Barcode styling & Microtext */}
-      <div className="relative z-10 flex items-center justify-between border-t border-white/15 pt-1.5 text-[7px] sm:text-[8px] font-mono text-slate-400">
-        <div className="flex items-center gap-1.5">
-          <div className="h-3.5 flex items-center gap-0.5 bg-white/90 px-1 rounded-xs">
-            {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 2, 3, 1, 2].map((w, i) => (
-              <span key={i} className="h-2.5 bg-slate-950 inline-block" style={{ width: `${w}px` }} />
+      <div className="relative z-10 flex items-center justify-between border-t border-white/15 pt-1 sm:pt-1.5 text-[6.5px] sm:text-[7.5px] font-mono text-slate-400">
+        <div className="flex items-center gap-1">
+          <div className="h-3 sm:h-3.5 flex items-center gap-0.5 bg-white/90 px-1 rounded-xs">
+            {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 2, 3].map((w, i) => (
+              <span key={i} className="h-2 sm:h-2.5 bg-slate-950 inline-block" style={{ width: `${w}px` }} />
             ))}
           </div>
-          <span className="text-[6.5px] sm:text-[7px] text-slate-400 tracking-tight hidden sm:inline">
+          <span className="text-[6px] sm:text-[7px] text-slate-400 tracking-tight hidden sm:inline">
             SECURE VERIFICATION TOKEN
           </span>
         </div>
 
-        <div className="flex items-center gap-1 text-[7.5px] sm:text-[8px] text-slate-300 font-bold">
-          <Building2 className="w-3 h-3 text-amber-400" />
+        <div className="flex items-center gap-1 text-[7px] sm:text-[8px] text-slate-300 font-bold">
+          <Building2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400" />
           <span>GURUGEDARA ACADEMY</span>
         </div>
       </div>
@@ -597,9 +601,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     <div
       ref={backCardRef}
       id="digital_id_card_back"
-      className={`relative w-full max-w-[500px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
+      className={`relative w-full max-w-[480px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
         forPrint ? 'border-slate-800 shadow-none' : `${currentTheme.accentBorder} ${currentTheme.glow}`
-      } bg-gradient-to-br ${currentTheme.bgGradient} p-4 sm:p-5 flex flex-col justify-between select-none shadow-2xl`}
+      } bg-gradient-to-br ${currentTheme.bgGradient} p-3 sm:p-4 md:p-5 flex flex-col justify-between select-none shadow-xl`}
       style={{
         boxShadow: forPrint ? 'none' : undefined
       }}
@@ -607,47 +611,47 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       {/* Background Decorative */}
       <div className="absolute inset-0 pointer-events-none opacity-10 overflow-hidden">
         <div className="absolute -left-12 -top-12 w-64 h-64 rounded-full border-[10px] border-white/10" />
-        <div className="absolute right-1/4 bottom-1/4 text-7xl font-black text-white/5 rotate-[15deg]">
+        <div className="absolute right-1/4 bottom-1/4 text-6xl sm:text-7xl font-black text-white/5 rotate-[15deg]">
           VERIFIED
         </div>
       </div>
 
       {/* Header */}
-      <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-1.5">
-        <div className="flex items-center gap-1.5">
-          <BadgeCheck className="w-3.5 h-3.5 text-amber-400" />
-          <h4 className="text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider text-white">
+      <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-1 sm:pb-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
+          <h4 className="text-[8.5px] sm:text-[10px] font-black uppercase tracking-wider text-white">
             {role === 'tutor' ? 'Faculty Registry & Credentials' : role === 'admin' ? 'Executive Governance Registry' : 'Academic Courses & Emergency Registry'}
           </h4>
         </div>
-        <span className="text-[7.5px] sm:text-[8px] font-mono text-slate-400 font-bold">
+        <span className="text-[7px] sm:text-[8px] font-mono text-slate-400 font-bold">
           REF #{formattedId}
         </span>
       </div>
 
       {/* Body */}
-      <div className="relative z-10 grid grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1 text-[8.5px] sm:text-[9px]">
+      <div className="relative z-10 grid grid-cols-2 gap-2 sm:gap-2.5 my-auto py-1 text-[7.5px] sm:text-[8.5px]">
         {/* Left Column: Contact info */}
-        <div className="space-y-1.5 bg-white/5 p-2 sm:p-2.5 rounded-xl border border-white/10">
+        <div className="space-y-1 sm:space-y-1.5 bg-white/5 p-1.5 sm:p-2.5 rounded-xl border border-white/10">
           {role === 'student' ? (
             <>
               <div>
-                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Guardian / Emergency Contact</span>
-                <p className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight">
+                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Guardian / Emergency Contact</span>
+                <p className="text-[8.5px] sm:text-[10px] font-bold text-white leading-tight">
                   {currentUser.guardianName || currentUser.studentDetails?.parentContact || 'Registered Guardian'}
                 </p>
-                <p className="text-[8.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
-                  <Phone className="w-2.5 h-2.5 text-amber-400 inline" />
+                <p className="text-[7.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
+                  <Phone className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-amber-400 inline" />
                   {currentUser.guardianPhone || currentUser.phone || '+94 77 123 4567'}
                 </p>
               </div>
               <div className="pt-1 border-t border-white/10">
-                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Linked Parent Email</span>
-                <p className="text-[8.5px] sm:text-[9px] text-slate-200 truncate font-mono">
+                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Linked Parent Email</span>
+                <p className="text-[7.5px] sm:text-[9px] text-slate-200 truncate font-mono">
                   {currentUser.parentEmail || currentUser.email}
                 </p>
                 {currentUser.isParentEmailLinked && (
-                  <span className="text-[6.5px] sm:text-[7px] text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
+                  <span className="text-[6px] sm:text-[7px] text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
                     <CheckCircle2 className="w-2 h-2 inline" /> Auto-CC Active
                   </span>
                 )}
@@ -656,19 +660,19 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           ) : (
             <>
               <div>
-                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Official Communications</span>
-                <p className="text-[9.5px] sm:text-[10px] font-bold text-white leading-tight truncate">
+                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Official Communications</span>
+                <p className="text-[8.5px] sm:text-[10px] font-bold text-white leading-tight truncate">
                   {currentUser.email}
                 </p>
-                <p className="text-[8.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
-                  <Phone className="w-2.5 h-2.5 text-amber-400 inline" />
+                <p className="text-[7.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
+                  <Phone className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-amber-400 inline" />
                   {currentUser.phone || '+94 11 234 5678'}
                 </p>
               </div>
               <div className="pt-1 border-t border-white/10">
-                <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Institutional Status</span>
-                <span className="text-[7.5px] text-emerald-300 font-mono font-bold flex items-center gap-1 mt-0.5">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" /> Authorized Active Faculty
+                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Institutional Status</span>
+                <span className="text-[7px] sm:text-[7.5px] text-emerald-300 font-mono font-bold flex items-center gap-1 mt-0.5">
+                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" /> Authorized Faculty
                 </span>
               </div>
             </>
@@ -676,43 +680,43 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
         </div>
 
         {/* Right Column: Roles & Terms */}
-        <div className="space-y-1 bg-white/5 p-2 sm:p-2.5 rounded-xl border border-white/10 flex flex-col justify-between">
+        <div className="space-y-1 bg-white/5 p-1.5 sm:p-2.5 rounded-xl border border-white/10 flex flex-col justify-between">
           <div>
-            <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-amber-300 block font-bold mb-1 flex items-center gap-1">
-              <BookOpen className="w-2.5 h-2.5" /> 
+            <span className="text-[6px] sm:text-[7px] font-mono uppercase text-amber-300 block font-bold mb-0.5 sm:mb-1 flex items-center gap-1">
+              <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> 
               {role === 'tutor' ? 'Faculty Courses' : role === 'admin' ? 'Supervisory Access' : 'Enrolled Courses'}
             </span>
-            <div className="flex flex-col gap-0.5 max-h-16 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-0.5 max-h-14 sm:max-h-16 overflow-y-auto pr-0.5">
               {displayCourses.slice(0, 4).map((sub, i) => (
                 <div
                   key={i}
-                  className="px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[7.5px] sm:text-[8px] flex items-center justify-between"
+                  className="px-1 sm:px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[6.5px] sm:text-[7.5px] flex items-center justify-between"
                 >
-                  <span className="truncate max-w-[120px]">▸ {sub}</span>
-                  <span className="text-[6.5px] text-amber-300 font-mono">ACTIVE</span>
+                  <span className="truncate max-w-[100px] sm:max-w-[120px]">▸ {sub}</span>
+                  <span className="text-[6px] sm:text-[6.5px] text-amber-300 font-mono">ACTIVE</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="pt-1 border-t border-white/10 text-[7.5px] sm:text-[8px] text-slate-300 flex items-center justify-between">
+          <div className="pt-1 border-t border-white/10 text-[6.5px] sm:text-[7.5px] text-slate-300 flex items-center justify-between">
             <span>Issue: <strong className="font-mono text-white">{admissionDateStr}</strong></span>
-            <span className="truncate max-w-[90px]">Colombo, LK</span>
+            <span className="truncate max-w-[80px]">Colombo, LK</span>
           </div>
         </div>
       </div>
 
       {/* Card Terms & Authorization Signature */}
-      <div className="relative z-10 border-t border-white/15 pt-1.5 flex items-center justify-between text-[6.5px] sm:text-[7px] text-slate-400 font-sans">
-        <p className="max-w-[270px] leading-tight text-slate-300">
+      <div className="relative z-10 border-t border-white/15 pt-1 sm:pt-1.5 flex items-center justify-between text-[6px] sm:text-[7px] text-slate-400 font-sans">
+        <p className="max-w-[240px] sm:max-w-[270px] leading-tight text-slate-300">
           Official property of Gurugedara Higher Education Institute. Valid for examination entry, lab access, and live QR gate check-in.
         </p>
 
-        <div className="text-center pl-2">
-          <div className="font-serif italic text-amber-300 text-[9.5px] sm:text-[10px] font-bold leading-none select-none tracking-wider">
+        <div className="text-center pl-1 sm:pl-2">
+          <div className="font-serif italic text-amber-300 text-[8.5px] sm:text-[10px] font-bold leading-none select-none tracking-wider">
             D. Wickramasinghe
           </div>
-          <span className="text-[5.5px] sm:text-[6px] uppercase font-mono tracking-widest text-slate-400 block mt-0.5 border-t border-white/20 pt-0.5">
+          <span className="text-[5px] sm:text-[6px] uppercase font-mono tracking-widest text-slate-400 block mt-0.5 border-t border-white/20 pt-0.5">
             Registrar Directorate
           </span>
         </div>
@@ -722,38 +726,38 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in font-sans">
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 animate-fade-in font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="bg-white rounded-3xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]"
+          className="bg-white dark:bg-slate-900 rounded-3xl max-w-4xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[96vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top Modal Header */}
-          <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
                 {role === 'admin' ? (
-                  <Crown className="w-5 h-5 text-amber-400" />
+                  <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
                 ) : role === 'tutor' ? (
-                  <Briefcase className="w-5 h-5 text-emerald-400" />
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
                 ) : (
-                  <GraduationCap className="w-5 h-5 text-indigo-400" />
+                  <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
                 )}
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-extrabold text-white tracking-tight">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight leading-tight">
                     {roleHeader}
                   </h3>
-                  <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-bold rounded-full flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Verified {role.toUpperCase()}
+                  <span className="px-1.5 sm:px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[9px] sm:text-[10px] font-mono font-bold rounded-full flex items-center gap-1">
+                    <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Verified
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Gurugedara Higher Education Institute • Academic Year {academicYear}
+                <p className="text-[11px] sm:text-xs text-slate-400">
+                  Gurugedara Higher Education Institute • Valid {validityPeriod}
                 </p>
               </div>
             </div>
@@ -761,7 +765,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
             <div className="flex items-center gap-2">
               <button
                 onClick={onClose}
-                className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Close Modal"
               >
                 <X className="w-5 h-5" />
@@ -770,75 +774,73 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           </div>
 
           {/* Controls & Configuration Toolbar */}
-          <div className="bg-slate-50 border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
             {/* View Mode Switcher */}
-            <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-xs">
+            <div className="flex items-center bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-xs overflow-x-auto">
               <button
                 onClick={() => setViewMode('single_flip')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap min-h-[36px] ${
                   viewMode === 'single_flip'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-slate-900 text-white dark:bg-indigo-600 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 id="btn_id_mode_flip"
               >
-                <RotateCw className="w-3.5 h-3.5" /> Interactive 3D Card
+                <RotateCw className="w-3.5 h-3.5" /> Interactive 3D
               </button>
               <button
                 onClick={() => setViewMode('dual_side')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap min-h-[36px] ${
                   viewMode === 'dual_side'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-slate-900 text-white dark:bg-indigo-600 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 id="btn_id_mode_dual"
               >
-                <Layers className="w-3.5 h-3.5" /> Dual-Sided View
+                <Layers className="w-3.5 h-3.5" /> Dual-Sided
               </button>
               <button
                 onClick={() => setViewMode('printable_sheet')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap min-h-[36px] ${
                   viewMode === 'printable_sheet'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    ? 'bg-slate-900 text-white dark:bg-indigo-600 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 id="btn_id_mode_sheet"
               >
-                <Printer className="w-3.5 h-3.5" /> Print Badge Sheet
+                <Printer className="w-3.5 h-3.5" /> Print Sheet
               </button>
             </div>
 
             {/* Theme Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 font-mono">Theme:</span>
-              <div className="flex items-center gap-1.5">
-                {(Object.keys(themeStyles) as CardTheme[]).map((themeKey) => {
-                  const t = themeStyles[themeKey];
-                  return (
-                    <button
-                      key={themeKey}
-                      onClick={() => setSelectedTheme(themeKey)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border cursor-pointer ${
-                        selectedTheme === themeKey
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                          : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
-                      }`}
-                      title={t.name}
-                    >
-                      {t.name.split(' ')[0]}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <span className="text-[11px] font-bold text-slate-500 font-mono hidden sm:inline">Theme:</span>
+              {(Object.keys(themeStyles) as CardTheme[]).map((themeKey) => {
+                const t = themeStyles[themeKey];
+                return (
+                  <button
+                    key={themeKey}
+                    onClick={() => setSelectedTheme(themeKey)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border cursor-pointer min-h-[32px] ${
+                      selectedTheme === themeKey
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    }`}
+                    title={t.name}
+                  >
+                    {t.name.split(' ')[0]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Modal Main Body */}
-          <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-100/50">
+          <div className="p-3 sm:p-6 overflow-y-auto flex-1 space-y-5 bg-slate-100/50 dark:bg-slate-950/40">
             {/* 1. Interactive 3D Flip View */}
             {viewMode === 'single_flip' && (
-              <div className="flex flex-col items-center justify-center py-4 space-y-5">
-                <div className="relative group max-w-[500px] w-full">
+              <div className="flex flex-col items-center justify-center py-2 space-y-4">
+                <div className="relative group max-w-[480px] w-full px-2 sm:px-0">
                   <motion.div
                     animate={{ rotateY: isFlipped ? 180 : 0 }}
                     transition={{ duration: 0.6, ease: 'easeInOut' }}
@@ -866,21 +868,21 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                 </div>
 
                 {/* Flip control prompt */}
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-2.5">
                   <button
                     onClick={() => setIsFlipped(!isFlipped)}
-                    className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                    className="px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer min-h-[44px]"
                     id="btn_flip_id_card"
                   >
-                    <RotateCw className="w-4 h-4 text-indigo-600" />
-                    Flip to {isFlipped ? 'Front Side' : 'Back Side'} (or click card)
+                    <RotateCw className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    Flip to {isFlipped ? 'Front Side' : 'Back Side'}
                   </button>
                   <button
                     onClick={handleCopyId}
-                    className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-mono font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-mono font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer min-h-[44px]"
                     title="Copy Unique ID"
                   >
-                    {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                    {copiedId ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
                     {formattedId}
                   </button>
                 </div>
@@ -889,14 +891,14 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
             {/* 2. Dual Side View (Side by Side) */}
             {viewMode === 'dual_side' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center justify-items-center">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-center justify-items-center">
                   <div className="w-full space-y-2">
-                    <div className="flex items-center justify-between px-1 text-xs font-extrabold text-slate-700">
+                    <div className="flex items-center justify-between px-1 text-xs font-extrabold text-slate-700 dark:text-slate-300">
                       <span>Front Side (Identity, Photo & QR)</span>
                       <button
                         onClick={handleDownloadFront}
-                        className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                       >
                         <Download className="w-3 h-3" /> Save Front PNG
                       </button>
@@ -905,11 +907,11 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                   </div>
 
                   <div className="w-full space-y-2">
-                    <div className="flex items-center justify-between px-1 text-xs font-extrabold text-slate-700">
+                    <div className="flex items-center justify-between px-1 text-xs font-extrabold text-slate-700 dark:text-slate-300">
                       <span>Back Side (Registry & Emergency Contact)</span>
                       <button
                         onClick={handleDownloadBack}
-                        className="text-indigo-600 hover:text-indigo-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                       >
                         <Download className="w-3 h-3" /> Save Back PNG
                       </button>
@@ -920,97 +922,74 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               </div>
             )}
 
-            {/* 3. Printable Badge Sheet */}
+            {/* 3. Printable Sheet View */}
             {viewMode === 'printable_sheet' && (
               <div className="space-y-4">
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-extrabold text-amber-900">Printing & Laminating Instructions:</h4>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      Click <strong>"Print ID Card"</strong> below to print in standard CR80 badge format.
-                      After printing on standard cardstock, cut along the dotted border guidelines and fold in half.
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  ref={printableSheetRef}
-                  id="digital_id_printable_sheet"
-                  className="bg-white p-6 sm:p-8 rounded-2xl border-2 border-dashed border-slate-300 shadow-sm max-w-2xl mx-auto space-y-6 text-center"
+                <div 
+                  ref={printableSheetRef} 
+                  className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4"
                 >
-                  <div className="border-b border-slate-200 pb-3">
-                    <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                      Gurugedara Higher Education Institute — Official {role.toUpperCase()} ID Badge
+                  <div className="text-center border-b border-slate-200 pb-3">
+                    <h4 className="text-sm font-black uppercase text-slate-900">
+                      Gurugedara Higher Education Institute • ID Pass
                     </h4>
-                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                      {currentUser.name} • ID: {formattedId} • Year: {academicYear}
+                    <p className="text-xs text-slate-500 font-mono">
+                      Official Institutional Digital Badge • {formattedId}
                     </p>
                   </div>
 
-                  <div className="border-2 border-dashed border-slate-400 p-4 rounded-3xl bg-slate-50/70 space-y-4">
-                    <div className="flex items-center justify-between text-[9px] font-mono font-bold text-slate-500 px-2">
-                      <span>✂️ FOLD / CUT-OUT GUIDELINE</span>
-                      <span>CR80 STANDARD CARD (85.6 × 53.98 mm)</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center justify-items-center">
+                    <div className="w-full">
+                      <span className="text-xs font-bold text-slate-600 block mb-1">FRONT</span>
+                      {renderFrontCard(true)}
                     </div>
-
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                      <div className="w-full max-w-[320px]">
-                        <span className="text-[9px] font-bold text-slate-600 block mb-1">FRONT</span>
-                        {renderFrontCard(true)}
-                      </div>
-                      <div className="w-full max-w-[320px]">
-                        <span className="text-[9px] font-bold text-slate-600 block mb-1">BACK</span>
-                        {renderBackCard(true)}
-                      </div>
+                    <div className="w-full">
+                      <span className="text-xs font-bold text-slate-600 block mb-1">BACK</span>
+                      {renderBackCard(true)}
                     </div>
                   </div>
-
-                  <p className="text-[10px] text-slate-400 italic">
-                    * Designed with high-density scannable QR tokens for instant entry gate validation at Gurugedara branches.
-                  </p>
                 </div>
               </div>
             )}
 
-            {/* Quick Action Info Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-              <div className="p-3.5 bg-white rounded-2xl border border-slate-200 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
-                  <QrCode className="w-5 h-5" />
+            {/* Feature Highlights Banner */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <QrCode className="w-4.5 h-4.5" />
                 </div>
                 <div className="text-left">
-                  <h5 className="text-xs font-extrabold text-slate-900">QR Code Attendance</h5>
-                  <p className="text-[10px] text-slate-500">Scan code on card for classroom check-ins</p>
+                  <h5 className="text-xs font-extrabold text-slate-900 dark:text-white">QR Code Attendance</h5>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Scan code on card for classroom check-ins</p>
                 </div>
               </div>
 
-              <div className="p-3.5 bg-white rounded-2xl border border-slate-200 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-                  <ShieldCheck className="w-5 h-5" />
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <ShieldCheck className="w-4.5 h-4.5" />
                 </div>
                 <div className="text-left">
-                  <h5 className="text-xs font-extrabold text-slate-900">Verified Identity</h5>
-                  <p className="text-[10px] text-slate-500">Official recognized institutional pass</p>
+                  <h5 className="text-xs font-extrabold text-slate-900 dark:text-white">Verified Identity</h5>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Official recognized institutional pass</p>
                 </div>
               </div>
 
-              <div className="p-3.5 bg-white rounded-2xl border border-slate-200 flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-                  <BookOpen className="w-5 h-5" />
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 shrink-0">
+                  <BookOpen className="w-4.5 h-4.5" />
                 </div>
                 <div className="text-left">
-                  <h5 className="text-xs font-extrabold text-slate-900">
+                  <h5 className="text-xs font-extrabold text-slate-900 dark:text-white">
                     {role === 'tutor' ? 'Faculty Courses' : role === 'admin' ? 'Executive Access' : 'Registered Courses'}
                   </h5>
-                  <p className="text-[10px] text-slate-500">{displayCourses.length} active subject pathways</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{displayCourses.length} active subject pathways</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Modal Footer Actions */}
-          <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="px-4 sm:px-6 py-3.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
             <div className="flex items-center gap-2">
               {onOpenPhotoUpload && (
                 <button
@@ -1019,7 +998,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
                     onClose();
                     onOpenPhotoUpload();
                   }}
-                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer min-h-[44px] flex items-center"
                 >
                   Update Photo
                 </button>
@@ -1027,31 +1006,31 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               <button
                 type="button"
                 onClick={handleDownloadQrOnly}
-                className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px]"
                 title="Download QR code only"
               >
                 <QrCode className="w-3.5 h-3.5" /> Save QR Only
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* PDF Download Button with jsPDF */}
               <button
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={isPdfGenerating}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-3.5 sm:px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px]"
                 id="btn_download_id_pdf"
               >
                 <FileDown className="w-4 h-4" />
-                {isPdfGenerating ? 'Generating PDF...' : 'Download as PDF (Offline)'}
+                {isPdfGenerating ? 'Generating PDF...' : 'Download PDF'}
               </button>
 
               <button
                 type="button"
                 onClick={handleDownloadFront}
                 disabled={isExporting}
-                className="px-3 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-3 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-extrabold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 min-h-[44px]"
                 id="btn_download_id_front"
               >
                 <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -1061,7 +1040,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-950 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.99]"
+                className="px-3.5 sm:px-4 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-950 dark:hover:bg-slate-700 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer min-h-[44px]"
                 id="btn_print_id_card"
               >
                 <Printer className="w-4 h-4 text-amber-400" />
@@ -1072,16 +1051,16 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
         </motion.div>
       </div>
 
-      {/* Offscreen unrotated, high-res render container for reliable PNG & PDF export */}
+      {/* Render container for reliable PNG & PDF export */}
       <div 
         style={{ 
           position: 'fixed', 
-          top: '-10000px', 
-          left: '-10000px', 
+          top: 0, 
+          left: 0, 
           width: '500px', 
-          opacity: 0, 
+          opacity: 0.01, 
           pointerEvents: 'none', 
-          zIndex: -9999 
+          zIndex: -1 
         }} 
         aria-hidden="true"
       >
@@ -1101,7 +1080,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               GURUGEDARA HIGHER EDUCATION INSTITUTE
             </h1>
             <p className="text-xs font-bold text-slate-700">
-              Official {role.toUpperCase()} Identification Pass • Academic Year {academicYear}
+              Official {role.toUpperCase()} Identification Pass • Valid {validityPeriod}
             </p>
           </div>
 

@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
+import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -70,6 +71,7 @@ export const StudentDashboard: React.FC = () => {
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
@@ -513,80 +515,102 @@ export const StudentDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Sub menu controls - Modern Dropdown Navigation */}
-          <div className="relative">
-            <button
-              id="student_dashboard_nav_dropdown_trigger"
-              onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
-              className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
-                <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                  {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
-                  {activeSubTab === 'classes' && <BookOpen className="w-4 h-4" />}
-                  {activeSubTab === 'payments' && <FileText className="w-4 h-4" />}
-                  {activeSubTab === 'performance' && <TrendingUp className="w-4 h-4" />}
-                  {activeSubTab === 'roadmap' && <Compass className="w-4 h-4" />}
-                  {activeSubTab === 'chat' && <MessageSquare className="w-4 h-4" />}
-                  {activeSubTab === 'notifications' && <Bell className="w-4 h-4" />}
-                </span>
-                <span className="capitalize">
-                  {activeSubTab === 'schedule' && 'Timetable'}
-                  {activeSubTab === 'classes' && 'Enrolled Classes'}
-                  {activeSubTab === 'payments' && 'Payments'}
-                  {activeSubTab === 'performance' && 'Progress & Attendance'}
-                  {activeSubTab === 'roadmap' && 'Syllabus Roadmap'}
-                  {activeSubTab === 'chat' && 'Chat'}
-                  {activeSubTab === 'notifications' && 'Notifications'}
-                </span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+          {/* Sub menu controls - Desktop Dropdown & Mobile Modern Sidebar Drawer */}
+          {(() => {
+            const studentSectionItems: SectionSidebarItem[] = [
+              { id: 'schedule', label: 'Timetable & Calendar', icon: <Calendar className="w-4 h-4 text-indigo-500" />, description: 'Your class schedules' },
+              { id: 'classes', label: 'Enrolled Classes', icon: <BookOpen className="w-4 h-4 text-blue-500" />, description: 'Class roster & learning materials' },
+              { id: 'payments', label: 'Payment Receipts', icon: <FileText className="w-4 h-4 text-emerald-500" />, description: 'Invoices & slips' },
+              { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" />, description: 'Marks & attendance history' },
+              { id: 'roadmap', label: 'Syllabus Roadmap', icon: <Compass className="w-4 h-4 text-purple-500" />, description: 'A/L curriculum tracking' },
+              { id: 'chat', label: 'Live Chat', icon: <MessageSquare className="w-4 h-4 text-cyan-500" />, description: 'Direct tutor messaging' },
+              { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length, description: 'System alerts & announcements' },
+            ];
 
-            {isNavDropdownOpen && (
+            return (
               <>
-                <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
-                  <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
-                    Student Menu
-                  </div>
-                  {[
-                    { id: 'schedule', label: 'Timetable & Calendar', icon: <Calendar className="w-4 h-4 text-indigo-500" /> },
-                    { id: 'classes', label: 'Enrolled Classes', icon: <BookOpen className="w-4 h-4 text-blue-500" /> },
-                    { id: 'payments', label: 'Payment Receipts', icon: <FileText className="w-4 h-4 text-emerald-500" /> },
-                    { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" /> },
-                    { id: 'roadmap', label: 'Syllabus Roadmap', icon: <Compass className="w-4 h-4 text-purple-500" /> },
-                    { id: 'chat', label: 'Live Chat', icon: <MessageSquare className="w-4 h-4 text-cyan-500" /> },
-                    { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length },
-                  ].map(opt => (
-                    <button
-                      key={opt.id}
-                      id={`student_tab_${opt.id}`}
-                      onClick={() => {
-                        setActiveSubTab(opt.id as any);
-                        setIsNavDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        activeSubTab === opt.id
-                          ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs font-black'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span>{opt.icon}</span>
-                        <span>{opt.label}</span>
+                {/* Mobile Modern Sidebar Component */}
+                <MobileSectionSidebar
+                  isOpen={isMobileSidebarOpen}
+                  onOpen={() => setIsMobileSidebarOpen(true)}
+                  onClose={() => setIsMobileSidebarOpen(false)}
+                  items={studentSectionItems}
+                  activeId={activeSubTab}
+                  onSelect={(id) => setActiveSubTab(id as any)}
+                  title="Scholar Sections"
+                  roleLabel="Student"
+                  roleBadgeColor="bg-emerald-500"
+                />
+
+                {/* Desktop Dropdown Navigation (Hidden on Mobile) */}
+                <div className="relative hidden md:block">
+                  <button
+                    id="student_dashboard_nav_dropdown_trigger"
+                    onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
+                    className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
+                      <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                        {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
+                        {activeSubTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                        {activeSubTab === 'payments' && <FileText className="w-4 h-4" />}
+                        {activeSubTab === 'performance' && <TrendingUp className="w-4 h-4" />}
+                        {activeSubTab === 'roadmap' && <Compass className="w-4 h-4" />}
+                        {activeSubTab === 'chat' && <MessageSquare className="w-4 h-4" />}
+                        {activeSubTab === 'notifications' && <Bell className="w-4 h-4" />}
+                      </span>
+                      <span className="capitalize">
+                        {activeSubTab === 'schedule' && 'Timetable'}
+                        {activeSubTab === 'classes' && 'Enrolled Classes'}
+                        {activeSubTab === 'payments' && 'Payments'}
+                        {activeSubTab === 'performance' && 'Progress & Attendance'}
+                        {activeSubTab === 'roadmap' && 'Syllabus Roadmap'}
+                        {activeSubTab === 'chat' && 'Chat'}
+                        {activeSubTab === 'notifications' && 'Notifications'}
+                      </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isNavDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
+                      <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
+                        <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
+                          Student Menu
+                        </div>
+                        {studentSectionItems.map(opt => (
+                          <button
+                            key={opt.id}
+                            id={`student_tab_${opt.id}`}
+                            onClick={() => {
+                              setActiveSubTab(opt.id as any);
+                              setIsNavDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              activeSubTab === opt.id
+                                ? 'bg-slate-900 dark:bg-blue-600 text-white shadow-xs font-black'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span>{opt.icon}</span>
+                              <span>{opt.label}</span>
+                            </div>
+                            {opt.badge && Number(opt.badge) > 0 ? (
+                              <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
+                                {opt.badge}
+                              </span>
+                            ) : null}
+                          </button>
+                        ))}
                       </div>
-                      {opt.badge && opt.badge > 0 ? (
-                        <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
-                          {opt.badge}
-                        </span>
-                      ) : null}
-                    </button>
-                  ))}
+                    </>
+                  )}
                 </div>
               </>
-            )}
-          </div>
+            );
+          })()}
         </div>
 
         {/* Horizontal Subtab Quick Scroll on Mobile */}

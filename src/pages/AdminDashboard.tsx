@@ -15,6 +15,7 @@ import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
+import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -133,6 +134,7 @@ export const AdminDashboard: React.FC = () => {
   const [progressGradeFilter, setProgressGradeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Pathway management modal states
   const [pathwayModalOpen, setPathwayModalOpen] = useState(false);
@@ -1818,99 +1820,124 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Sub menu controls - Modern Dropdown Navigation */}
-            <div className="relative">
-            <button
-              id="admin_dashboard_nav_dropdown_trigger"
-              onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
-              className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
-                <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                  {activeTab === 'analytics' && <BarChart3 className="w-4 h-4" />}
-                  {activeTab === 'payments' && <CreditCard className="w-4 h-4" />}
-                  {activeTab === 'students' && <Users className="w-4 h-4" />}
-                  {activeTab === 'progress' && <GraduationCap className="w-4 h-4" />}
-                  {activeTab === 'tutors' && <UserCheck className="w-4 h-4" />}
-                  {activeTab === 'classes' && <BookOpen className="w-4 h-4" />}
-                  {activeTab === 'pathways' && <Layers className="w-4 h-4" />}
-                  {activeTab === 'banners' && <ImageIcon className="w-4 h-4" />}
-                  {activeTab === 'notices' && <Bell className="w-4 h-4" />}
-                  {activeTab === 'email_templates' && <Mail className="w-4 h-4 text-indigo-600" />}
-                  {activeTab === 'admins' && <ShieldCheck className="w-4 h-4" />}
-                  {activeTab === 'reviews' && <Star className="w-4 h-4" />}
-                </span>
-                <span className="capitalize">
-                  {activeTab === 'analytics' && 'Insights & Analytics'}
-                  {activeTab === 'payments' && 'Global Ledger Ledger'}
-                  {activeTab === 'students' && 'Scholars & Students'}
-                  {activeTab === 'progress' && 'Student Progress & Attendance'}
-                  {activeTab === 'tutors' && 'Faculty & Tutors'}
-                  {activeTab === 'classes' && 'Curriculums & Classes'}
-                  {activeTab === 'pathways' && 'Course Pathways & Subjects'}
-                  {activeTab === 'banners' && 'Hero Banners'}
-                  {activeTab === 'notices' && 'Notices & System Alerts'}
-                  {activeTab === 'email_templates' && 'Email Templates & Notifications'}
-                  {activeTab === 'admins' && 'Administrative Staff'}
-                  {activeTab === 'reviews' && 'Moderate Reviews'}
-                </span>
-              </div>
-              <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
-                Navigation
-              </span>
-              <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+            {/* Sub menu controls - Desktop Dropdown & Mobile Modern Sidebar Drawer */}
+            {(() => {
+              const adminSectionItems: SectionSidebarItem[] = [
+                { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" />, description: 'Overview & metrics' },
+                { id: 'payments', label: 'Global Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" />, description: 'Financial transactions' },
+                { id: 'students', label: 'Scholars & Students', icon: <Users className="w-4 h-4 text-indigo-500" />, description: 'Enrolled students' },
+                { id: 'progress', label: 'Student Progress', icon: <GraduationCap className="w-4 h-4 text-purple-500" />, description: 'Grades & attendance' },
+                { id: 'tutors', label: 'Faculty & Tutors', icon: <UserCheck className="w-4 h-4 text-amber-500" />, description: 'Instructor roster' },
+                { id: 'classes', label: 'Curriculums & Classes', icon: <BookOpen className="w-4 h-4 text-sky-500" />, description: 'Courses & schedules' },
+                { id: 'pathways', label: 'Course Pathways', icon: <Layers className="w-4 h-4 text-cyan-500" />, description: 'Streams & subjects' },
+                { id: 'banners', label: 'Hero Banners', icon: <ImageIcon className="w-4 h-4 text-teal-500" />, description: 'Promotional banners' },
+                { id: 'notices', label: 'Notices & Alerts', icon: <Bell className="w-4 h-4 text-amber-500" />, badge: notifications.filter(n => !n.isRead).length, description: 'Broadcast messages' },
+                { id: 'email_templates', label: 'Email Templates', icon: <Mail className="w-4 h-4 text-indigo-500" />, description: 'Automated email suite' },
+                { id: 'admins', label: 'Administrative Staff', icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />, description: 'System admins' },
+                { id: 'reviews', label: 'Moderate Reviews', icon: <Star className="w-4 h-4 text-amber-500 fill-amber-500" />, description: 'Student feedback' },
+              ];
 
-            {isNavDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
-                  <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
-                    Select Section View
-                  </div>
-                  {[
-                    { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" /> },
-                    { id: 'payments', label: 'Global Ledger Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" /> },
-                    { id: 'students', label: 'Scholars', icon: <Users className="w-4 h-4 text-indigo-500" /> },
-                    { id: 'progress', label: 'Student Progress', icon: <GraduationCap className="w-4 h-4 text-purple-500" /> },
-                    { id: 'tutors', label: 'Faculty', icon: <UserCheck className="w-4 h-4 text-amber-500" /> },
-                    { id: 'classes', label: 'Curriculums', icon: <BookOpen className="w-4 h-4 text-sky-500" /> },
-                    { id: 'pathways', label: 'Course Pathways & Subjects', icon: <Layers className="w-4 h-4 text-cyan-500" /> },
-                    { id: 'banners', label: 'Hero Banners', icon: <ImageIcon className="w-4 h-4 text-teal-500" /> },
-                    { id: 'notices', label: 'Notices & System Alerts', icon: <Bell className="w-4 h-4 text-amber-500" />, badge: notifications.filter(n => !n.isRead).length },
-                    { id: 'email_templates', label: 'Email Templates & Suite', icon: <Mail className="w-4 h-4 text-indigo-500" /> },
-                    { id: 'admins', label: 'Administrative Staff', icon: <ShieldCheck className="w-4 h-4 text-emerald-500" /> },
-                    { id: 'reviews', label: 'Moderate Reviews', icon: <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> },
-                  ].map(opt => (
+              return (
+                <>
+                  {/* Mobile Sidebar Component */}
+                  <MobileSectionSidebar
+                    isOpen={isMobileSidebarOpen}
+                    onOpen={() => setIsMobileSidebarOpen(true)}
+                    onClose={() => setIsMobileSidebarOpen(false)}
+                    items={adminSectionItems}
+                    activeId={activeTab}
+                    onSelect={(id) => {
+                      setActiveTab(id as any);
+                      if (id === 'progress') fetchAttendanceRecords();
+                    }}
+                    title="Admin Sections"
+                    roleLabel="Executive"
+                    roleBadgeColor="bg-red-500"
+                  />
+
+                  {/* Desktop Dropdown Navigation (Hidden on Mobile) */}
+                  <div className="relative hidden md:block">
                     <button
-                      key={opt.id}
-                      id={`admin_tab_${opt.id}`}
-                      onClick={() => {
-                        setActiveTab(opt.id as any);
-                        if (opt.id === 'progress') fetchAttendanceRecords();
-                        setIsNavDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        activeTab === opt.id
-                          ? 'bg-blue-600 text-white shadow-xs font-black'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-                      }`}
+                      id="admin_dashboard_nav_dropdown_trigger"
+                      onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
+                      className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span>{opt.icon}</span>
-                        <span>{opt.label}</span>
-                      </div>
-                      {opt.badge && opt.badge > 0 ? (
-                        <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
-                          {opt.badge}
+                      <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
+                        <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                          {activeTab === 'analytics' && <BarChart3 className="w-4 h-4" />}
+                          {activeTab === 'payments' && <CreditCard className="w-4 h-4" />}
+                          {activeTab === 'students' && <Users className="w-4 h-4" />}
+                          {activeTab === 'progress' && <GraduationCap className="w-4 h-4" />}
+                          {activeTab === 'tutors' && <UserCheck className="w-4 h-4" />}
+                          {activeTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                          {activeTab === 'pathways' && <Layers className="w-4 h-4" />}
+                          {activeTab === 'banners' && <ImageIcon className="w-4 h-4" />}
+                          {activeTab === 'notices' && <Bell className="w-4 h-4" />}
+                          {activeTab === 'email_templates' && <Mail className="w-4 h-4 text-indigo-600" />}
+                          {activeTab === 'admins' && <ShieldCheck className="w-4 h-4" />}
+                          {activeTab === 'reviews' && <Star className="w-4 h-4" />}
                         </span>
-                      ) : null}
+                        <span className="capitalize">
+                          {activeTab === 'analytics' && 'Insights & Analytics'}
+                          {activeTab === 'payments' && 'Global Ledger'}
+                          {activeTab === 'students' && 'Scholars & Students'}
+                          {activeTab === 'progress' && 'Student Progress & Attendance'}
+                          {activeTab === 'tutors' && 'Faculty & Tutors'}
+                          {activeTab === 'classes' && 'Curriculums & Classes'}
+                          {activeTab === 'pathways' && 'Course Pathways & Subjects'}
+                          {activeTab === 'banners' && 'Hero Banners'}
+                          {activeTab === 'notices' && 'Notices & System Alerts'}
+                          {activeTab === 'email_templates' && 'Email Templates & Notifications'}
+                          {activeTab === 'admins' && 'Administrative Staff'}
+                          {activeTab === 'reviews' && 'Moderate Reviews'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
+                        Navigation
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${isNavDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+
+                    {isNavDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setIsNavDropdownOpen(false)} />
+                        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-40 space-y-1">
+                          <div className="px-3 py-1.5 text-[10px] font-mono font-extrabold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/60 mb-1">
+                            Select Section View
+                          </div>
+                          {adminSectionItems.map(opt => (
+                            <button
+                              key={opt.id}
+                              id={`admin_tab_${opt.id}`}
+                              onClick={() => {
+                                setActiveTab(opt.id as any);
+                                if (opt.id === 'progress') fetchAttendanceRecords();
+                                setIsNavDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                activeTab === opt.id
+                                  ? 'bg-blue-600 text-white shadow-xs font-black'
+                                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <span>{opt.icon}</span>
+                                <span>{opt.label}</span>
+                              </div>
+                              {opt.badge && Number(opt.badge) > 0 ? (
+                                <span className="px-1.5 py-0.5 text-[9px] bg-red-500 text-white rounded-full font-black animate-pulse">
+                                  {opt.badge}
+                                </span>
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
         </div>
       </div>
 
