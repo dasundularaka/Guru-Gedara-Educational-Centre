@@ -399,9 +399,11 @@ svg text,
   input[type="tel"],
   input[type="number"],
   input[type="search"],
-  textarea {
-    min-height: 40px;
-    font-size: 16px; /* Prevents auto-zoom on iOS mobile browsers */
+  textarea,
+  select {
+    font-size: 12.5px;
+    letter-spacing: -0.01em;
+    line-height: normal;
   }
 }
 
