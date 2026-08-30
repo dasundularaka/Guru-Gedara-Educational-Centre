@@ -4,7 +4,6 @@ import {
   Home, 
   BookOpen, 
   GraduationCap, 
-  Layers,
   User, 
   LogIn 
 } from 'lucide-react';
@@ -15,29 +14,16 @@ interface MobileBottomNavProps {
   onChangeTab: (tab: string) => void;
   onOpenNotifications?: () => void;
   onOpenProfile?: () => void;
-  onOpenSections?: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ 
   currentTab, 
   onChangeTab,
-  onOpenProfile,
-  onOpenSections
+  onOpenProfile
 }) => {
   const { currentUser, notifications } = useApp();
 
   const unreadCount = (notifications || []).filter(n => !n.isRead).length;
-
-  const handleSectionsClick = () => {
-    if (onOpenSections) {
-      onOpenSections();
-    } else {
-      window.dispatchEvent(new CustomEvent('open-mobile-sections'));
-      if (currentTab !== 'dashboard') {
-        onChangeTab('dashboard');
-      }
-    }
-  };
 
   const baseNavItems = [
     {
@@ -60,13 +46,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       icon: GraduationCap,
       action: () => onChangeTab('tutors'),
       isActive: currentTab === 'tutors'
-    },
-    {
-      id: 'sections',
-      label: 'Sections',
-      icon: Layers,
-      action: handleSectionsClick,
-      isActive: false
     }
   ];
 
@@ -76,8 +55,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       id="mobile_bottom_navigation"
       aria-label="Mobile Navigation"
     >
-      <div className="grid grid-cols-5 items-center justify-around px-1 py-1 max-w-lg mx-auto">
-        {/* Core items: Home, Classes, Faculty, Sections */}
+      <div className="grid grid-cols-4 items-center justify-around px-2 py-1.5 max-w-md mx-auto">
+        {/* Core items: Home, Classes, Faculty */}
         {baseNavItems.map((item) => {
           const Icon = item.icon;
           const active = item.isActive;
@@ -86,7 +65,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <button
               key={item.id}
               onClick={item.action}
-              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[48px] ${
+              className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer select-none min-h-[50px] ${
                 active 
                   ? 'text-indigo-600 dark:text-indigo-400 font-bold' 
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -106,7 +85,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110 stroke-[2.4]' : 'stroke-[1.8]'}`} />
               </div>
 
-              <span className={`text-[10px] tracking-tight mt-1 leading-none transition-all whitespace-nowrap ${
+              <span className={`text-[11px] tracking-tight mt-1 leading-none transition-all ${
                 active ? 'font-black scale-105' : 'font-semibold'
               }`}>
                 {item.label}
@@ -115,7 +94,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           );
         })}
 
-        {/* 5th Column: User Profile if logged in, or Sign In if guest */}
+        {/* 4th Column (Bottom Right Corner): User Profile if logged in, or Sign In if guest */}
         {currentUser ? (
           <button
             onClick={() => {
@@ -125,7 +104,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 onChangeTab('dashboard');
               }
             }}
-            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[48px] ${
+            className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer select-none min-h-[50px] ${
               currentTab === 'dashboard'
                 ? 'text-indigo-600 dark:text-indigo-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -147,10 +126,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   referrerPolicy="no-referrer"
                   src={currentUser.photoURL} 
                   alt={currentUser.name} 
-                  className="w-5.5 h-5.5 rounded-full object-cover ring-2 ring-indigo-500/40 shadow-xs"
+                  className="w-6 h-6 rounded-full object-cover ring-2 ring-indigo-500/40 shadow-xs"
                 />
               ) : (
-                <div className="w-5.5 h-5.5 rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[10px] font-black shadow-xs">
+                <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[11px] font-black shadow-xs">
                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
                 </div>
               )}
@@ -160,7 +139,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </span>
               )}
             </div>
-            <span className={`text-[10px] tracking-tight mt-1 leading-none transition-all truncate max-w-[54px] whitespace-nowrap ${
+            <span className={`text-[11px] tracking-tight mt-1 leading-none transition-all truncate max-w-[58px] ${
               currentTab === 'dashboard' ? 'font-black scale-105' : 'font-semibold'
             }`}>
               Profile
@@ -169,7 +148,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         ) : (
           <button
             onClick={() => onChangeTab('auth')}
-            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[48px] ${
+            className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer select-none min-h-[50px] ${
               currentTab === 'auth'
                 ? 'text-indigo-600 dark:text-indigo-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -188,7 +167,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <div className="relative">
               <LogIn className="w-5 h-5 stroke-[1.8]" />
             </div>
-            <span className={`text-[10px] tracking-tight mt-1 leading-none transition-all whitespace-nowrap ${
+            <span className={`text-[11px] tracking-tight mt-1 leading-none transition-all ${
               currentTab === 'auth' ? 'font-black scale-105' : 'font-semibold'
             }`}>
               Sign In

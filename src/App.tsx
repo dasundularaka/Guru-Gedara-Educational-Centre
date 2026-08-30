@@ -13,7 +13,6 @@ import { RestrictedPasswordReset } from './pages/RestrictedPasswordReset';
 import { ToastNotification } from './components/ToastNotification';
 import { MobileProfileModal } from './components/MobileProfileModal';
 import { DigitalStudentIDCardModal } from './components/DigitalStudentIDCardModal';
-import { MobileSectionSidebar, SectionSidebarItem } from './components/MobileSectionSidebar';
 import { 
   CheckCircle, 
   XOctagon, 
@@ -28,10 +27,6 @@ import {
   RefreshCw,
   Activity,
   Database,
-  Home as HomeIcon,
-  BookOpen,
-  Layers,
-  LogIn,
   Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -192,21 +187,7 @@ function MainAppContent() {
   const [pingTime, setPingTime] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
   const [isMobileProfileOpen, setIsMobileProfileOpen] = useState<boolean>(false);
-  const [isGuestSectionsOpen, setIsGuestSectionsOpen] = useState<boolean>(false);
   const [showGlobalIdCard, setShowGlobalIdCard] = useState<boolean>(false);
-
-  const handleOpenSections = () => {
-    if (currentUser) {
-      if (currentTab !== 'dashboard') {
-        setCurrentTab('dashboard');
-      }
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('open-mobile-sections'));
-      }, 50);
-    } else {
-      setIsGuestSectionsOpen(true);
-    }
-  };
 
   useEffect(() => {
     let active = true;
@@ -477,30 +458,7 @@ function MainAppContent() {
         currentTab={currentTab} 
         onChangeTab={setCurrentTab} 
         onOpenProfile={() => setIsMobileProfileOpen(true)}
-        onOpenSections={handleOpenSections}
       />
-
-      {/* Guest / Public Academy Sections Slide-over Drawer */}
-      {!currentUser && (
-        <MobileSectionSidebar
-          isOpen={isGuestSectionsOpen}
-          onClose={() => setIsGuestSectionsOpen(false)}
-          items={[
-            { id: 'home', label: 'Academy Home', icon: <HomeIcon className="w-4 h-4 text-indigo-500" />, description: 'Overview, hero & announcements' },
-            { id: 'classes', label: 'Curriculums & Classes', icon: <BookOpen className="w-4 h-4 text-blue-500" />, description: 'Explore subjects & enroll' },
-            { id: 'tutors', label: 'Faculty Directory', icon: <GraduationCap className="w-4 h-4 text-emerald-500" />, description: 'Respected professors & researchers' },
-            { id: 'auth', label: 'Student & Faculty Portal', icon: <LogIn className="w-4 h-4 text-amber-500" />, description: 'Sign in to access your dashboard' },
-          ]}
-          activeId={currentTab}
-          onSelect={(id) => {
-            setCurrentTab(id);
-            setIsGuestSectionsOpen(false);
-          }}
-          title="Academy Sections"
-          roleLabel="Explorer"
-          roleBadgeColor="bg-indigo-500"
-        />
-      )}
 
       {/* Global Mobile Profile Sheet / Modal */}
       {currentUser && (

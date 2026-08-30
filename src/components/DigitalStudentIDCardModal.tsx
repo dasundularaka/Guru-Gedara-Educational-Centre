@@ -384,7 +384,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.setFontSize(7.5);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(100, 116, 139);
-      pdf.text('Gurugedara Higher Education Institute • Registrar Office: +94 11 234 5678 • portal: www.gurugedara.edu.lk', pageWidth / 2, pageHeight - 8, { align: 'center' });
+      pdf.text('Gurugedara Higher Education Institute • Administration: +94 11 234 5678 • portal: www.gurugedara.edu.lk', pageWidth / 2, pageHeight - 8, { align: 'center' });
 
       pdf.save(`Gurugedara_ID_${role}_${formattedId}.pdf`);
       showToast('Digital ID Card PDF generated and saved for offline use!', 'success');
@@ -405,9 +405,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     <div
       ref={frontCardRef}
       id="digital_id_card_front"
-      className={`relative w-full max-w-[480px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
+      className={`relative w-full max-w-[480px] aspect-[1.58/1] min-h-[190px] rounded-2xl overflow-hidden text-white border ${
         forPrint ? 'border-slate-800 shadow-none' : `${currentTheme.accentBorder} ${currentTheme.glow}`
-      } bg-gradient-to-br ${currentTheme.bgGradient} p-3 sm:p-4 md:p-5 flex flex-col justify-between select-none shadow-xl`}
+      } bg-gradient-to-br ${currentTheme.bgGradient} p-2.5 sm:p-3.5 md:p-4.5 flex flex-col justify-between select-none shadow-xl`}
       style={{
         boxShadow: forPrint ? 'none' : undefined
       }}
@@ -416,84 +416,81 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
         <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full border-[12px] border-white/10" />
         <div className="absolute -right-6 -bottom-6 w-48 h-48 rounded-full border-[6px] border-white/10" />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-7xl sm:text-8xl font-black tracking-widest text-white/5 whitespace-nowrap rotate-[-25deg]">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl sm:text-7xl md:text-8xl font-black tracking-widest text-white/5 whitespace-nowrap rotate-[-25deg]">
           GURUGEDARA
         </div>
       </div>
 
       {/* Header Bar */}
-      <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-1.5 sm:pb-2">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <div className="w-6.5 h-6.5 sm:w-7.5 sm:h-7.5 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md border border-amber-300 shrink-0">
+      <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-1 sm:pb-1.5">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <div className="w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black shadow-md border border-amber-300 shrink-0">
             {role === 'admin' ? (
-              <Crown className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-slate-950" />
+              <Crown className="w-3 h-3 sm:w-4 sm:h-4 text-slate-950" />
             ) : role === 'tutor' ? (
-              <Briefcase className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-slate-950" />
+              <Briefcase className="w-3 h-3 sm:w-4 sm:h-4 text-slate-950" />
             ) : (
-              <GraduationCap className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-slate-950" />
+              <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4 text-slate-950" />
             )}
           </div>
-          <div>
-            <h3 className="text-[10px] sm:text-xs font-black tracking-wider uppercase text-white leading-tight font-sans">
+          <div className="min-w-0">
+            <h3 className="text-[9.5px] sm:text-xs font-black tracking-wider uppercase text-white leading-tight font-sans truncate">
               Gurugedara Higher Education
             </h3>
-            <p className={`text-[7.5px] sm:text-[9px] font-mono font-bold tracking-widest uppercase ${currentTheme.accentColor}`}>
+            <p className={`text-[7px] sm:text-[8.5px] font-mono font-bold tracking-widest uppercase ${currentTheme.accentColor} truncate`}>
               {roleTitle}
             </p>
           </div>
         </div>
-        <div className="text-right">
-          <span className="inline-block px-1.5 py-0.5 rounded text-[7px] sm:text-[8px] font-mono font-black uppercase tracking-wider bg-white/10 border border-white/20 text-slate-200">
+        <div className="text-right shrink-0">
+          <span className="inline-block px-1 sm:px-1.5 py-0.5 rounded text-[6.5px] sm:text-[7.5px] font-mono font-black uppercase tracking-wider bg-white/10 border border-white/20 text-slate-200">
             VALID PASS
           </span>
         </div>
       </div>
 
-      {/* Main Body: Photo, Info, Courses/Faculty & Scannable QR */}
-      <div className="relative z-10 grid grid-cols-12 gap-2 sm:gap-3 items-center my-auto py-1">
-        {/* Photo Column */}
-        <div className="col-span-4 flex flex-col items-center">
+      {/* Main Body: Responsive 3-Column Grid for Photo, Details, and QR Check-in */}
+      <div className="relative z-10 grid grid-cols-[auto_1fr_auto] gap-2 sm:gap-3 items-center my-auto py-0.5 sm:py-1 min-w-0 w-full">
+        {/* Photo Column - Responsive Portrait Frame */}
+        <div className="flex flex-col items-center shrink-0">
           <div className="relative group">
-            <div className="w-14 h-18 sm:w-20 sm:h-24 rounded-xl overflow-hidden border-2 border-amber-400/80 shadow-lg bg-slate-800 relative">
+            <div className="w-13 h-17 sm:w-18 sm:h-23 md:w-20 md:h-25 rounded-lg sm:rounded-xl overflow-hidden border-2 border-amber-400/90 shadow-md bg-slate-900 flex items-center justify-center">
               <img
                 src={userPhoto}
                 alt={currentUser.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-center block"
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 backdrop-blur-xs py-0.5 text-center">
-                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-emerald-400 font-bold flex items-center justify-center gap-0.5">
-                  <ShieldCheck className="w-2 sm:w-2.5 h-2 sm:h-2.5 inline" /> Verified
-                </span>
-              </div>
             </div>
             {/* Holographic Seal Badge */}
-            <div className="absolute -bottom-1 -right-1 sm:-bottom-1.5 sm:-right-1.5 w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 rounded-full bg-gradient-to-tr from-amber-300 via-amber-100 to-amber-400 border border-amber-200 shadow-md flex items-center justify-center text-slate-950">
-              <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-900" />
+            <div className="absolute -bottom-1 -right-1 sm:-bottom-1.5 sm:-right-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-gradient-to-tr from-amber-300 via-amber-100 to-amber-400 border border-amber-200 shadow-md flex items-center justify-center text-slate-950">
+              <Sparkles className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-slate-900" />
             </div>
           </div>
-          <span className="text-[7.5px] sm:text-[9px] font-mono font-bold text-slate-300 mt-1 truncate max-w-[100px] sm:max-w-[110px]">
-            ID: <span className="text-white font-black">{formattedId}</span>
-          </span>
+          <div className="mt-1 text-center">
+            <span className="text-[7px] sm:text-[8px] font-mono font-bold text-slate-300 block truncate max-w-[68px] sm:max-w-[85px]">
+              <span className="text-white font-black">{formattedId}</span>
+            </span>
+          </div>
         </div>
 
-        {/* Info Column */}
-        <div className="col-span-5 space-y-0.5 sm:space-y-1 text-left">
-          <div>
-            <span className="text-[6.5px] sm:text-[7.5px] font-mono uppercase text-slate-400 tracking-wider block">
+        {/* Info Column - Gracefully truncating, zero-overflow middle flex */}
+        <div className="flex flex-col justify-center min-w-0 space-y-0.5 sm:space-y-1 text-left px-0.5">
+          <div className="min-w-0">
+            <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 tracking-wider block">
               {role === 'tutor' ? 'Faculty Lecturer' : role === 'admin' ? 'Administrative Staff' : 'Student Name'}
             </span>
-            <h4 className="text-[11px] sm:text-xs md:text-sm font-black text-white leading-tight tracking-tight line-clamp-1">
+            <h4 className="text-[10.5px] sm:text-xs md:text-sm font-black text-white leading-tight tracking-tight truncate">
               {currentUser.name}
             </h4>
           </div>
 
-          <div>
-            <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-slate-400 tracking-wider block">
+          <div className="min-w-0">
+            <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 tracking-wider block">
               {role === 'tutor' ? 'Academic Department' : role === 'admin' ? 'Executive Division' : 'Academic Stream'}
             </span>
-            <p className="text-[8.5px] sm:text-[10px] font-bold text-slate-200 truncate">
+            <p className="text-[8px] sm:text-[9.5px] font-bold text-slate-200 truncate leading-snug">
               {role === 'tutor' 
                 ? (currentUser.tutorDetails?.qualification || 'Senior Faculty') 
                 : role === 'admin' 
@@ -504,21 +501,21 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
           {/* Role-Specific Showcase */}
           {role === 'student' && (
-            <div>
-              <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
-                <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> Enrolled Courses ({displayCourses.length})
+            <div className="min-w-0">
+              <span className="text-[6px] sm:text-[7px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
+                <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5 shrink-0" /> Courses ({displayCourses.length})
               </span>
-              <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-0.5 max-h-7 sm:max-h-9 overflow-hidden">
+              <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-0.5 max-h-5 sm:max-h-8 overflow-hidden">
                 {displayCourses.slice(0, 3).map((course, idx) => (
                   <span 
                     key={idx}
-                    className="px-1 sm:px-1.5 py-0.2 text-[6.5px] sm:text-[7.5px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[90px] sm:max-w-[110px]"
+                    className="px-1 sm:px-1.5 py-0.2 text-[6px] sm:text-[7px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[80px] sm:max-w-[110px]"
                   >
                     {course}
                   </span>
                 ))}
                 {displayCourses.length > 3 && (
-                  <span className="px-1 py-0.2 text-[6px] sm:text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
+                  <span className="px-1 py-0.2 text-[5.5px] sm:text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
                     +{displayCourses.length - 3}
                   </span>
                 )}
@@ -527,9 +524,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           )}
 
           {role === 'tutor' && (
-            <div>
-              <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-emerald-300 tracking-wider flex items-center gap-1 font-bold">
-                <Award className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> Specialization
+            <div className="min-w-0">
+              <span className="text-[6px] sm:text-[7px] font-mono uppercase text-emerald-300 tracking-wider flex items-center gap-1 font-bold">
+                <Award className="w-2 sm:w-2.5 h-2 sm:h-2.5 shrink-0" /> Specialization
               </span>
               <p className="text-[7.5px] sm:text-[8.5px] text-slate-200 font-medium truncate">
                 {currentUser.tutorDetails?.subjects?.join(', ') || 'Mathematics & Sciences'}
@@ -538,57 +535,61 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           )}
 
           {role === 'admin' && (
-            <div>
-              <span className="text-[6.5px] sm:text-[7px] font-mono uppercase text-rose-300 tracking-wider flex items-center gap-1 font-bold">
-                <ShieldCheck className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> Clearance Level
+            <div className="min-w-0">
+              <span className="text-[6px] sm:text-[7px] font-mono uppercase text-rose-300 tracking-wider flex items-center gap-1 font-bold">
+                <ShieldCheck className="w-2 sm:w-2.5 h-2 sm:h-2.5 shrink-0" /> Clearance Level
               </span>
-              <p className="text-[7.5px] sm:text-[8.5px] text-slate-200 font-medium">
+              <p className="text-[7.5px] sm:text-[8.5px] text-slate-200 font-medium truncate">
                 Level-1 Full System Authorization
               </p>
             </div>
           )}
 
-          <div className="flex items-center gap-1 pt-0.5">
-            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[6.5px] sm:text-[7px] font-bold font-mono uppercase tracking-wider ${currentTheme.badgeBg}`}>
+          {/* Verification Status & Badge Row */}
+          <div className="flex items-center gap-1 pt-0.5 min-w-0 flex-wrap">
+            <span className={`px-1 sm:px-1.5 py-0.5 rounded text-[6px] sm:text-[7px] font-bold font-mono uppercase tracking-wider ${currentTheme.badgeBg} truncate max-w-[90px] sm:max-w-[120px]`}>
               {roleBadge}
             </span>
-            <span className="text-[6.5px] sm:text-[7px] font-mono text-slate-400">
+            <span className="px-1 py-0.5 rounded text-[6px] sm:text-[7px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 font-bold flex items-center gap-0.5">
+              <ShieldCheck className="w-2 h-2 inline" /> Verified
+            </span>
+            <span className="text-[6px] sm:text-[7px] font-mono text-slate-400 hidden sm:inline">
               Iss: {admissionDateStr}
             </span>
           </div>
         </div>
 
         {/* QR Code Column */}
-        <div className="col-span-3 flex flex-col items-center justify-center text-center">
-          <div className="p-1 sm:p-1.5 bg-white rounded-xl shadow-md border border-white/30">
+        <div className="flex flex-col items-center justify-center shrink-0 text-center pl-0.5">
+          <div className="p-1 sm:p-1.5 bg-white rounded-lg sm:rounded-xl shadow-md border border-white/30 flex items-center justify-center">
             <QRCodeCanvas
               id="digital_id_qr_canvas"
               value={formattedId}
-              size={58}
+              size={54}
               level="H"
               includeMargin={false}
             />
           </div>
-          <span className="text-[6px] sm:text-[7px] font-mono uppercase tracking-widest text-slate-300 mt-1 font-bold">
+          <span className="text-[5.5px] sm:text-[6.5px] font-mono uppercase tracking-widest text-slate-300 mt-1 font-bold block whitespace-nowrap">
             {role === 'admin' ? 'Security Gate' : 'Scan for Entry'}
           </span>
         </div>
       </div>
 
       {/* Footer Strip with Barcode styling & Microtext */}
-      <div className="relative z-10 flex items-center justify-between border-t border-white/15 pt-1 sm:pt-1.5 text-[6.5px] sm:text-[7.5px] font-mono text-slate-400">
+      <div className="relative z-10 flex items-center justify-between border-t border-white/15 pt-0.5 sm:pt-1 text-[6px] sm:text-[7px] font-mono text-slate-400">
         <div className="flex items-center gap-1">
-          <div className="h-3 sm:h-3.5 flex items-center gap-0.5 bg-white/90 px-1 rounded-xs">
+          <div className="h-2.5 sm:h-3 flex items-center gap-0.5 bg-white/90 px-1 rounded-xs">
             {[2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 2, 3].map((w, i) => (
               <span key={i} className="h-2 sm:h-2.5 bg-slate-950 inline-block" style={{ width: `${w}px` }} />
             ))}
           </div>
-          <span className="text-[6px] sm:text-[7px] text-slate-400 tracking-tight hidden sm:inline">
+          <span className="text-[5.5px] sm:text-[6.5px] text-slate-400 tracking-tight hidden sm:inline">
             SECURE VERIFICATION TOKEN
           </span>
         </div>
 
-        <div className="flex items-center gap-1 text-[7px] sm:text-[8px] text-slate-300 font-bold">
+        <div className="flex items-center gap-1 text-[6.5px] sm:text-[7.5px] text-slate-300 font-bold">
           <Building2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400" />
           <span>GURUGEDARA ACADEMY</span>
         </div>
@@ -601,9 +602,9 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     <div
       ref={backCardRef}
       id="digital_id_card_back"
-      className={`relative w-full max-w-[480px] aspect-[1.58/1] rounded-2xl overflow-hidden text-white border ${
+      className={`relative w-full max-w-[480px] aspect-[1.58/1] min-h-[190px] rounded-2xl overflow-hidden text-white border ${
         forPrint ? 'border-slate-800 shadow-none' : `${currentTheme.accentBorder} ${currentTheme.glow}`
-      } bg-gradient-to-br ${currentTheme.bgGradient} p-3 sm:p-4 md:p-5 flex flex-col justify-between select-none shadow-xl`}
+      } bg-gradient-to-br ${currentTheme.bgGradient} p-2.5 sm:p-3.5 md:p-4.5 flex flex-col justify-between select-none shadow-xl`}
       style={{
         boxShadow: forPrint ? 'none' : undefined
       }}
@@ -618,61 +619,61 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
 
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between border-b border-white/15 pb-1 sm:pb-1.5">
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          <BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
-          <h4 className="text-[8.5px] sm:text-[10px] font-black uppercase tracking-wider text-white">
+        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+          <BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
+          <h4 className="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-white truncate">
             {role === 'tutor' ? 'Faculty Registry & Credentials' : role === 'admin' ? 'Executive Governance Registry' : 'Academic Courses & Emergency Registry'}
           </h4>
         </div>
-        <span className="text-[7px] sm:text-[8px] font-mono text-slate-400 font-bold">
+        <span className="text-[6.5px] sm:text-[7.5px] font-mono text-slate-400 font-bold shrink-0">
           REF #{formattedId}
         </span>
       </div>
 
       {/* Body */}
-      <div className="relative z-10 grid grid-cols-2 gap-2 sm:gap-2.5 my-auto py-1 text-[7.5px] sm:text-[8.5px]">
+      <div className="relative z-10 grid grid-cols-2 gap-1.5 sm:gap-2.5 my-auto py-0.5 sm:py-1 text-[7px] sm:text-[8px] min-w-0">
         {/* Left Column: Contact info */}
-        <div className="space-y-1 sm:space-y-1.5 bg-white/5 p-1.5 sm:p-2.5 rounded-xl border border-white/10">
+        <div className="space-y-1 bg-white/5 p-1.5 sm:p-2 rounded-xl border border-white/10 min-w-0">
           {role === 'student' ? (
             <>
-              <div>
-                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Guardian / Emergency Contact</span>
-                <p className="text-[8.5px] sm:text-[10px] font-bold text-white leading-tight">
+              <div className="min-w-0">
+                <span className="text-[5.5px] sm:text-[6.5px] font-mono uppercase text-slate-400 block font-bold">Guardian / Emergency Contact</span>
+                <p className="text-[8px] sm:text-[9.5px] font-bold text-white leading-tight truncate">
                   {currentUser.guardianName || currentUser.studentDetails?.parentContact || 'Registered Guardian'}
                 </p>
-                <p className="text-[7.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
-                  <Phone className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-amber-400 inline" />
+                <p className="text-[7px] sm:text-[8.5px] text-slate-300 font-mono flex items-center gap-1 mt-0.5 truncate">
+                  <Phone className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-amber-400 inline shrink-0" />
                   {currentUser.guardianPhone || currentUser.phone || '+94 77 123 4567'}
                 </p>
               </div>
-              <div className="pt-1 border-t border-white/10">
-                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Linked Parent Email</span>
-                <p className="text-[7.5px] sm:text-[9px] text-slate-200 truncate font-mono">
+              <div className="pt-0.5 sm:pt-1 border-t border-white/10 min-w-0">
+                <span className="text-[5.5px] sm:text-[6.5px] font-mono uppercase text-slate-400 block font-bold">Linked Parent Email</span>
+                <p className="text-[7px] sm:text-[8.5px] text-slate-200 truncate font-mono">
                   {currentUser.parentEmail || currentUser.email}
                 </p>
                 {currentUser.isParentEmailLinked && (
-                  <span className="text-[6px] sm:text-[7px] text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
-                    <CheckCircle2 className="w-2 h-2 inline" /> Auto-CC Active
+                  <span className="text-[5.5px] sm:text-[6.5px] text-emerald-400 font-bold flex items-center gap-0.5 mt-0.5">
+                    <CheckCircle2 className="w-2 h-2 inline shrink-0" /> Auto-CC Active
                   </span>
                 )}
               </div>
             </>
           ) : (
             <>
-              <div>
-                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Official Communications</span>
-                <p className="text-[8.5px] sm:text-[10px] font-bold text-white leading-tight truncate">
+              <div className="min-w-0">
+                <span className="text-[5.5px] sm:text-[6.5px] font-mono uppercase text-slate-400 block font-bold">Official Communications</span>
+                <p className="text-[8px] sm:text-[9.5px] font-bold text-white leading-tight truncate">
                   {currentUser.email}
                 </p>
-                <p className="text-[7.5px] sm:text-[9px] text-slate-300 font-mono flex items-center gap-1 mt-0.5">
-                  <Phone className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-amber-400 inline" />
+                <p className="text-[7px] sm:text-[8.5px] text-slate-300 font-mono flex items-center gap-1 mt-0.5 truncate">
+                  <Phone className="w-2 sm:w-2.5 h-2 sm:h-2.5 text-amber-400 inline shrink-0" />
                   {currentUser.phone || '+94 11 234 5678'}
                 </p>
               </div>
-              <div className="pt-1 border-t border-white/10">
-                <span className="text-[6px] sm:text-[7px] font-mono uppercase text-slate-400 block font-bold">Institutional Status</span>
-                <span className="text-[7px] sm:text-[7.5px] text-emerald-300 font-mono font-bold flex items-center gap-1 mt-0.5">
-                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" /> Authorized Faculty
+              <div className="pt-0.5 sm:pt-1 border-t border-white/10 min-w-0">
+                <span className="text-[5.5px] sm:text-[6.5px] font-mono uppercase text-slate-400 block font-bold">Institutional Status</span>
+                <span className="text-[6.5px] sm:text-[7.5px] text-emerald-300 font-mono font-bold flex items-center gap-1 mt-0.5">
+                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-400 shrink-0" /> Authorized Faculty
                 </span>
               </div>
             </>
@@ -680,44 +681,44 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
         </div>
 
         {/* Right Column: Roles & Terms */}
-        <div className="space-y-1 bg-white/5 p-1.5 sm:p-2.5 rounded-xl border border-white/10 flex flex-col justify-between">
-          <div>
-            <span className="text-[6px] sm:text-[7px] font-mono uppercase text-amber-300 block font-bold mb-0.5 sm:mb-1 flex items-center gap-1">
-              <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5" /> 
+        <div className="space-y-1 bg-white/5 p-1.5 sm:p-2 rounded-xl border border-white/10 flex flex-col justify-between min-w-0">
+          <div className="min-w-0">
+            <span className="text-[5.5px] sm:text-[6.5px] font-mono uppercase text-amber-300 block font-bold mb-0.5 flex items-center gap-1">
+              <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5 shrink-0" /> 
               {role === 'tutor' ? 'Faculty Courses' : role === 'admin' ? 'Supervisory Access' : 'Enrolled Courses'}
             </span>
-            <div className="flex flex-col gap-0.5 max-h-14 sm:max-h-16 overflow-y-auto pr-0.5">
+            <div className="flex flex-col gap-0.5 max-h-11 sm:max-h-14 overflow-y-auto pr-0.5">
               {displayCourses.slice(0, 4).map((sub, i) => (
                 <div
                   key={i}
-                  className="px-1 sm:px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[6.5px] sm:text-[7.5px] flex items-center justify-between"
+                  className="px-1 sm:px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[6px] sm:text-[7px] flex items-center justify-between"
                 >
-                  <span className="truncate max-w-[100px] sm:max-w-[120px]">▸ {sub}</span>
-                  <span className="text-[6px] sm:text-[6.5px] text-amber-300 font-mono">ACTIVE</span>
+                  <span className="truncate max-w-[85px] sm:max-w-[110px]">▸ {sub}</span>
+                  <span className="text-[5.5px] sm:text-[6px] text-amber-300 font-mono shrink-0 ml-0.5">ACTIVE</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="pt-1 border-t border-white/10 text-[6.5px] sm:text-[7.5px] text-slate-300 flex items-center justify-between">
+          <div className="pt-0.5 sm:pt-1 border-t border-white/10 text-[6px] sm:text-[7px] text-slate-300 flex items-center justify-between">
             <span>Issue: <strong className="font-mono text-white">{admissionDateStr}</strong></span>
-            <span className="truncate max-w-[80px]">Colombo, LK</span>
+            <span className="truncate max-w-[70px]">Colombo, LK</span>
           </div>
         </div>
       </div>
 
       {/* Card Terms & Authorization Signature */}
-      <div className="relative z-10 border-t border-white/15 pt-1 sm:pt-1.5 flex items-center justify-between text-[6px] sm:text-[7px] text-slate-400 font-sans">
-        <p className="max-w-[240px] sm:max-w-[270px] leading-tight text-slate-300">
+      <div className="relative z-10 border-t border-white/15 pt-0.5 sm:pt-1 flex items-center justify-between text-[5.5px] sm:text-[6.5px] text-slate-400 font-sans">
+        <p className="max-w-[210px] sm:max-w-[270px] leading-tight text-slate-300">
           Official property of Gurugedara Higher Education Institute. Valid for examination entry, lab access, and live QR gate check-in.
         </p>
 
-        <div className="text-center pl-1 sm:pl-2">
-          <div className="font-serif italic text-amber-300 text-[8.5px] sm:text-[10px] font-bold leading-none select-none tracking-wider">
-            D. Wickramasinghe
+        <div className="text-center pl-1 sm:pl-2 shrink-0">
+          <div className="font-serif italic text-amber-300 text-[8px] sm:text-[9.5px] font-bold leading-none select-none tracking-wider">
+            Vidya Basnayake
           </div>
           <span className="text-[5px] sm:text-[6px] uppercase font-mono tracking-widest text-slate-400 block mt-0.5 border-t border-white/20 pt-0.5">
-            Registrar Directorate
+            Administration
           </span>
         </div>
       </div>
