@@ -234,19 +234,19 @@ export function SmoothCarousel<T>({
 
       {/* Default Header Controls if selected */}
       {!customControls && showControls && arrowPosition === 'header' && totalItems > visibleCount && (
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between mb-2.5 sm:mb-4">
+          <div className="flex items-center gap-1">
             {showDots && totalSteps > 1 && (
-              <div className="flex items-center gap-1 bg-slate-100/90 p-1 sm:p-1.5 rounded-full border border-slate-200/60 shadow-2xs">
+              <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 sm:p-1 rounded-full border border-slate-200/60 shadow-2xs">
                 {Array.from({ length: totalSteps }).map((_, i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => goTo(i)}
-                    className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                    className={`carousel-dot h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                       i === currentIndex 
-                        ? `w-4 sm:w-6 ${colorMap.activeDot} shadow-xs` 
-                        : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
+                        ? `w-3 sm:w-4.5 ${colorMap.activeDot} shadow-xs` 
+                        : 'w-1 sm:w-1.5 bg-slate-300 hover:bg-slate-400'
                     }`}
                     title={`Slide to view ${i + 1}`}
                   />
@@ -255,22 +255,22 @@ export function SmoothCarousel<T>({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             <button
               type="button"
               onClick={prev}
-              className="p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 btn-compact"
+              className="p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 btn-compact flex items-center justify-center"
               title="Previous"
             >
-              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>
             <button
               type="button"
               onClick={next}
-              className="p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 btn-compact"
+              className="p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 btn-compact flex items-center justify-center"
               title="Next"
             >
-              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>
           </div>
         </div>
@@ -340,18 +340,18 @@ export function SmoothCarousel<T>({
             <button
               type="button"
               onClick={prev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 p-3 rounded-2xl bg-white/95 backdrop-blur-xs border border-slate-200 text-slate-800 hover:bg-white shadow-lg hover:shadow-xl transition-all cursor-pointer active:scale-95"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-xl bg-white/95 backdrop-blur-xs border border-slate-200 text-slate-800 hover:bg-white shadow-md transition-all cursor-pointer active:scale-95 flex items-center justify-center"
               title="Previous"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               type="button"
               onClick={next}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 p-3 rounded-2xl bg-white/95 backdrop-blur-xs border border-slate-200 text-slate-800 hover:bg-white shadow-lg hover:shadow-xl transition-all cursor-pointer active:scale-95"
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-2.5 rounded-xl bg-white/95 backdrop-blur-xs border border-slate-200 text-slate-800 hover:bg-white shadow-md transition-all cursor-pointer active:scale-95 flex items-center justify-center"
               title="Next"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </>
         )}
@@ -359,26 +359,26 @@ export function SmoothCarousel<T>({
 
       {/* Bottom Dots & Controls if configured */}
       {showDots && arrowPosition !== 'header' && totalSteps > 1 && totalItems > visibleCount && (
-        <div className="flex items-center justify-center gap-1.5 mt-4 sm:mt-6">
+        <div className="flex items-center justify-center gap-1.5 mt-3 sm:mt-5">
           <button
             type="button"
             onClick={prev}
-            className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer mr-1.5 sm:mr-2 active:scale-95 btn-compact"
+            className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer mr-1 active:scale-95 btn-compact flex items-center justify-center"
             title="Previous"
           >
-            <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           </button>
           
-          <div className="flex items-center gap-1 bg-slate-100/90 p-1 sm:p-1.5 rounded-full border border-slate-200/70 shadow-2xs">
+          <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 sm:p-1 rounded-full border border-slate-200/70 shadow-2xs">
             {Array.from({ length: totalSteps }).map((_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => goTo(i)}
-                className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                className={`carousel-dot h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                   i === currentIndex 
-                    ? `w-4 sm:w-6 ${colorMap.activeDot} shadow-xs` 
-                    : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
+                    ? `w-3 sm:w-4.5 ${colorMap.activeDot} shadow-xs` 
+                    : 'w-1 sm:w-1.5 bg-slate-300 hover:bg-slate-400'
                 }`}
                 title={`Go to slide ${i + 1}`}
               />
@@ -388,10 +388,10 @@ export function SmoothCarousel<T>({
           <button
             type="button"
             onClick={next}
-            className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ml-1.5 sm:ml-2 active:scale-95 btn-compact"
+            className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ml-1 active:scale-95 btn-compact flex items-center justify-center"
             title="Next"
           >
-            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           </button>
         </div>
       )}

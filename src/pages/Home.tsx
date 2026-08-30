@@ -315,32 +315,32 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1] }}
-                    className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 w-full pb-8 sm:pb-0"
+                    className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-6 w-full pb-6 sm:pb-0"
                   >
-                    <div className="space-y-2 sm:space-y-3 max-w-xl">
-                      <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[9px] sm:text-[10px] font-bold font-mono tracking-widest uppercase inline-block">
+                    <div className="space-y-1.5 sm:space-y-2.5 max-w-xl">
+                      <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[8px] sm:text-[9px] font-bold font-mono tracking-widest uppercase inline-block">
                         Featured Highlight
                       </span>
-                      <h3 className="text-lg sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug">
+                      <h3 className="text-base sm:text-xl md:text-2xl font-black text-white tracking-tight leading-snug">
                         {banners[currentBannerIdx].title}
                       </h3>
                       {banners[currentBannerIdx].subtitle && (
-                        <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed line-clamp-2 sm:line-clamp-none">
+                        <p className="text-[10px] sm:text-[11px] text-slate-300 leading-relaxed line-clamp-2 sm:line-clamp-none">
                           {banners[currentBannerIdx].subtitle}
                         </p>
                       )}
                       {banners[currentBannerIdx].linkUrl && (
                         <a 
                           href={banners[currentBannerIdx].linkUrl}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors pt-1"
+                          className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors pt-0.5"
                         >
-                          Learn More <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                          Learn More <ArrowRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                         </a>
                       )}
                     </div>
 
                     {banners[currentBannerIdx].imageUrl && (
-                      <div className="w-full md:w-80 h-32 sm:h-44 rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800 shrink-0 shadow-lg">
+                      <div className="w-full md:w-80 h-28 sm:h-40 rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800 shrink-0 shadow-lg">
                         <img 
                           referrerPolicy="no-referrer"
                           src={banners[currentBannerIdx].imageUrl} 
@@ -354,30 +354,30 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </AnimatePresence>
 
               {/* Controls */}
-              <div className="absolute bottom-3 right-4 sm:bottom-4 sm:right-6 flex items-center gap-1.5 z-10">
+              <div className="absolute bottom-2.5 right-3.5 sm:bottom-3.5 sm:right-5 flex items-center gap-1 z-10">
                 <button 
                   onClick={handlePrevBanner}
-                  className="carousel-dot btn-compact p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
+                  className="carousel-dot btn-compact p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
                   title="Previous banner"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
-                <div className="flex gap-1 items-center">
+                <div className="flex gap-1 items-center px-0.5">
                   {banners.map((_, i) => (
                     <button
                       key={i}
                       onClick={() => setCurrentBannerIdx(i)}
-                      className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${i === currentBannerIdx ? 'w-4 sm:w-6 bg-indigo-500' : 'w-1.5 sm:w-2 bg-slate-700'}`}
+                      className={`carousel-dot h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer ${i === currentBannerIdx ? 'w-3 sm:w-4.5 bg-indigo-500' : 'w-1 sm:w-1.5 bg-slate-700'}`}
                       title={`Go to banner ${i + 1}`}
                     />
                   ))}
                 </div>
                 <button 
                   onClick={handleNextBanner}
-                  className="carousel-dot btn-compact p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
+                  className="carousel-dot btn-compact p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
                   title="Next banner"
                 >
-                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
 
@@ -387,7 +387,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       )}
 
       {/* 3. LECTURERS / FACULTY CAROUSEL */}
-      <div className="py-10 sm:py-16 bg-blue-50/50 border-t border-blue-50">
+      <div className="py-8 sm:py-14 bg-blue-50/50 border-t border-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <SmoothCarousel
             items={topTutors}
@@ -398,23 +398,23 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             pauseOnHover={true}
             accentColor="indigo"
             renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 sm:mb-6 gap-2.5 sm:gap-4">
                 <div>
-                  <span className="text-[10px] sm:text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-950 tracking-tight mt-1.5 sm:mt-3">Respected Instructors</h2>
-                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">Accredited professors, Ph.D. researchers, and industrial professionals</p>
+                  <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold text-blue-950 tracking-tight mt-1 sm:mt-2">Respected Instructors</h2>
+                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">Accredited professors, Ph.D. researchers, and industrial professionals</p>
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
                   {total > 1 && (
-                    <div className="flex items-center gap-1 mr-1 sm:mr-2">
+                    <div className="flex items-center gap-1 mr-1">
                       <button
                         type="button"
                         onClick={prev}
-                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Previous faculty"
                       >
-                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </button>
                       <div className="flex gap-1 items-center px-1 max-w-[120px] sm:max-w-[140px] overflow-x-auto no-scrollbar">
                         {Array.from({ length: maxIndex + 1 }).map((_, i) => (
@@ -422,8 +422,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                             type="button"
                             key={i}
                             onClick={() => goTo(i)}
-                            className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                              i === currentIndex ? 'w-4 sm:w-6 bg-indigo-600 shadow-xs' : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
+                            className={`carousel-dot h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                              i === currentIndex ? 'w-3 sm:w-4.5 bg-indigo-600 shadow-xs' : 'w-1 sm:w-1.5 bg-slate-300 hover:bg-slate-400'
                             }`}
                             title={`Go to slide ${i + 1}`}
                           />
@@ -432,17 +432,17 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={next}
-                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Next faculty"
                       >
-                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </button>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => onNavigateTab('tutors')}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 text-white font-bold text-[11px] sm:text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-xs hover:shadow-md cursor-pointer shrink-0"
+                    className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-indigo-600 text-white font-bold text-[10px] sm:text-xs rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-colors shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
                   >
                     View All ({topTutors.length})
                   </button>
@@ -455,7 +455,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </div>
             )}
             emptyState={
-              <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 text-slate-400 text-xs">
+              <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
                 No active tutors available at the moment.
               </div>
             }
@@ -464,7 +464,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       </div>
 
       {/* 4. CLASSES CAROUSEL */}
-      <div className="py-10 sm:py-16 bg-white border-t border-slate-100">
+      <div className="py-8 sm:py-14 bg-white border-t border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <SmoothCarousel
             items={highlightedClasses}
@@ -475,23 +475,23 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             pauseOnHover={true}
             accentColor="slate"
             renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 sm:mb-6 gap-2.5 sm:gap-4">
                 <div>
-                  <span className="text-[10px] sm:text-xs font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5 sm:mt-3">Featured Subject Classes</h2>
-                  <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
+                  <span className="text-[9px] sm:text-[10px] font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight mt-1 sm:mt-2">Featured Subject Classes</h2>
+                  <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
                   {total > 1 && (
-                    <div className="flex items-center gap-1 mr-1 sm:mr-2">
+                    <div className="flex items-center gap-1 mr-1">
                       <button
                         type="button"
                         onClick={prev}
-                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Previous class"
                       >
-                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </button>
                       <div className="flex gap-1 items-center px-1 max-w-[120px] sm:max-w-[140px] overflow-x-auto no-scrollbar">
                         {Array.from({ length: maxIndex + 1 }).map((_, i) => (
@@ -499,8 +499,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                             type="button"
                             key={i}
                             onClick={() => goTo(i)}
-                            className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                              i === currentIndex ? 'w-4 sm:w-6 bg-slate-900 shadow-xs' : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
+                            className={`carousel-dot h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                              i === currentIndex ? 'w-3 sm:w-4.5 bg-slate-900 shadow-xs' : 'w-1 sm:w-1.5 bg-slate-300 hover:bg-slate-400'
                             }`}
                             title={`Go to slide ${i + 1}`}
                           />
@@ -509,17 +509,17 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={next}
-                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Next class"
                       >
-                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </button>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => onNavigateTab('classes')}
-                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white font-bold text-[11px] sm:text-xs rounded-xl hover:bg-slate-950 transition-colors shadow-xs hover:shadow-md cursor-pointer shrink-0"
+                    className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-900 text-white font-bold text-[10px] sm:text-xs rounded-lg sm:rounded-xl hover:bg-slate-950 transition-colors shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
                   >
                     All Curriculums ({highlightedClasses.length})
                   </button>
@@ -532,7 +532,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </div>
             )}
             emptyState={
-              <div className="text-center py-12 bg-slate-50 rounded-3xl border border-slate-200 text-slate-400 text-xs">
+              <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 text-xs">
                 No active classes available at the moment.
               </div>
             }
@@ -541,7 +541,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       </div>
 
       {/* 5. COMMENTS & TESTIMONIALS CAROUSEL + SUBMISSION BOX */}
-      <div className="py-10 sm:py-16 bg-slate-50 border-t border-slate-200/60">
+      <div className="py-8 sm:py-14 bg-slate-50 border-t border-slate-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <SmoothCarousel
@@ -552,13 +552,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             autoPlayInterval={5000}
             pauseOnHover={true}
             accentColor="blue"
-            className="mb-8 sm:mb-12"
+            className="mb-6 sm:mb-10"
             renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 sm:mb-6 gap-2.5 sm:gap-4">
                 <div>
-                  <span className="text-[10px] sm:text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-950 tracking-tight mt-1.5 sm:mt-3">Parent & Student Reviews</h2>
-                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">Real feedback approved by academy administration</p>
+                  <span className="text-[9px] sm:text-[10px] font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold text-blue-950 tracking-tight mt-1 sm:mt-2">Parent & Student Reviews</h2>
+                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">Real feedback approved by academy administration</p>
                 </div>
 
                 {total > 1 && (
@@ -566,10 +566,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     <button
                       type="button"
                       onClick={prev}
-                      className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                       title="Previous review"
                     >
-                      <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                     <div className="flex gap-1 items-center px-1 max-w-[120px] sm:max-w-[140px] overflow-x-auto no-scrollbar">
                       {Array.from({ length: maxIndex + 1 }).map((_, i) => (
@@ -577,8 +577,8 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                           type="button"
                           key={i}
                           onClick={() => goTo(i)}
-                          className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                            i === currentIndex ? 'w-4 sm:w-6 bg-blue-600 shadow-xs' : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
+                          className={`carousel-dot h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                            i === currentIndex ? 'w-3 sm:w-4.5 bg-blue-600 shadow-xs' : 'w-1 sm:w-1.5 bg-slate-300 hover:bg-slate-400'
                           }`}
                           title={`Go to slide ${i + 1}`}
                         />
@@ -587,79 +587,79 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     <button
                       type="button"
                       onClick={next}
-                      className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                       title="Next review"
                     >
-                      <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                   </div>
                 )}
               </div>
             )}
             renderItem={(rev) => (
-              <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative flex flex-col justify-between h-full">
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-shadow relative flex flex-col justify-between h-full">
                 <div>
-                  <div className="flex items-center gap-1 mb-3">
+                  <div className="flex items-center gap-1 mb-2.5">
                     {[...Array(5)].map((_, i) => (
                       <Star 
                         key={i} 
-                        className={`w-3.5 h-3.5 ${i < rev.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
+                        className={`w-3 h-3 ${i < rev.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
                       />
                     ))}
                   </div>
-                  <p className="text-xs text-slate-650 leading-relaxed font-sans italic">
+                  <p className="text-[11px] sm:text-xs text-slate-650 leading-relaxed font-sans italic">
                     "{rev.comment}"
                   </p>
                 </div>
-                <div className="mt-5 border-t border-slate-100 pt-4 flex items-center justify-between">
+                <div className="mt-4 border-t border-slate-100 pt-3 flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-bold text-slate-800 block">{rev.studentName}</span>
-                    <span className="text-[10px] text-slate-400 block font-mono">{rev.classTitle || rev.tutorName || 'Academy Feedback'}</span>
+                    <span className="text-[11px] sm:text-xs font-bold text-slate-800 block">{rev.studentName}</span>
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono">{rev.classTitle || rev.tutorName || 'Academy Feedback'}</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">
                     {new Date(rev.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               </div>
             )}
             emptyState={
-              <div className="col-span-3 text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+              <div className="col-span-3 text-center py-8 bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
                 No approved reviews yet. Be the first to submit feedback below!
               </div>
             }
           />
 
           {/* Interactive Comment Submission Box */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-md max-w-3xl mx-auto">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5" />
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-200/80 shadow-md max-w-3xl mx-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">Write a Comment / Review</h3>
-                <p className="text-xs text-slate-500">Your comment will be submitted to administrative staff for approval before appearing on the public carousel.</p>
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">Write a Comment / Review</h3>
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Your comment will be submitted to administrative staff for approval before appearing on the public carousel.</p>
               </div>
             </div>
 
-            <form onSubmit={handleSubmitComment} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmitComment} className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Your Full Name</label>
+                  <label className="block text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Your Full Name</label>
                   <input 
                     type="text" 
                     required
                     value={commentName}
                     onChange={(e) => setCommentName(e.target.value)}
                     placeholder="e.g. John Doe"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Role / Persona</label>
+                  <label className="block text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Role / Persona</label>
                   <select 
                     value={commentRole}
                     onChange={(e) => setCommentRole(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-indigo-500"
                   >
                     <option value="Student">Student Scholar</option>
                     <option value="Parent">Parent / Guardian</option>
@@ -667,20 +667,20 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Target Course / Tutor (Optional)</label>
+                  <label className="block text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Target Course / Tutor (Optional)</label>
                   <input 
                     type="text" 
                     value={commentTarget}
                     onChange={(e) => setCommentTarget(e.target.value)}
                     placeholder="e.g. AP Calculus or Dr. Jenkins"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Overall Rating</label>
-                  <div className="flex items-center gap-2 pt-1">
+                  <label className="block text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Overall Rating</label>
+                  <div className="flex items-center gap-1.5 pt-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
                         key={star}
@@ -689,7 +689,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                         className="cursor-pointer focus:outline-none transition-transform hover:scale-110"
                       >
                         <Star 
-                          className={`w-5 h-5 ${star <= commentRating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
+                          className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${star <= commentRating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} 
                         />
                       </button>
                     ))}
@@ -699,22 +699,22 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Your Detailed Feedback / Comment</label>
+                <label className="block text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1">Your Detailed Feedback / Comment</label>
                 <textarea 
                   required
                   rows={3}
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Share your experience regarding course content, teaching style, or general feedback..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 leading-relaxed"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 leading-relaxed"
                 />
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-1.5">
                 <button
                   type="submit"
                   disabled={submittingComment}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   {submittingComment ? "Submitting..." : "Submit Comment for Review"}
