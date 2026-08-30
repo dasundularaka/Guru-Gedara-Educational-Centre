@@ -1125,7 +1125,17 @@ export const TutorDashboard: React.FC = () => {
             </div>
 
             {/* Class Creator trigger, QR Pass Trigger & Faculty ID Card */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Dedicated Mobile Section View Icon Trigger */}
+              <button
+                id="tutor_btn_mobile_sections"
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="md:hidden px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+                title="Access Faculty Sections Menu"
+              >
+                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Sections
+              </button>
               <button
                 id="tutor_btn_id_card"
                 onClick={() => setShowIdCardModal(true)}

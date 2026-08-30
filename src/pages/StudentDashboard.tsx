@@ -44,7 +44,8 @@ import {
   Save,
   CheckCircle2,
   Printer,
-  GraduationCap
+  GraduationCap,
+  Layers
 } from 'lucide-react';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
@@ -497,6 +498,16 @@ export const StudentDashboard: React.FC = () => {
 
               {/* Quick action bar */}
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center sm:justify-start">
+                {/* Dedicated Mobile Section View Icon Trigger */}
+                <button 
+                  type="button"
+                  onClick={() => setIsMobileSidebarOpen(true)}
+                  className="md:hidden text-xs text-indigo-700 dark:text-indigo-300 font-extrabold flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+                  id="btn_student_mobile_sections"
+                  title="Access Student Sections Menu"
+                >
+                  <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Sections
+                </button>
                 <button 
                   onClick={() => setShowIdCardModal(true)}
                   className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-2 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95 min-h-[38px]"

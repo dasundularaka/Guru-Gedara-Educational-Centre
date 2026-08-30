@@ -372,17 +372,25 @@ svg text,
   border-color: #4b5563;
 }
 
-/* Mobile Usability & Touch Target Optimization (Accessibility Standard 44px Minimum) */
+/* Mobile Usability & Touch Target Optimization */
 @media (max-width: 768px) {
-  button:not(.no-touch-expand),
-  a[role="button"],
-  input[type="button"],
+  .touch-target,
+  button.touch-target,
+  a.touch-target,
   input[type="submit"],
   input[type="reset"],
-  select,
-  .touch-target {
+  select {
     min-height: 44px;
     touch-action: manipulation;
+  }
+
+  /* Specific exclusion to prevent carousel dot pills, chips and compact controls from swelling */
+  .carousel-dot,
+  .btn-compact,
+  .chip-pill,
+  button.carousel-dot {
+    min-height: unset !important;
+    height: auto;
   }
 
   input[type="text"],
@@ -392,7 +400,7 @@ svg text,
   input[type="number"],
   input[type="search"],
   textarea {
-    min-height: 42px;
+    min-height: 40px;
     font-size: 16px; /* Prevents auto-zoom on iOS mobile browsers */
   }
 }

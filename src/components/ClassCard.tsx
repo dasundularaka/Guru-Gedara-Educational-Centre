@@ -310,10 +310,10 @@ export const ClassCard: React.FC<ClassCardProps> = ({
 
       {/* Conditionally render Title outside the cover if we have a layout with imageUrl */}
       {item.imageUrl && (
-        <div className="px-6 pt-5 pb-1">
+        <div className="px-4 sm:px-6 pt-3 sm:pt-5 pb-1">
           <h4 
             onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
-            className="text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer"
+            className="text-xs sm:text-sm font-extrabold text-slate-900 leading-snug tracking-tight hover:text-indigo-600 transition-colors cursor-pointer"
           >
             {item.title}
           </h4>
@@ -321,8 +321,8 @@ export const ClassCard: React.FC<ClassCardProps> = ({
       )}
 
       {/* Details body */}
-      <div className="p-6 flex-1 flex flex-col justify-between">
-        <p className="text-xs text-slate-550 line-clamp-3 mb-5 leading-relaxed">
+      <div className="p-4 sm:p-6 flex-1 flex flex-col justify-between">
+        <p className="text-[11px] sm:text-xs text-slate-550 line-clamp-2 sm:line-clamp-3 mb-3 sm:mb-5 leading-relaxed">
           {item.description}
         </p>
 

@@ -300,47 +300,47 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       {/* 2. ADVERTISING BANNERS CAROUSEL */}
       {banners.length > 0 && (
         <div 
-          className="py-8 bg-slate-900 text-white relative overflow-hidden"
+          className="py-6 sm:py-8 bg-slate-900 text-white relative overflow-hidden"
           onMouseEnter={() => setIsBannerHovered(true)}
           onMouseLeave={() => setIsBannerHovered(false)}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 p-6 sm:p-10 min-h-[220px] flex items-center justify-between shadow-2xl">
+            <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 p-5 sm:p-8 md:p-10 min-h-[180px] sm:min-h-[220px] flex items-center justify-between shadow-2xl">
               
               <AnimatePresence mode="wait">
                 {banners[currentBannerIdx] && (
                   <motion.div
                     key={banners[currentBannerIdx].id}
-                    initial={{ opacity: 0, x: 25 }}
+                    initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -25 }}
-                    transition={{ duration: 0.45, ease: [0.25, 1, 0.5, 1] }}
-                    className="flex flex-col md:flex-row items-center justify-between gap-6 w-full"
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1] }}
+                    className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 w-full pb-8 sm:pb-0"
                   >
-                    <div className="space-y-3 max-w-xl">
-                      <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-bold font-mono tracking-widest uppercase inline-block">
+                    <div className="space-y-2 sm:space-y-3 max-w-xl">
+                      <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[9px] sm:text-[10px] font-bold font-mono tracking-widest uppercase inline-block">
                         Featured Highlight
                       </span>
-                      <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                      <h3 className="text-lg sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-snug">
                         {banners[currentBannerIdx].title}
                       </h3>
                       {banners[currentBannerIdx].subtitle && (
-                        <p className="text-xs text-slate-300 leading-relaxed">
+                        <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed line-clamp-2 sm:line-clamp-none">
                           {banners[currentBannerIdx].subtitle}
                         </p>
                       )}
                       {banners[currentBannerIdx].linkUrl && (
                         <a 
                           href={banners[currentBannerIdx].linkUrl}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors mt-2"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors pt-1"
                         >
-                          Learn More <ArrowRight className="w-3.5 h-3.5" />
+                          Learn More <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         </a>
                       )}
                     </div>
 
                     {banners[currentBannerIdx].imageUrl && (
-                      <div className="w-full md:w-80 h-44 rounded-2xl overflow-hidden border border-slate-800 shrink-0 shadow-lg">
+                      <div className="w-full md:w-80 h-32 sm:h-44 rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800 shrink-0 shadow-lg">
                         <img 
                           referrerPolicy="no-referrer"
                           src={banners[currentBannerIdx].imageUrl} 
@@ -354,30 +354,30 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </AnimatePresence>
 
               {/* Controls */}
-              <div className="absolute bottom-4 right-6 flex items-center gap-2 z-10">
+              <div className="absolute bottom-3 right-4 sm:bottom-4 sm:right-6 flex items-center gap-1.5 z-10">
                 <button 
                   onClick={handlePrevBanner}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
+                  className="carousel-dot btn-compact p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
                   title="Previous banner"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
-                <div className="flex gap-1">
+                <div className="flex gap-1 items-center">
                   {banners.map((_, i) => (
                     <button
                       key={i}
                       onClick={() => setCurrentBannerIdx(i)}
-                      className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${i === currentBannerIdx ? 'w-6 bg-indigo-500' : 'w-2 bg-slate-700'}`}
+                      className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${i === currentBannerIdx ? 'w-4 sm:w-6 bg-indigo-500' : 'w-1.5 sm:w-2 bg-slate-700'}`}
                       title={`Go to banner ${i + 1}`}
                     />
                   ))}
                 </div>
                 <button 
                   onClick={handleNextBanner}
-                  className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
+                  className="carousel-dot btn-compact p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95"
                   title="Next banner"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </div>
 
@@ -387,7 +387,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       )}
 
       {/* 3. LECTURERS / FACULTY CAROUSEL */}
-      <div className="py-16 bg-blue-50/50 border-t border-blue-50">
+      <div className="py-10 sm:py-16 bg-blue-50/50 border-t border-blue-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <SmoothCarousel
             items={topTutors}
@@ -398,32 +398,32 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             pauseOnHover={true}
             accentColor="indigo"
             renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-4">
                 <div>
-                  <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Respected Instructors</h2>
-                  <p className="text-xs text-gray-500 mt-1">Accredited professors, Ph.D. researchers, and industrial professionals</p>
+                  <span className="text-[10px] sm:text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Meet the Faculty</span>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-950 tracking-tight mt-1.5 sm:mt-3">Respected Instructors</h2>
+                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">Accredited professors, Ph.D. researchers, and industrial professionals</p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
                   {total > 1 && (
-                    <div className="flex items-center gap-1.5 mr-2">
+                    <div className="flex items-center gap-1 mr-1 sm:mr-2">
                       <button
                         type="button"
                         onClick={prev}
-                        className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                         title="Previous faculty"
                       >
-                        <ChevronLeft className="w-4 h-4" />
+                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
-                      <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
+                      <div className="flex gap-1 items-center px-1 max-w-[120px] sm:max-w-[140px] overflow-x-auto no-scrollbar">
                         {Array.from({ length: maxIndex + 1 }).map((_, i) => (
                           <button
                             type="button"
                             key={i}
                             onClick={() => goTo(i)}
-                            className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                              i === currentIndex ? 'w-6 bg-indigo-600 shadow-xs' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                            className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                              i === currentIndex ? 'w-4 sm:w-6 bg-indigo-600 shadow-xs' : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
                             }`}
                             title={`Go to slide ${i + 1}`}
                           />
@@ -432,19 +432,19 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={next}
-                        className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                         title="Next faculty"
                       >
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => onNavigateTab('tutors')}
-                    className="px-4 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-xs hover:shadow-md cursor-pointer"
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 text-white font-bold text-[11px] sm:text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-xs hover:shadow-md cursor-pointer shrink-0"
                   >
-                    View All Faculty ({topTutors.length})
+                    View All ({topTutors.length})
                   </button>
                 </div>
               </div>
@@ -464,7 +464,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       </div>
 
       {/* 4. CLASSES CAROUSEL */}
-      <div className="py-16 bg-white border-t border-slate-100">
+      <div className="py-10 sm:py-16 bg-white border-t border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <SmoothCarousel
             items={highlightedClasses}
@@ -475,32 +475,32 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             pauseOnHover={true}
             accentColor="slate"
             renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-4">
                 <div>
-                  <span className="text-xs font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-3">Featured Subject Classes</h2>
-                  <p className="text-xs text-slate-500 mt-1">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
+                  <span className="text-[10px] sm:text-xs font-bold text-indigo-600 font-mono uppercase tracking-widest block leading-none">Curriculums</span>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight mt-1.5 sm:mt-3">Featured Subject Classes</h2>
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1">AP Pre-Calculus, Quantum Physics, Web Engineering, and SAT Prep</p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
                   {total > 1 && (
-                    <div className="flex items-center gap-1.5 mr-2">
+                    <div className="flex items-center gap-1 mr-1 sm:mr-2">
                       <button
                         type="button"
                         onClick={prev}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                         title="Previous class"
                       >
-                        <ChevronLeft className="w-4 h-4" />
+                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
-                      <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
+                      <div className="flex gap-1 items-center px-1 max-w-[120px] sm:max-w-[140px] overflow-x-auto no-scrollbar">
                         {Array.from({ length: maxIndex + 1 }).map((_, i) => (
                           <button
                             type="button"
                             key={i}
                             onClick={() => goTo(i)}
-                            className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                              i === currentIndex ? 'w-6 bg-slate-900 shadow-xs' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                            className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                              i === currentIndex ? 'w-4 sm:w-6 bg-slate-900 shadow-xs' : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
                             }`}
                             title={`Go to slide ${i + 1}`}
                           />
@@ -509,17 +509,17 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={next}
-                        className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                        className="carousel-dot btn-compact p-2 sm:p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                         title="Next class"
                       >
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => onNavigateTab('classes')}
-                    className="px-4 py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-950 transition-colors shadow-xs hover:shadow-md cursor-pointer"
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white font-bold text-[11px] sm:text-xs rounded-xl hover:bg-slate-950 transition-colors shadow-xs hover:shadow-md cursor-pointer shrink-0"
                   >
                     All Curriculums ({highlightedClasses.length})
                   </button>
@@ -541,7 +541,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       </div>
 
       {/* 5. COMMENTS & TESTIMONIALS CAROUSEL + SUBMISSION BOX */}
-      <div className="py-16 bg-slate-50 border-t border-slate-200/60">
+      <div className="py-10 sm:py-16 bg-slate-50 border-t border-slate-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <SmoothCarousel
@@ -552,33 +552,33 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
             autoPlayInterval={5000}
             pauseOnHover={true}
             accentColor="blue"
-            className="mb-12"
+            className="mb-8 sm:mb-12"
             renderCustomControls={({ currentIndex, maxIndex, total, next, prev, goTo }) => (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-4">
                 <div>
-                  <span className="text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-blue-950 tracking-tight mt-3">Parent & Student Reviews</h2>
-                  <p className="text-xs text-gray-500 mt-1">Real feedback approved by academy administration</p>
+                  <span className="text-[10px] sm:text-xs font-bold text-blue-600 font-mono uppercase tracking-widest block leading-none">Community Feedback</span>
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-blue-950 tracking-tight mt-1.5 sm:mt-3">Parent & Student Reviews</h2>
+                  <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">Real feedback approved by academy administration</p>
                 </div>
 
                 {total > 1 && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={prev}
-                      className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                       title="Previous review"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
-                    <div className="flex gap-1 items-center px-1 max-w-[140px] overflow-x-auto no-scrollbar">
+                    <div className="flex gap-1 items-center px-1 max-w-[120px] sm:max-w-[140px] overflow-x-auto no-scrollbar">
                       {Array.from({ length: maxIndex + 1 }).map((_, i) => (
                         <button
                           type="button"
                           key={i}
                           onClick={() => goTo(i)}
-                          className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                            i === currentIndex ? 'w-6 bg-blue-600 shadow-xs' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                          className={`carousel-dot h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                            i === currentIndex ? 'w-4 sm:w-6 bg-blue-600 shadow-xs' : 'w-1.5 sm:w-2 bg-slate-300 hover:bg-slate-400'
                           }`}
                           title={`Go to slide ${i + 1}`}
                         />
@@ -587,10 +587,10 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     <button
                       type="button"
                       onClick={next}
-                      className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      className="carousel-dot btn-compact p-2 sm:p-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                       title="Next review"
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 )}

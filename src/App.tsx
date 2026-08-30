@@ -11,6 +11,8 @@ import { TutorDashboard } from './pages/TutorDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { RestrictedPasswordReset } from './pages/RestrictedPasswordReset';
 import { ToastNotification } from './components/ToastNotification';
+import { MobileProfileModal } from './components/MobileProfileModal';
+import { DigitalStudentIDCardModal } from './components/DigitalStudentIDCardModal';
 import { 
   CheckCircle, 
   XOctagon, 
@@ -183,6 +185,8 @@ function MainAppContent() {
 
   const [pingTime, setPingTime] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
+  const [isMobileProfileOpen, setIsMobileProfileOpen] = useState<boolean>(false);
+  const [showGlobalIdCard, setShowGlobalIdCard] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -452,7 +456,31 @@ function MainAppContent() {
       <MobileBottomNav 
         currentTab={currentTab} 
         onChangeTab={setCurrentTab} 
+        onOpenProfile={() => setIsMobileProfileOpen(true)}
       />
+
+      {/* Global Mobile Profile Sheet / Modal */}
+      {currentUser && (
+        <MobileProfileModal
+          isOpen={isMobileProfileOpen}
+          onClose={() => setIsMobileProfileOpen(false)}
+          onOpenIdCard={() => setShowGlobalIdCard(true)}
+          onNavigateTab={(tab) => {
+            setCurrentTab(tab);
+            setIsMobileProfileOpen(false);
+          }}
+        />
+      )}
+
+      {/* Global Digital Student / Faculty / Admin ID Card Modal */}
+      {currentUser && showGlobalIdCard && (
+        <DigitalStudentIDCardModal
+          isOpen={showGlobalIdCard}
+          onClose={() => setShowGlobalIdCard(false)}
+          currentUser={currentUser}
+          showToast={showToast}
+        />
+      )}
 
       {/* Global active feedback Toast Notification message Banner */}
       <ToastNotification 

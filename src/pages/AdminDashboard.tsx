@@ -1783,7 +1783,19 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           {/* Controls: Admin Profile Avatar & Navigation Dropdown */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Dedicated Mobile Section View Icon Trigger */}
+            <button
+              id="admin_btn_mobile_sections"
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="md:hidden px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+              title="Access Admin Sections Menu"
+            >
+              <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Sections</span>
+            </button>
+
             {/* Executive ID Pass Button */}
             <button
               id="admin_my_id_card_btn"
