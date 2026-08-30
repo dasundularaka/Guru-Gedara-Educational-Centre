@@ -357,7 +357,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               <div className="absolute bottom-2.5 right-3.5 sm:bottom-3.5 sm:right-5 flex items-center gap-1 z-10">
                 <button 
                   onClick={handlePrevBanner}
-                  className="carousel-dot btn-compact p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
+                  className="carousel-nav-btn carousel-dot btn-compact p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
                   title="Previous banner"
                 >
                   <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -374,7 +374,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                 </div>
                 <button 
                   onClick={handleNextBanner}
-                  className="carousel-dot btn-compact p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
+                  className="carousel-nav-btn carousel-dot btn-compact p-1 sm:p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
                   title="Next banner"
                 >
                   <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -411,7 +411,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={prev}
-                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
+                        className="carousel-nav-btn carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Previous faculty"
                       >
                         <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -432,7 +432,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={next}
-                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
+                        className="carousel-nav-btn carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Next faculty"
                       >
                         <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -488,7 +488,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={prev}
-                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
+                        className="carousel-nav-btn carousel-dot btn-compact p-1.5 sm:p-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Previous class"
                       >
                         <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -509,7 +509,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                       <button
                         type="button"
                         onClick={next}
-                        className="carousel-dot btn-compact p-1.5 sm:p-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
+                        className="carousel-nav-btn carousel-dot btn-compact p-1.5 sm:p-2 bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                         title="Next class"
                       >
                         <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -566,7 +566,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     <button
                       type="button"
                       onClick={prev}
-                      className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
+                      className="carousel-nav-btn carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                       title="Previous review"
                     >
                       <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -587,7 +587,7 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
                     <button
                       type="button"
                       onClick={next}
-                      className="carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
+                      className="carousel-nav-btn carousel-dot btn-compact p-1.5 sm:p-2 bg-white border border-slate-200 rounded-lg sm:rounded-xl text-slate-700 hover:bg-slate-100 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 flex items-center justify-center"
                       title="Next review"
                     >
                       <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />

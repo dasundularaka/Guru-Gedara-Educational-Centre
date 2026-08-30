@@ -868,10 +868,17 @@ export const AdminDashboard: React.FC = () => {
     const unsubSubjects = firestoreService.subscribeSubjects((subjects) => {
       setSubjectsList(subjects);
     });
+
+    const handleOpenSectionsEvent = () => {
+      setIsMobileSidebarOpen(true);
+    };
+    window.addEventListener('open-mobile-sections', handleOpenSectionsEvent);
+
     return () => {
       unsubBanners();
       unsubPathways();
       unsubSubjects();
+      window.removeEventListener('open-mobile-sections', handleOpenSectionsEvent);
     };
   }, []);
 

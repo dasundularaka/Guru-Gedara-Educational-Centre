@@ -127,6 +127,14 @@ export const StudentDashboard: React.FC = () => {
     }
   }, [currentUser?.parentEmail, currentUser?.ccParentOnNotifications, currentUser?.isParentEmailLinked]);
 
+  useEffect(() => {
+    const handleOpenSectionsEvent = () => {
+      setIsMobileSidebarOpen(true);
+    };
+    window.addEventListener('open-mobile-sections', handleOpenSectionsEvent);
+    return () => window.removeEventListener('open-mobile-sections', handleOpenSectionsEvent);
+  }, []);
+
   const handleSaveParentSettings = async (overrideCc?: boolean) => {
     if (!currentUser) return;
     const isCcActive = overrideCc !== undefined ? overrideCc : parentCcEnabled;

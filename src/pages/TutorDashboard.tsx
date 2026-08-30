@@ -269,6 +269,14 @@ export const TutorDashboard: React.FC = () => {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    const handleOpenSectionsEvent = () => {
+      setIsMobileSidebarOpen(true);
+    };
+    window.addEventListener('open-mobile-sections', handleOpenSectionsEvent);
+    return () => window.removeEventListener('open-mobile-sections', handleOpenSectionsEvent);
+  }, []);
+
   const isTutorMatch = (tId?: string, tName?: string, tEmail?: string) => {
     if (!currentUser) return false;
     if (tId && (tId === currentUser.uid || tId === currentUser.username)) return true;
