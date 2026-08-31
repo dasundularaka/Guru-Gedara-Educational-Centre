@@ -29,7 +29,7 @@ const DEFAULT_SUBJECT_CATEGORIES = ["All Subjects", "Mathematics", "Physics", "E
 const INITIAL_MATERIALS: StudyMaterial[] = [];
 
 export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
-  const { classes, refreshClasses, currentUser, showToast } = useApp();
+  const { classes, refreshClasses, currentUser, showToast, bookings } = useApp();
   
   // Tab Switch: 'classes' or 'resources'
   const [activeTab, setActiveTab] = useState<'classes' | 'resources'>('classes');
@@ -182,7 +182,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     setFilteredClasses(result);
   }, [classes, searchTerm, selectedSubject, sortBy, availabilityFilter, selectedLevel, selectedDay, selectedTimeOfDay, showEnrolledOnly, enrolledClassIds.length]);
 
-  // Filter Study Materials
+  // Filter Study Materials with Strict Role & Class Enrollment Access Control
   useEffect(() => {
     let result = [...studyMaterials];
 
@@ -195,15 +195,52 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
       result = result.filter(m => 
         m.title.toLowerCase().includes(term) || 
         m.description.toLowerCase().includes(term) ||
-        m.tutorName.toLowerCase().includes(term)
+        m.tutorName.toLowerCase().includes(term) ||
+        (m.classTitle && m.classTitle.toLowerCase().includes(term))
       );
     }
 
     // Sort newest first
     result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+    // Access control rule:
+    // "If an admin or tutor upload study resourse to a class, that one can see relevant tutor, all admins and enrolled students only. Nobody not in I mentioned above groups can view."
+    const isAdmin = currentUser?.role === 'admin';
+    const isTutor = currentUser?.role === 'tutor';
+    const isStudent = currentUser?.role === 'student';
+
+    result = result.filter(m => {
+      // If hidden from students, only admins or author tutor can see
+      if (m.isVisible === false && !isAdmin && (!isTutor || m.tutorId !== currentUser?.uid)) {
+        return false;
+      }
+
+      // If associated with a class:
+      if (m.classId) {
+        if (isAdmin) return true;
+        if (isTutor) {
+          const classObj = classes.find(c => c.id === m.classId);
+          return m.tutorId === currentUser?.uid || 
+                 Boolean(classObj && (
+                   classObj.tutorId === currentUser?.uid || 
+                   classObj.tutorName === currentUser?.name || 
+                   (currentUser?.email && classObj.tutorEmail && currentUser.email.toLowerCase() === classObj.tutorEmail.toLowerCase())
+                 ));
+        }
+        if (isStudent) {
+          const isSuspended = currentUser?.classEnrollmentStatus?.[m.classId] === 'suspended' || currentUser?.status === 'suspended';
+          if (isSuspended) return false;
+          return enrolledClassIds.includes(m.classId) || bookings.some(b => b.classId === m.classId && (b.studentId === currentUser?.uid || (b as any).studentEmail === currentUser?.email) && b.status === 'active');
+        }
+        return false; // Non-enrolled users and guests cannot see class study resources
+      }
+
+      // General materials without classId
+      return true;
+    });
+
     setFilteredMaterials(result);
-  }, [studyMaterials, resSearchTerm, resSelectedSubject]);
+  }, [studyMaterials, resSearchTerm, resSelectedSubject, currentUser, enrolledClassIds, classes, bookings]);
 
   // Handle study material upload
   const handleUploadResource = async (e: React.FormEvent) => {
@@ -233,6 +270,21 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
       if (!uploadUrl.startsWith("http://") && !uploadUrl.startsWith("https://")) {
         showToast("Please enter a valid reference URL starting with http:// or https://", "error");
         return;
+      }
+    }
+
+    if (uploadClassId) {
+      const selectedClassItem = classes.find(c => c.id === uploadClassId);
+      if (currentUser.role === 'tutor') {
+        const isAssigned = selectedClassItem && (
+          selectedClassItem.tutorId === currentUser.uid ||
+          selectedClassItem.tutorName === currentUser.name ||
+          (currentUser.email && selectedClassItem.tutorEmail && currentUser.email.toLowerCase() === selectedClassItem.tutorEmail.toLowerCase())
+        );
+        if (!isAssigned) {
+          showToast("You are not the assigned faculty tutor for this class.", "error");
+          return;
+        }
       }
     }
 
@@ -333,8 +385,14 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     }
   };
 
-  // Get current user's classes to link resources to
-  const tutorClasses = classes.filter(c => c.tutorId === currentUser?.uid);
+  // Get current user's authorized classes to link resources to (only assigned classes for tutors, all for admin)
+  const tutorClasses = currentUser?.role === 'admin' 
+    ? classes 
+    : classes.filter(c => 
+        c.tutorId === currentUser?.uid || 
+        c.tutorName === currentUser?.name || 
+        (Boolean(currentUser?.email) && Boolean(c.tutorEmail) && currentUser?.email?.toLowerCase() === c.tutorEmail?.toLowerCase())
+      );
 
   return (
     <div className="bg-slate-50/40 min-h-screen py-10" id="classes_search_viewport">

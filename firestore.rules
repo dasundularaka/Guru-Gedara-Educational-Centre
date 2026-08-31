@@ -44,9 +44,63 @@ service cloud.firestore {
     }
 
     // Study Materials & Lesson Documents
+    // Only admins, the assigned tutor of that resource, or enrolled students can view class study materials.
     match /study_materials/{materialId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isTutor() && (
+          resource.data.tutorId == request.auth.uid ||
+          resource.data.tutorId == getUserData().username ||
+          resource.data.tutorEmail == request.auth.token.email
+        )) ||
+        (getUserData().role == 'student' && (
+          getUserData().selectedClasses.hasAny([resource.data.classId])
+        )) ||
+        resource.data.classId == null || resource.data.classId == ''
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isTutor() && (
+          request.resource.data.tutorId == request.auth.uid ||
+          request.resource.data.tutorId == getUserData().username
+        ))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() ||
+        (isTutor() && (
+          resource.data.tutorId == request.auth.uid ||
+          resource.data.tutorId == getUserData().username
+        ))
+      );
+    }
+
+    match /materials/{materialId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isTutor() && (
+          resource.data.tutorId == request.auth.uid ||
+          resource.data.tutorId == getUserData().username ||
+          resource.data.tutorEmail == request.auth.token.email
+        )) ||
+        (getUserData().role == 'student' && (
+          getUserData().selectedClasses.hasAny([resource.data.classId])
+        )) ||
+        resource.data.classId == null || resource.data.classId == ''
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isTutor() && (
+          request.resource.data.tutorId == request.auth.uid ||
+          request.resource.data.tutorId == getUserData().username
+        ))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() ||
+        (isTutor() && (
+          resource.data.tutorId == request.auth.uid ||
+          resource.data.tutorId == getUserData().username
+        ))
+      );
     }
 
     // Class Enrollments & Bookings

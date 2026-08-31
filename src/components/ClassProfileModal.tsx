@@ -71,7 +71,29 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   onUpdateData,
   showToast
 }) => {
-  const isTutorOrAdmin = currentUser.role === 'tutor' || currentUser.role === 'admin';
+  const isAdmin = currentUser.role === 'admin';
+  const isRelevantTutor = currentUser.role === 'tutor' && (
+    classItem?.tutorId === currentUser.uid || 
+    classItem?.tutorName === currentUser.name || 
+    currentUser.username === classItem?.tutorId ||
+    (Boolean(currentUser.email) && Boolean((classItem as any)?.tutorEmail) && currentUser.email?.toLowerCase() === (classItem as any)?.tutorEmail?.toLowerCase())
+  );
+  const isTutorOrAdmin = isAdmin || isRelevantTutor;
+
+  // Check if current user is a student and suspended for this class
+  const isCurrentStudentSuspended = currentUser.role === 'student' && (
+    currentUser.classEnrollmentStatus?.[classItem?.id || ''] === 'suspended' || 
+    currentUser.status === 'suspended'
+  );
+
+  const isEnrolledStudent = currentUser.role === 'student' && (
+    (currentUser.selectedClasses || []).includes(classItem?.id || '') || 
+    bookings.some(b => b.classId === classItem?.id && (b.studentId === currentUser.uid || (b as any).studentEmail === currentUser.email) && b.status === 'active')
+  ) && !isCurrentStudentSuspended;
+
+  const canViewMaterials = isAdmin || isRelevantTutor || isEnrolledStudent;
+  const canManageMaterials = isAdmin || isRelevantTutor;
+
   const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'attendance' | 'availability'>(isTutorOrAdmin ? 'roster' : 'materials');
 
   // Roster Filter & Bulk Selection State
@@ -157,12 +179,6 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   }, [classItem]);
 
   if (!isOpen || !classItem) return null;
-
-  // Check if current user is a student and suspended for this class
-  const isCurrentStudentSuspended = currentUser.role === 'student' && (
-    currentUser.classEnrollmentStatus?.[classItem.id] === 'suspended' || 
-    currentUser.status === 'suspended'
-  );
 
   // Filter enrolled bookings for this class
   const classBookings = bookings.filter(b => b.classId === classItem.id && b.status === 'active');
@@ -326,6 +342,10 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   // Add Study Material
   const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!classItem || !canManageMaterials) {
+      showToast('You do not have permission to upload materials to this class.', 'error');
+      return;
+    }
     if (!newTitle.trim()) {
       showToast('Please enter a title for the resource.', 'info');
       return;
@@ -925,6 +945,37 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                       </span>
                     </div>
                   </div>
+                ) : !canViewMaterials ? (
+                  <div className="text-center py-12 px-6 bg-amber-50/60 rounded-2xl border-2 border-dashed border-amber-200 space-y-3">
+                    <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-black text-slate-900">Restricted Class Study Resources</h4>
+                    <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                      Study materials, lesson notes, revision documents, and video recordings for <strong className="text-slate-900">{classItem.title}</strong> are strictly accessible only to:
+                    </p>
+                    <div className="inline-flex flex-col items-start gap-1.5 p-3.5 bg-white/80 rounded-xl border border-amber-200 text-left max-w-sm mx-auto">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Assigned Faculty Tutor: <strong className="text-slate-900">{classItem.tutorName}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>All Guru Gedara Administrators</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Enrolled Scholars & Students of this class</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-amber-800 font-medium">
+                      {currentUser?.role === 'student' 
+                        ? 'Please enroll in this class to access study resources.' 
+                        : currentUser?.role === 'tutor' 
+                        ? 'You are not the designated faculty tutor for this class.' 
+                        : 'Please sign in with an authorized account.'}
+                    </p>
+                  </div>
                 ) : (
                   <>
                     <div className="flex items-center justify-between">
@@ -932,7 +983,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                         <BookOpen className="w-4 h-4 text-indigo-600" /> Study Resources & Course Notes
                       </h3>
 
-                      {isTutorOrAdmin && (
+                      {canManageMaterials && (
                         <button
                           onClick={() => setShowAddMaterial(!showAddMaterial)}
                           className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
@@ -1129,8 +1180,8 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Controls for Tutor / Admin */}
-                          {isTutorOrAdmin && (
+                          {/* Controls for Assigned Tutor / Admin */}
+                          {canManageMaterials && (
                             <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                               <button
                                 onClick={() => handleToggleMaterialVisibility(mat.id, mat.isVisible)}

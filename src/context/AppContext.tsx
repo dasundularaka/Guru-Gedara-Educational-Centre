@@ -771,6 +771,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (profile) {
         setCurrentUser(profile);
         showToast(`Welcome back, ${profile.name}!`, "success");
+        setLoading(false);
         return profile;
       } else {
         const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
@@ -782,6 +783,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         setCurrentUser(newProf);
         showToast("Welcome to Guru Gedara Educational Centre! Account successfully initialized.", "success");
+        setLoading(false);
         return newProf;
       }
     } catch (e: any) {
@@ -792,8 +794,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         showToast(e.message || "Google Sign-in failed. Try again.", "error");
       }
-      setLoading(false);
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -877,6 +880,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         setCurrentUser(existingProfile);
         showToast(`Logged in successfully as ${existingProfile.name}!`, "success");
+        setLoading(false);
         return existingProfile;
       }
 
@@ -892,6 +896,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Dasun Dularaka (Administrator)!", "success");
+        setLoading(false);
         return customUser;
       }
 
@@ -902,6 +907,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Dr. Kamal Gunaratne (Faculty Tutor)!", "success");
+        setLoading(false);
         return customUser;
       }
 
@@ -912,14 +918,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Kavindu Shehan (Student Scholar)!", "success");
+        setLoading(false);
         return customUser;
       }
 
       // 5. Account not found
       throw new Error("No registered account found with these credentials. Please check your username, email, or full name.");
     } catch (e: any) {
-      setLoading(false);
       throw e;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -961,10 +969,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       showToast(`Registration complete! Welcome, ${name}.`, "success");
+      setLoading(false);
       return profile;
     } catch (createErr: any) {
-      setLoading(false);
       throw createErr;
+    } finally {
+      setLoading(false);
     }
   };
 
