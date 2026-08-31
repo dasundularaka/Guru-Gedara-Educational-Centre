@@ -1204,6 +1204,27 @@ const firestoreServiceRaw = {
     saveFallback('local_bookings', bookings);
     await this.updateClassBookingsCount(classItem.id, 1);
 
+    // Sync Student Profile selectedClasses & classEnrollmentStatus
+    try {
+      const studentUser = await this.getUserProfile(studentId);
+      if (studentUser) {
+        const currentSelected = studentUser.selectedClasses || [];
+        if (!currentSelected.includes(classItem.id)) {
+          const updatedSelected = [...currentSelected, classItem.id];
+          const updatedStatusMap = {
+            ...(studentUser.classEnrollmentStatus || {}),
+            [classItem.id]: 'active' as const
+          };
+          await this.updateUserProfile(studentId, {
+            selectedClasses: updatedSelected,
+            classEnrollmentStatus: updatedStatusMap
+          });
+        }
+      }
+    } catch (profErr) {
+      console.warn("[firestoreService] Failed syncing student profile on bookClass:", profErr);
+    }
+
     // Trigger Automated Email Service & In-App Notification
     try {
       const studentUser = await this.getUserProfile(studentId);
@@ -1230,9 +1251,206 @@ const firestoreServiceRaw = {
     return newBooking;
   },
 
-  async cancelBooking(bookingId: string, classId: string): Promise<void> {
+  /**
+   * Dedicated method to enroll a student in a class with specified status and payment category
+   */
+  async enrollStudentInClass(
+    studentId: string, 
+    classId: string, 
+    initialStatus: 'active' | 'suspended' = 'active',
+    paymentCategory: 'Normal' | 'Free Card' | 'Half Card' = 'Normal',
+    performedBy?: string
+  ): Promise<{ booking: Booking; student: UserProfile }> {
+    const classes = await this.getClasses();
+    const targetClass = classes.find(c => c.id === classId);
+    if (!targetClass) {
+      throw new Error(`Class with ID '${classId}' not found.`);
+    }
+
+    const studentUser = await this.getUserProfile(studentId);
+    if (!studentUser) {
+      throw new Error(`Student with ID '${studentId}' not found.`);
+    }
+
+    const bookingId = "booking_" + classId + "_" + studentId + "_" + Date.now().toString(36);
+    const newBooking: Booking = {
+      id: bookingId,
+      studentId,
+      studentName: studentUser.name || studentUser.displayName || studentUser.username || 'Student',
+      studentEmail: studentUser.email || '',
+      classId: targetClass.id,
+      classTitle: targetClass.title,
+      tutorId: targetClass.tutorId,
+      tutorName: targetClass.tutorName,
+      dayOfWeek: targetClass.dayOfWeek,
+      timeSlot: targetClass.timeSlot,
+      bookingDate: new Date().toISOString(),
+      status: initialStatus === 'suspended' ? 'active' : 'active', // Active booking row
+      approvalType: paymentCategory === 'Free Card' ? 'free_card' : paymentCategory === 'Half Card' ? 'payment_collected' : undefined,
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. Save Booking
     if (isUsingCloud) {
       try {
+        await setDoc(doc(db, 'bookings', bookingId), newBooking);
+      } catch (e) {
+        console.warn("[firestoreService] Cloud booking creation error:", e);
+      }
+    }
+
+    const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    // Replace existing if any, or push
+    const filteredBookings = bookings.filter(b => !(b.studentId === studentId && b.classId === classId));
+    filteredBookings.push(newBooking);
+    saveFallback('local_bookings', filteredBookings);
+
+    // 2. Increment Class booked slots
+    await this.updateClassBookingsCount(classId, 1);
+
+    // 3. Update Student Profile: add classId to selectedClasses & update classEnrollmentStatus
+    const currentSelected = studentUser.selectedClasses || [];
+    const updatedSelected = Array.from(new Set([...currentSelected, classId]));
+    const updatedStatusMap = {
+      ...(studentUser.classEnrollmentStatus || {}),
+      [classId]: initialStatus as 'active' | 'suspended'
+    };
+
+    await this.updateUserProfile(studentId, {
+      selectedClasses: updatedSelected,
+      classEnrollmentStatus: updatedStatusMap
+    });
+
+    const updatedStudent: UserProfile = {
+      ...studentUser,
+      selectedClasses: updatedSelected,
+      classEnrollmentStatus: updatedStatusMap
+    };
+
+    // 4. Send Notifications
+    try {
+      await this.triggerNotification(
+        studentId,
+        `🎓 Class Enrollment: ${targetClass.title}`,
+        `You have been enrolled in ${targetClass.title} (${targetClass.schedule}) by administration. Status: ${initialStatus.toUpperCase()}.`,
+        'announcement'
+      );
+
+      const tutorUser = await this.getUserProfile(targetClass.tutorId);
+      await emailNotificationService.notifyClassBookingSuccess({
+        booking: newBooking,
+        classItem: targetClass,
+        studentUser: updatedStudent,
+        tutorUser
+      });
+    } catch (notifErr) {
+      console.warn("[firestoreService] Automated enrollment notification warning:", notifErr);
+    }
+
+    // 5. Audit Log
+    try {
+      await this.addAuditLog({
+        username: performedBy || 'Admin',
+        action: 'STUDENT_ENROLLED_IN_CLASS',
+        details: `Enrolled student '${studentUser.name}' (${studentId}) into class '${targetClass.title}' with status '${initialStatus}' and category '${paymentCategory}'.`
+      });
+    } catch (_) {}
+
+    return { booking: newBooking, student: updatedStudent };
+  },
+
+  /**
+   * Completely unenroll and remove a student from a class across all database records and user profiles
+   */
+  async unenrollStudentFromClass(
+    studentId: string, 
+    classId: string, 
+    performedBy?: string
+  ): Promise<void> {
+    // 1. Cancel / Remove Bookings for (studentId, classId)
+    if (isUsingCloud) {
+      try {
+        const q = query(
+          collection(db, 'bookings'),
+          where('studentId', '==', studentId),
+          where('classId', '==', classId)
+        );
+        const snap = await getDocs(q);
+        for (const bDoc of snap.docs) {
+          await updateDoc(doc(db, 'bookings', bDoc.id), { status: 'cancelled' });
+        }
+      } catch (e) {
+        console.warn("[firestoreService] Cloud unenroll bookings query failed:", e);
+      }
+    }
+
+    // Local bookings update
+    const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    const updatedBookings = bookings.map(b => {
+      if ((b.studentId === studentId || b.id.includes(studentId)) && b.classId === classId) {
+        return { ...b, status: 'cancelled' as const };
+      }
+      return b;
+    });
+    saveFallback('local_bookings', updatedBookings);
+
+    // 2. Decrement Class booked slots
+    await this.updateClassBookingsCount(classId, -1);
+
+    // 3. Update User Profile: Remove classId from selectedClasses & remove from classEnrollmentStatus
+    try {
+      const studentUser = await this.getUserProfile(studentId);
+      if (studentUser) {
+        const updatedSelected = (studentUser.selectedClasses || []).filter(id => id !== classId);
+        const updatedStatusMap = { ...(studentUser.classEnrollmentStatus || {}) };
+        delete updatedStatusMap[classId];
+
+        await this.updateUserProfile(studentId, {
+          selectedClasses: updatedSelected,
+          classEnrollmentStatus: updatedStatusMap
+        });
+      }
+    } catch (uErr) {
+      console.warn("[firestoreService] Could not update student profile on unenroll:", uErr);
+    }
+
+    // 4. Send Notification to Student
+    try {
+      const classes = await this.getClasses();
+      const targetClass = classes.find(c => c.id === classId);
+      const classTitle = targetClass?.title || 'the class';
+
+      await this.triggerNotification(
+        studentId,
+        `📋 Class Roster Update: ${classTitle}`,
+        `You have been unenrolled from ${classTitle} by administration. If you have questions, please reach out to academic support.`,
+        'announcement'
+      );
+    } catch (notifErr) {
+      console.warn("[firestoreService] Automated unenroll notification warning:", notifErr);
+    }
+
+    // 5. Audit Log
+    try {
+      await this.addAuditLog({
+        username: performedBy || 'Admin',
+        action: 'STUDENT_UNENROLLED_FROM_CLASS',
+        details: `Unenrolled student ${studentId} from class ${classId}`
+      });
+    } catch (_) {}
+  },
+
+  async cancelBooking(bookingId: string, classId: string, customStudentId?: string): Promise<void> {
+    let studentId = customStudentId;
+
+    if (isUsingCloud) {
+      try {
+        if (!studentId) {
+          const bDoc = await getDoc(doc(db, 'bookings', bookingId));
+          if (bDoc.exists()) {
+            studentId = bDoc.data()?.studentId;
+          }
+        }
         await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
       } catch (e) {
         console.warn("Fallback cancel booking", e);
@@ -1240,9 +1458,32 @@ const firestoreServiceRaw = {
     }
 
     const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    if (!studentId) {
+      const targetB = bookings.find(b => b.id === bookingId);
+      if (targetB) studentId = targetB.studentId;
+    }
     const updated = bookings.map(b => b.id === bookingId ? { ...b, status: 'cancelled' as const } : b);
     saveFallback('local_bookings', updated);
     await this.updateClassBookingsCount(classId, -1);
+
+    // Synchronize User Profile: remove classId from student's selectedClasses
+    if (studentId) {
+      try {
+        const studentUser = await this.getUserProfile(studentId);
+        if (studentUser) {
+          const updatedSelected = (studentUser.selectedClasses || []).filter(id => id !== classId);
+          const updatedStatusMap = { ...(studentUser.classEnrollmentStatus || {}) };
+          delete updatedStatusMap[classId];
+
+          await this.updateUserProfile(studentId, {
+            selectedClasses: updatedSelected,
+            classEnrollmentStatus: updatedStatusMap
+          });
+        }
+      } catch (uErr) {
+        console.warn("[firestoreService] Could not update student selectedClasses on cancelBooking:", uErr);
+      }
+    }
   },
 
   // -------------------------------------------------------------

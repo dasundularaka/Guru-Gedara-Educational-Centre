@@ -258,9 +258,12 @@ export const StudentDashboard: React.FC = () => {
   const getMatchedStudentBookings = (): Booking[] => {
     if (!currentUser) return [];
     const matched = bookings.filter(b => isStudentMatch(b.studentId, (b as any).studentEmail, b.studentName) && b.status !== 'cancelled');
+    const cancelledClassIds = new Set(
+      bookings.filter(b => isStudentMatch(b.studentId, (b as any).studentEmail, b.studentName) && b.status === 'cancelled').map(b => b.classId)
+    );
     
-    // Synthesize enrollment records from selectedClasses
-    const enrolledClassIds = currentUser.selectedClasses || [];
+    // Synthesize enrollment records from selectedClasses (ensuring unenrolled/cancelled are never included)
+    const enrolledClassIds = (currentUser.selectedClasses || []).filter(cId => !cancelledClassIds.has(cId));
     const existingClassIds = new Set(matched.map(b => b.classId));
 
     enrolledClassIds.forEach(cId => {

@@ -16,6 +16,7 @@ import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsM
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { StudentIntakeApprovalModal } from '../components/StudentIntakeApprovalModal';
+import { AddStudentToClassModal } from '../components/AddStudentToClassModal';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -94,7 +95,8 @@ import {
   CheckCircle2,
   Info,
   RefreshCw,
-  Activity
+  Activity,
+  UserPlus
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -128,6 +130,8 @@ export const AdminDashboard: React.FC = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedProgressStudentId, setSelectedProgressStudentId] = useState<string>('');
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
+  const [selectedClassForAddStudent, setSelectedClassForAddStudent] = useState<ClassItem | null>(null);
+  const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
@@ -3421,6 +3425,19 @@ export const AdminDashboard: React.FC = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  setSelectedClassForAddStudent(c);
+                                  setShowAddStudentModal(true);
+                                }}
+                                className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-emerald-400/30 flex items-center gap-1 text-[10px] font-bold"
+                                title="Add / Enroll student into this class"
+                                id={`admin_btn_add_student_to_class_${c.id}`}
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>Add Student</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSelectedClassForScanner(c);
                                   setShowClassScannerModal(true);
                                 }}
@@ -4720,41 +4737,60 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Course enrollment checklist */}
+                  {/* Enrolled Classes Display (Managed exclusively via class rosters) */}
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mb-1.5 flex items-center justify-between">
-                      <span>Enroll Student in Classes:</span>
-                      <span className="text-[9px] text-indigo-600 uppercase font-black tracking-wider">({studentSelectedClasses.length} enrolled)</span>
+                      <span>Currently Enrolled Classes:</span>
+                      <span className="text-[9px] text-indigo-600 uppercase font-black tracking-wider">
+                        ({studentSelectedClasses.length} active)
+                      </span>
                     </label>
-                    <div className="border border-slate-200/80 rounded-xl p-3 bg-slate-50/50 max-h-40 overflow-y-auto space-y-1.5">
-                      {classesList.length === 0 ? (
-                        <p className="text-slate-450 text-xs italic">No tuition courses are currently published in databases.</p>
-                      ) : (
-                        classesList.map(c => {
-                          const isAssigned = studentSelectedClasses.includes(c.id);
+                    
+                    {studentSelectedClasses.length === 0 ? (
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                        <p className="text-xs text-slate-600 font-bold">No active class enrollments</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Enroll this student via the Class management roster by clicking "+ Add Student" on the desired class.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="border border-slate-200/80 rounded-xl p-2.5 bg-slate-50/50 max-h-48 overflow-y-auto space-y-2">
+                        {studentSelectedClasses.map(cId => {
+                          const cls = classesList.find(c => c.id === cId);
+                          const editingStudent = users.find(u => u.uid === editingId);
+                          const isSuspended = editingStudent?.classEnrollmentStatus?.[cId] === 'suspended';
+
+                          if (!cls) return null;
+
                           return (
-                            <label key={c.id} className="flex items-start gap-2.5 p-2 bg-white hover:bg-slate-50 border border-slate-100 rounded-lg transition-colors cursor-pointer select-none">
-                              <input 
-                                type="checkbox"
-                                checked={isAssigned}
-                                onChange={() => {
-                                  if (isAssigned) {
-                                    setStudentSelectedClasses(prev => prev.filter(id => id !== c.id));
-                                  } else {
-                                    setStudentSelectedClasses(prev => [...prev, c.id]);
-                                  }
-                                }}
-                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 mt-0.5"
-                              />
-                              <div className="min-w-0">
-                                <span className="block text-xs font-bold text-slate-800 leading-tight truncate">{c.title}</span>
-                                <span className="block text-[10px] text-slate-500 mt-0.5">{c.subject} &bull; Tuition Fee: LKR {c.price}</span>
+                            <div key={cId} className="p-2.5 bg-white border border-slate-100 rounded-lg flex items-center justify-between gap-3 shadow-xs">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-bold text-slate-800 truncate">{cls.title}</span>
+                                  <span className="px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 font-mono text-[9px] font-bold">
+                                    {cls.subject}
+                                  </span>
+                                </div>
+                                <span className="block text-[10px] text-slate-500 mt-0.5">
+                                  {cls.schedule} &bull; Tutor: {cls.tutorName}
+                                </span>
                               </div>
-                            </label>
+
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono shrink-0 ${
+                                isSuspended ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {isSuspended ? 'Suspended' : 'Active'}
+                              </span>
+                            </div>
                           );
-                        })
-                      )}
-                    </div>
+                        })}
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-slate-400 italic mt-1.5 flex items-center gap-1">
+                      <Info className="w-3 h-3 text-slate-400" />
+                      Class enrollments are managed directly through Class rosters to synchronize seat allocations.
+                    </p>
                   </div>
                 </div>
               )}
@@ -5789,6 +5825,25 @@ export const AdminDashboard: React.FC = () => {
           currentUser={selectedUserForIdCard}
           enrolledClasses={classesList}
           bookings={bookingsList}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Add Student To Class Modal */}
+      {showAddStudentModal && selectedClassForAddStudent && (
+        <AddStudentToClassModal
+          isOpen={showAddStudentModal}
+          onClose={() => {
+            setShowAddStudentModal(false);
+            setSelectedClassForAddStudent(null);
+          }}
+          targetClass={selectedClassForAddStudent}
+          currentUser={currentUser}
+          onStudentEnrolled={async () => {
+            await fetchAdminDatasets();
+            if (refreshClasses) refreshClasses();
+            if (refreshBookings) refreshBookings();
+          }}
           showToast={showToast}
         />
       )}

@@ -92,12 +92,22 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
     classes
   );
 
-  // Student's active bookings
-  const studentBookings = bookings.filter(b => b.studentId === student.uid && b.status === 'active');
-  const enrolledClassIds = new Set([
-    ...(student.selectedClasses || []),
-    ...studentBookings.map(b => b.classId)
-  ]);
+  // Student's active bookings and accurate enrolled classes calculation
+  const cancelledBookingClassIds = new Set(
+    bookings.filter(b => b.studentId === student.uid && b.status === 'cancelled').map(b => b.classId)
+  );
+  const activeBookingClassIds = new Set(
+    bookings.filter(b => b.studentId === student.uid && b.status === 'active').map(b => b.classId)
+  );
+
+  const enrolledClassIds = new Set<string>();
+  (student.selectedClasses || []).forEach(cid => {
+    if (!cancelledBookingClassIds.has(cid) || activeBookingClassIds.has(cid)) {
+      enrolledClassIds.add(cid);
+    }
+  });
+  activeBookingClassIds.forEach(cid => enrolledClassIds.add(cid));
+
   const enrolledClasses = classes.filter(c => enrolledClassIds.has(c.id));
 
   // Quick reminder sender

@@ -6,6 +6,7 @@ import {
   UserCheck, 
   UserX, 
   UserMinus,
+  UserPlus,
   BookOpen, 
   Plus, 
   Eye, 
@@ -42,6 +43,7 @@ import { firestoreService } from '../lib/firestoreService';
 import { binaryStore } from '../lib/binaryStore';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { StudentProfileModal } from './StudentProfileModal';
+import { AddStudentToClassModal } from './AddStudentToClassModal';
 import { checkClassAvailability, getTutorAvailabilitySummary, checkTutorAvailability } from '../utils/tutorAvailability';
 import { canUserViewStudyResource, canUserManageStudyResource } from '../utils/accessControl';
 import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
@@ -123,6 +125,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
 
   // Student Profile Inspection Modal
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
+  const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (classItem) {
@@ -292,26 +295,21 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   // Bulk Unenroll Handler (Remove from Class Roster)
   const handleBulkUnenroll = async () => {
     if (selectedStudentIds.length === 0 || !classItem) return;
-    if (!window.confirm(`Are you sure you want to UNENROLL / REMOVE ${selectedStudentIds.length} student(s) from '${classItem.title}'? This will unenroll them from the class roster.`)) return;
+    if (!window.confirm(`Are you sure you want to UNENROLL / REMOVE ${selectedStudentIds.length} student(s) from '${classItem.title}'? This will remove the class from their profiles and update all relevant system records.`)) return;
 
     setIsBulkUpdating(true);
     try {
       let count = 0;
       for (const studentId of selectedStudentIds) {
-        const booking = classBookings.find(b => b.studentId === studentId);
-        if (booking) {
-          await firestoreService.cancelBooking(booking.id, classItem.id);
-          count++;
-        }
+        await firestoreService.unenrollStudentFromClass(
+          studentId, 
+          classItem.id, 
+          currentUser.name || currentUser.username || 'Tutor'
+        );
+        count++;
       }
 
-      showToast(`Successfully unenrolled ${count} student(s) from '${classItem.title}'.`, 'info');
-
-      await firestoreService.addAuditLog({
-        username: currentUser.name || currentUser.username || 'Tutor',
-        action: 'BULK_STUDENT_UNENROLLMENT',
-        details: `Bulk unenrolled ${count} student(s) from class ${classItem.title} (${classItem.id})`
-      });
+      showToast(`Successfully unenrolled ${count} student(s) from '${classItem.title}'. Student profiles updated.`, 'info');
 
       setSelectedStudentIds([]);
       if (onUpdateData) onUpdateData();
@@ -319,6 +317,24 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
       showToast('Failed to unenroll selected students.', 'error');
     } finally {
       setIsBulkUpdating(false);
+    }
+  };
+
+  // Single Student Unenroll Handler
+  const handleSingleUnenroll = async (studentId: string, studentName: string) => {
+    if (!classItem) return;
+    if (!window.confirm(`Are you sure you want to remove and unenroll ${studentName} from '${classItem.title}'? Their profile and class roster records will be updated immediately.`)) return;
+
+    try {
+      await firestoreService.unenrollStudentFromClass(
+        studentId,
+        classItem.id,
+        currentUser.name || currentUser.username || 'Tutor'
+      );
+      showToast(`Successfully unenrolled ${studentName} from '${classItem.title}'. Profile updated.`, 'success');
+      if (onUpdateData) onUpdateData();
+    } catch (err: any) {
+      showToast(`Failed to unenroll student: ${err?.message || 'Error'}`, 'error');
     }
   };
 
@@ -717,7 +733,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                   </div>
                 )}
 
-                {/* Search Bar & Select All Header */}
+                {/* Search Bar, Add Student & Select All Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -730,7 +746,18 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                     />
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {isTutorOrAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddStudentModal(true)}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                        id="btn_add_student_to_class"
+                      >
+                        <UserPlus className="w-4 h-4" /> Add Student
+                      </button>
+                    )}
+
                     {isTutorOrAdmin && filteredStudents.length > 0 && (
                       <button
                         onClick={handleToggleSelectAll}
@@ -888,36 +915,48 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                             </div>
                           </div>
 
-                          {/* Action Buttons: Inspect Profile & Single Status Toggle Control */}
-                          <div className="grid grid-cols-2 gap-2 pt-1">
+                          {/* Action Buttons: Inspect Profile, Status Toggle, & Remove Unenroll */}
+                          <div className="grid grid-cols-3 gap-1.5 pt-1">
                             <button
                               type="button"
                               onClick={handleOpenProfile}
-                              className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                              className="py-1.5 px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
                               id={`btn_inspect_student_${studentId}`}
                             >
-                              <FileText className="w-3.5 h-3.5" /> View Profile
+                              <FileText className="w-3 h-3" /> Profile
                             </button>
 
                             {isTutorOrAdmin && (
                               <button
                                 type="button"
                                 onClick={() => handleToggleStudentStatus(studentId, classStatus, studentName)}
-                                className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                className={`py-1.5 px-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
                                   isSuspended 
                                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs' 
-                                    : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
                                 }`}
                               >
                                 {isSuspended ? (
                                   <>
-                                    <UserCheck className="w-3.5 h-3.5" /> Reactivate
+                                    <UserCheck className="w-3 h-3" /> Active
                                   </>
                                 ) : (
                                   <>
-                                    <UserX className="w-3.5 h-3.5" /> Suspend
+                                    <UserX className="w-3 h-3" /> Suspend
                                   </>
                                 )}
+                              </button>
+                            )}
+
+                            {isTutorOrAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleSingleUnenroll(studentId, studentName)}
+                                className="py-1.5 px-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                                id={`btn_unenroll_student_${studentId}`}
+                                title="Remove and unenroll student from class"
+                              >
+                                <UserMinus className="w-3 h-3" /> Remove
                               </button>
                             )}
                           </div>
@@ -1469,6 +1508,20 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
           classes={[classItem]}
           attendanceRecords={attendanceRecords}
           bookings={bookings}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Add Student To Class Modal */}
+      {showAddStudentModal && classItem && (
+        <AddStudentToClassModal
+          isOpen={showAddStudentModal}
+          onClose={() => setShowAddStudentModal(false)}
+          targetClass={classItem}
+          currentUser={currentUser}
+          onStudentEnrolled={() => {
+            if (onUpdateData) onUpdateData();
+          }}
           showToast={showToast}
         />
       )}
