@@ -17,6 +17,7 @@ import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
+import { DashboardWidgetCustomizer } from '../components/DashboardWidgetCustomizer';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -660,6 +661,24 @@ export const StudentDashboard: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {/* Pinned Quick-Access Widgets Component */}
+        {currentUser && (
+          <DashboardWidgetCustomizer
+            currentUser={currentUser}
+            role="student"
+            onNavigateTab={(tab) => setActiveSubTab(tab as any)}
+            onOpenAction={(actionId) => {
+              if (actionId === 'upcoming_classes') setActiveSubTab('schedule');
+              else if (actionId === 'class_resources') setActiveSubTab('classes');
+              else if (actionId === 'recent_payments') setActiveSubTab('payments');
+              else if (actionId === 'attendance_summary') setActiveSubTab('performance');
+              else if (actionId === 'digital_pass') setShowIdCardModal(true);
+              else if (actionId === 'syllabus_roadmap') setActiveSubTab('roadmap');
+            }}
+            showToast={showToast}
+          />
+        )}
 
         {/* Dynamic Display boards */}
         {loading ? (

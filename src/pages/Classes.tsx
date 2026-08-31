@@ -19,6 +19,8 @@ import { ClassItem, StudyMaterial, SubjectItem } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { genericFirestoreService } from '../lib/genericFirestore';
 import { binaryStore } from '../lib/binaryStore';
+import { canUserViewStudyResource } from '../utils/accessControl';
+import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
 
 interface ClassesProps {
   onNavigateTab: (tab: string) => void;
@@ -203,44 +205,12 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
     // Sort newest first
     result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // Access control rule:
-    // "If an admin or tutor upload study resourse to a class, that one can see relevant tutor, all admins and enrolled students only. Nobody not in I mentioned above groups can view."
-    const isAdmin = currentUser?.role === 'admin';
-    const isTutor = currentUser?.role === 'tutor';
-    const isStudent = currentUser?.role === 'student';
-
-    result = result.filter(m => {
-      // If hidden from students, only admins or author tutor can see
-      if (m.isVisible === false && !isAdmin && (!isTutor || m.tutorId !== currentUser?.uid)) {
-        return false;
-      }
-
-      // If associated with a class:
-      if (m.classId) {
-        if (isAdmin) return true;
-        if (isTutor) {
-          const classObj = classes.find(c => c.id === m.classId);
-          return m.tutorId === currentUser?.uid || 
-                 Boolean(classObj && (
-                   classObj.tutorId === currentUser?.uid || 
-                   classObj.tutorName === currentUser?.name || 
-                   (currentUser?.email && classObj.tutorEmail && currentUser.email.toLowerCase() === classObj.tutorEmail.toLowerCase())
-                 ));
-        }
-        if (isStudent) {
-          const isSuspended = currentUser?.classEnrollmentStatus?.[m.classId] === 'suspended' || currentUser?.status === 'suspended';
-          if (isSuspended) return false;
-          return enrolledClassIds.includes(m.classId) || bookings.some(b => b.classId === m.classId && (b.studentId === currentUser?.uid || (b as any).studentEmail === currentUser?.email) && b.status === 'active');
-        }
-        return false; // Non-enrolled users and guests cannot see class study resources
-      }
-
-      // General materials without classId
-      return true;
-    });
+    // Access control rule using centralized utility:
+    // Only authorized faculty tutor, administrators, and enrolled students can view class resources
+    result = result.filter(m => canUserViewStudyResource(m, currentUser, classes, bookings));
 
     setFilteredMaterials(result);
-  }, [studyMaterials, resSearchTerm, resSelectedSubject, currentUser, enrolledClassIds, classes, bookings]);
+  }, [studyMaterials, resSearchTerm, resSelectedSubject, currentUser, classes, bookings]);
 
   // Handle study material upload
   const handleUploadResource = async (e: React.FormEvent) => {
@@ -819,74 +789,95 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredMaterials.map((mat) => (
-                    <div 
-                      key={mat.id} 
-                      className="bg-white border border-slate-200/90 hover:border-indigo-200 rounded-3xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015)] transition-all flex flex-col justify-between"
-                      id={`resource_card_${mat.id}`}
-                    >
-                      <div>
-                        {/* Subject and Delete header */}
-                        <div className="flex justify-between items-start gap-2 mb-3">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
-                            mat.subject.toLowerCase() === 'mathematics' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                            mat.subject.toLowerCase() === 'physics' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                            mat.subject.toLowerCase() === 'english' ? 'bg-pink-50 text-pink-700 border-pink-200' :
-                            mat.subject.toLowerCase() === 'coding' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                            'bg-gray-50 text-gray-700 border-gray-200'
-                          }`}>
-                            {mat.subject}
-                          </span>
-                          
-                          {/* Only creator or admin can delete */}
-                          {(currentUser?.uid === mat.tutorId || currentUser?.role === 'admin') && (
-                            <button 
-                              onClick={() => handleDeleteResource(mat.id, mat.title)}
-                              className="text-slate-450 hover:text-rose-600 p-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                              title="Delete Resource Reference"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                  {filteredMaterials.map((mat) => {
+                    const accessInfo = currentUser?.role === 'student' ? getMaterialAccessInfo(mat.id, currentUser) : { hasViewed: false };
+
+                    return (
+                      <div 
+                        key={mat.id} 
+                        className="bg-white border border-slate-200/90 hover:border-indigo-200 rounded-3xl p-5 shadow-[0_1px_2px_rgba(0,0,0,0.015)] transition-all flex flex-col justify-between"
+                        id={`resource_card_${mat.id}`}
+                      >
+                        <div>
+                          {/* Subject, Status badge and Delete header */}
+                          <div className="flex justify-between items-start gap-2 mb-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
+                                mat.subject.toLowerCase() === 'mathematics' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                mat.subject.toLowerCase() === 'physics' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                mat.subject.toLowerCase() === 'english' ? 'bg-pink-50 text-pink-700 border-pink-200' :
+                                mat.subject.toLowerCase() === 'coding' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-gray-50 text-gray-700 border-gray-200'
+                              }`}>
+                                {mat.subject}
+                              </span>
+
+                              {currentUser?.role === 'student' && (
+                                accessInfo.hasViewed ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                    ✓ Viewed {accessInfo.lastViewedAt ? new Date(accessInfo.lastViewedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                                    ★ New
+                                  </span>
+                                )
+                              )}
+                            </div>
+                            
+                            {/* Only creator or admin can delete */}
+                            {(currentUser?.uid === mat.tutorId || currentUser?.role === 'admin') && (
+                              <button 
+                                onClick={() => handleDeleteResource(mat.id, mat.title)}
+                                className="text-slate-450 hover:text-rose-600 p-1 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                                title="Delete Resource Reference"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Title and description */}
+                          <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 mb-1 leading-snug tracking-tight">
+                            {mat.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-3 mb-4">
+                            {mat.description}
+                          </p>
+                        </div>
+
+                        {/* Footer information */}
+                        <div className="border-t border-slate-100 pt-4 mt-auto">
+                          {mat.classTitle && (
+                            <div className="text-[9px] text-indigo-650 font-bold mb-2 flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-indigo-400" />
+                              <span className="truncate">Class: {mat.classTitle}</span>
+                            </div>
                           )}
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="text-[10px] text-slate-400 leading-none">
+                              <span className="block font-medium">Uploaded by:</span>
+                              <span className="block font-bold text-slate-700 mt-0.5">{mat.tutorName}</span>
+                            </div>
+                            
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (currentUser) recordMaterialAccess(mat.id, currentUser);
+                                binaryStore.openOrDownload(mat);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-indigo-600 text-[10px] font-bold transition-all cursor-pointer shadow-sm"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>Download / Open</span>
+                              <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Title and description */}
-                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 mb-1 leading-snug tracking-tight">
-                          {mat.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-3 mb-4">
-                          {mat.description}
-                        </p>
                       </div>
-
-                      {/* Footer information */}
-                      <div className="border-t border-slate-100 pt-4 mt-auto">
-                        {mat.classTitle && (
-                          <div className="text-[9px] text-indigo-650 font-bold mb-2 flex items-center gap-1">
-                            <FileText className="w-3 h-3 text-indigo-400" />
-                            <span className="truncate">Class: {mat.classTitle}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center gap-2">
-                          <div className="text-[10px] text-slate-400 leading-none">
-                            <span className="block font-medium">Uploaded by:</span>
-                            <span className="block font-bold text-slate-700 mt-0.5">{mat.tutorName}</span>
-                          </div>
-                          
-                          <button 
-                            type="button"
-                            onClick={() => binaryStore.openOrDownload(mat)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-indigo-600 text-[10px] font-bold transition-all cursor-pointer shadow-sm"
-                          >
-                            <Download className="w-3 h-3" />
-                            <span>Download / Open</span>
-                            <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-                          </button>
-                        </div>
-                      </div>
-
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

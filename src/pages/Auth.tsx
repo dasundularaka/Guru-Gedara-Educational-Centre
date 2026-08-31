@@ -28,6 +28,7 @@ import {
   Sparkles,
   BookOpen,
   Upload,
+  X,
   Calendar,
   BadgeCheck
 } from 'lucide-react';
@@ -80,8 +81,23 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [photoURL, setPhotoURL] = useState(PRESET_PHOTOS[0].url);
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [preferredSubjects, setPreferredSubjects] = useState<string[]>([]);
+  const [customSubjectInput, setCustomSubjectInput] = useState("");
   const [grade, setGrade] = useState("11");
+
+  const AVAILABLE_SUBJECTS = [
+    "Combined Mathematics",
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "Information & Communication Technology (ICT)",
+    "English Language & Literature",
+    "Accounting",
+    "Business Studies",
+    "Economics",
+    "General Science",
+    "History & Social Studies"
+  ];
 
   // Toggle password visibility
   const [showPw, setShowPw] = useState(false);
@@ -113,11 +129,19 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     }
   }, [currentUser]);
 
-  const handleClassToggle = (classId: string) => {
-    if (selectedClasses.includes(classId)) {
-      setSelectedClasses(prev => prev.filter(id => id !== classId));
+  const handleSubjectToggle = (subjectName: string) => {
+    if (preferredSubjects.includes(subjectName)) {
+      setPreferredSubjects(prev => prev.filter(s => s !== subjectName));
     } else {
-      setSelectedClasses(prev => [...prev, classId]);
+      setPreferredSubjects(prev => [...prev, subjectName]);
+    }
+  };
+
+  const handleAddCustomSubject = () => {
+    const trimmed = customSubjectInput.trim();
+    if (trimmed && !preferredSubjects.includes(trimmed)) {
+      setPreferredSubjects(prev => [...prev, trimmed]);
+      setCustomSubjectInput("");
     }
   };
 
@@ -256,18 +280,19 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           password,
           guardianName,
           guardianPhone,
-          selectedClasses,
+          preferredSubjects,
+          selectedClasses: preferredSubjects,
           status: 'pending', // Pending administrator approval
           studentDetails: {
             grade,
             parentContact: guardianPhone,
-            interests: selectedClasses
+            interests: preferredSubjects
           }
         };
 
         await registerWithEmail(email, password, fullName, 'student', details);
         
-        showToast("Registration submitted successfully! Pending Administrator approval.", "info");
+        showToast("Registration submitted successfully! Your account will be activated once an administrator confirms admission fee payment.", "info");
         setActiveTab('login');
         setEmail(email);
         setPassword(password);
@@ -993,57 +1018,85 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
               </div>
             </div>
 
-            {/* SECTION 5: TUITION CLASS ENROLLMENT INTERESTS */}
+            {/* SECTION 5: PREFERRED SUBJECTS TO JOIN */}
             <div className="bg-slate-50/80 border border-slate-100 p-4 sm:p-5 rounded-2xl space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
                 <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
                   <Users className="w-4 h-4 text-indigo-600" />
-                  <span>5. Select Preferred Tuition Classes</span>
+                  <span>5. Subjects You Would Like to Join</span>
                 </div>
-                {selectedClasses.length > 0 && (
+                {preferredSubjects.length > 0 && (
                   <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                    {selectedClasses.length} Selected
+                    {preferredSubjects.length} Selected
                   </span>
                 )}
               </div>
 
-              <div className="space-y-2 max-h-48 overflow-y-auto border border-slate-200/80 rounded-2xl p-2.5 bg-white shadow-2xs">
-                {classes && classes.length > 0 ? (
-                  classes.map((c) => {
-                    const isSelected = selectedClasses.includes(c.id);
-                    return (
-                      <div 
-                        key={c.id}
-                        onClick={() => handleClassToggle(c.id)}
-                        className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border ${
-                          isSelected 
-                            ? 'bg-indigo-50/50 border-indigo-200 shadow-2xs' 
-                            : 'bg-slate-50/50 border-transparent hover:bg-slate-100/60'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
-                          ) : (
-                            <Square className="w-4 h-4 text-slate-300 shrink-0" />
-                          )}
-                          <div>
-                            <span className="block text-xs font-bold text-slate-800 leading-tight">{c.title}</span>
-                            <span className="block text-[10px] text-slate-500 font-mono mt-0.5">
-                              {c.subject} • {c.dayOfWeek || c.schedule} {c.timeSlot ? `(${c.timeSlot})` : ''}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-lg shrink-0">
-                          {c.tutorName || 'Guru Gedara'}
-                        </span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-xs text-slate-400 py-3 text-center">Loading academy courses...</div>
-                )}
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Select the academic subjects you are seeking tuition for. Our academic counseling and administration team will review your chosen subjects and allocate you to the optimal class schedule upon admission fee confirmation.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {AVAILABLE_SUBJECTS.map((subj) => {
+                  const isSelected = preferredSubjects.includes(subj);
+                  return (
+                    <div 
+                      key={subj}
+                      onClick={() => handleSubjectToggle(subj)}
+                      className={`flex items-center gap-2.5 p-2.5 rounded-xl cursor-pointer transition-all border select-none ${
+                        isSelected 
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold shadow-2xs' 
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                      )}
+                      <span className="text-xs">{subj}</span>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Custom Subject Addition */}
+              <div className="pt-2 flex gap-2">
+                <input
+                  type="text"
+                  value={customSubjectInput}
+                  onChange={(e) => setCustomSubjectInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomSubject();
+                    }
+                  }}
+                  placeholder="Other subject (e.g. French, Logic, Statistics)..."
+                  className="flex-1 text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-sans shadow-2xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomSubject}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs shrink-0"
+                >
+                  Add Subject
+                </button>
+              </div>
+
+              {preferredSubjects.filter(s => !AVAILABLE_SUBJECTS.includes(s)).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {preferredSubjects.filter(s => !AVAILABLE_SUBJECTS.includes(s)).map((cs) => (
+                    <span 
+                      key={cs}
+                      onClick={() => handleSubjectToggle(cs)}
+                      className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-pointer border border-indigo-200"
+                    >
+                      {cs} <X className="w-3 h-3" />
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* SECTION 6: OPTIONAL NOTES */}

@@ -79,6 +79,7 @@ import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
+import { DashboardWidgetCustomizer } from '../components/DashboardWidgetCustomizer';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 
 export const TutorDashboard: React.FC = () => {
@@ -1282,6 +1283,23 @@ export const TutorDashboard: React.FC = () => {
 
           </div>
         </div>
+
+        {/* Pinned Quick-Access Widgets Component for Tutors */}
+        {currentUser && (
+          <DashboardWidgetCustomizer
+            currentUser={currentUser}
+            role="tutor"
+            onNavigateTab={(tab) => setActiveSubTab(tab as any)}
+            onOpenAction={(actionId) => {
+              if (actionId === 'upcoming_sessions') setActiveSubTab('schedule');
+              else if (actionId === 'quick_qr_scanner') setShowClassScannerModal(true);
+              else if (actionId === 'class_resources_hub') setActiveSubTab('resources');
+              else if (actionId === 'enrolled_scholars') setActiveSubTab('students');
+              else if (actionId === 'attendance_overview') setActiveSubTab('attendance');
+            }}
+            showToast={showToast}
+          />
+        )}
 
         {/* Dynamic Screens */}
         {loading ? (
@@ -2858,36 +2876,20 @@ export const TutorDashboard: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                            Hourly Rate (LKR / Hr):
-                          </label>
-                          <SyncBadge status={getFieldStatus('profHourlyRate')} message={getFieldMessage('profHourlyRate')} position="inside">
-                            <input
-                              required
-                              type="number"
-                              value={profHourlyRate}
-                              onChange={(e) => setProfHourlyRate(e.target.value)}
-                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600 font-mono"
-                            />
-                          </SyncBadge>
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                            Instructed Subject Tracks (comma-separated):
-                          </label>
-                          <SyncBadge status={getFieldStatus('profSubjects')} message={getFieldMessage('profSubjects')} position="inside">
-                            <input
-                              required
-                              type="text"
-                              value={profSubjects}
-                              onChange={(e) => setProfSubjects(e.target.value)}
-                              placeholder="e.g. Physics, Combined Mathematics, Chemistry"
-                              className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600"
-                            />
-                          </SyncBadge>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                          Instructed Subject Tracks (comma-separated):
+                        </label>
+                        <SyncBadge status={getFieldStatus('profSubjects')} message={getFieldMessage('profSubjects')} position="inside">
+                          <input
+                            required
+                            type="text"
+                            value={profSubjects}
+                            onChange={(e) => setProfSubjects(e.target.value)}
+                            placeholder="e.g. Physics, Combined Mathematics, Chemistry"
+                            className="w-full text-xs pl-3 pr-32 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-indigo-600"
+                          />
+                        </SyncBadge>
                           {availableSubjectOptions.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1.5 items-center">
                               <span className="text-[10px] text-gray-400 font-medium">Quick add:</span>
@@ -2919,7 +2921,6 @@ export const TutorDashboard: React.FC = () => {
                           )}
                         </div>
                       </div>
-                    </div>
 
                     {/* Areas of Expertise / Specializations Section */}
                     <div className="space-y-3 pt-3 border-t border-gray-100">

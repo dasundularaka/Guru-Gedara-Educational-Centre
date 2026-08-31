@@ -43,6 +43,8 @@ import { binaryStore } from '../lib/binaryStore';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { StudentProfileModal } from './StudentProfileModal';
 import { checkClassAvailability, getTutorAvailabilitySummary, checkTutorAvailability } from '../utils/tutorAvailability';
+import { canUserViewStudyResource, canUserManageStudyResource } from '../utils/accessControl';
+import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
 
 interface ClassProfileModalProps {
   isOpen: boolean;
@@ -1141,7 +1143,13 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                   <div className="space-y-2.5">
                     {materials.map((mat) => {
                       const isHidden = mat.isVisible === false;
-                      if (!isTutorOrAdmin && isHidden) return null; // Hide from students if set to hidden
+                      // Enforce access control filter
+                      if (!canUserViewStudyResource(mat, currentUser, classItem ? [classItem] : [], bookings)) {
+                        return null;
+                      }
+
+                      const isManagingAllowed = canUserManageStudyResource(mat, currentUser, classItem ? [classItem] : []);
+                      const accessInfo = currentUser.role === 'student' ? getMaterialAccessInfo(mat.id, currentUser) : { hasViewed: false };
 
                       return (
                         <div 
@@ -1158,7 +1166,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                             </div>
 
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="text-xs font-extrabold text-slate-900 leading-tight">
                                   {mat.title}
                                 </h4>
@@ -1167,11 +1175,27 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                                     Hidden from Students
                                   </span>
                                 )}
+                                {currentUser.role === 'student' && (
+                                  accessInfo.hasViewed ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                      Viewed {accessInfo.lastViewedAt ? new Date(accessInfo.lastViewedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                                      <Sparkles className="w-3 h-3 text-indigo-500" />
+                                      New Material
+                                    </span>
+                                  )
+                                )}
                               </div>
                               <p className="text-[11px] text-slate-500 mt-0.5">{mat.description || 'Class study resource'}</p>
                               <button 
                                 type="button"
-                                onClick={() => binaryStore.openOrDownload(mat)}
+                                onClick={() => {
+                                  recordMaterialAccess(mat.id, currentUser);
+                                  binaryStore.openOrDownload(mat);
+                                }}
                                 className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 mt-1 cursor-pointer font-bold"
                               >
                                 {mat.storagePath || mat.fileName ? <Download className="w-3 h-3" /> : <LinkIcon className="w-3 h-3" />}
@@ -1181,7 +1205,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                           </div>
 
                           {/* Controls for Assigned Tutor / Admin */}
-                          {canManageMaterials && (
+                          {isManagingAllowed && (
                             <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                               <button
                                 onClick={() => handleToggleMaterialVisibility(mat.id, mat.isVisible)}

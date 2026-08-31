@@ -26,9 +26,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
-import { Booking, NotificationItem } from '../types';
+import { Booking, NotificationItem, StudyMaterial } from '../types';
 import { EmailNotificationLogsModal } from './EmailNotificationLogsModal';
 import { Class15MinReminderBanner } from './Class15MinReminderBanner';
+import { genericFirestoreService } from '../lib/genericFirestore';
+import { canUserViewStudyResource } from '../utils/accessControl';
 
 interface NavbarProps {
   currentTab: string;
@@ -42,12 +44,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     cloudSync, 
     notifications, 
     refreshNotifications,
-    notificationSettings,
+    notificationSettings, 
     updateNotificationSettings,
     showToast,
     updateProfile,
     darkMode,
-    toggleDarkMode
+    toggleDarkMode,
+    classes,
+    bookings
   } = useApp();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -56,6 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
   const [upcomingClasses, setUpcomingClasses] = useState<Booking[]>([]);
+  const [unviewedStudyMaterials, setUnviewedStudyMaterials] = useState<StudyMaterial[]>([]);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
   const [showEmailLogsModal, setShowEmailLogsModal] = useState(false);
@@ -138,7 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     }
   };
 
-  // Setup periodic refresh for notifications & upcoming classes
+  // Setup periodic refresh for notifications & upcoming classes and new study materials
   useEffect(() => {
     if (currentUser) {
       refreshNotifications();
@@ -147,9 +152,30 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
         refreshNotifications();
         checkUpcomingClasses();
       }, 15000); // 15s checks
-      return () => clearInterval(interval);
+
+      // Listen for study materials in real-time
+      const unsubMaterials = genericFirestoreService.onCollectionSnapshot<StudyMaterial>('study_materials', (items) => {
+        if (currentUser.role === 'student') {
+          const authMaterials = items.filter(m => canUserViewStudyResource(m, currentUser, classes, bookings));
+          const unviewed = authMaterials.filter(m => {
+            if (currentUser.viewedMaterialIds?.includes(m.id)) return false;
+            try {
+              if (localStorage.getItem(`viewed_mat_${m.id}`) || localStorage.getItem(`viewed_res_${m.id}`)) return false;
+            } catch {}
+            return true;
+          });
+          setUnviewedStudyMaterials(unviewed);
+        } else {
+          setUnviewedStudyMaterials([]);
+        }
+      });
+
+      return () => {
+        clearInterval(interval);
+        unsubMaterials();
+      };
     }
-  }, [currentUser]);
+  }, [currentUser, classes, bookings]);
 
   const toggleNotificationRead = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -188,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length + upcomingClasses.length;
+  const unreadCount = notifications.filter(n => !n.isRead).length + upcomingClasses.length + unviewedStudyMaterials.length;
 
   const PRESET_PHOTOS = [
     { name: "Scholar Male 1", url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop" },
@@ -286,28 +312,37 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               >
                 Home
               </button>
-              <button
-                onClick={() => onChangeTab('classes')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentTab === 'classes' 
-                    ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-                id="tab_classes_btn"
-              >
-                Classes
-              </button>
-              <button
-                onClick={() => onChangeTab('tutors')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentTab === 'tutors' 
-                    ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                }`}
-                id="tab_tutors_btn"
-              >
-                Tutors
-              </button>
+              {currentUser?.role !== 'tutor' && (
+                <>
+                  <button
+                    onClick={() => onChangeTab('classes')}
+                    className={`relative px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      currentTab === 'classes' 
+                        ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    }`}
+                    id="tab_classes_btn"
+                  >
+                    <span>Classes</span>
+                    {unviewedStudyMaterials.length > 0 && currentUser?.role === 'student' && (
+                      <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-black bg-indigo-600 text-white rounded-full animate-pulse shadow-2xs">
+                        {unviewedStudyMaterials.length} new
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => onChangeTab('tutors')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      currentTab === 'tutors' 
+                        ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    }`}
+                    id="tab_tutors_btn"
+                  >
+                    Tutors
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -456,6 +491,51 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
                           {/* Notification Items List */}
                           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[350px]">
+                            {/* New Study Resources Alert Banner */}
+                            {currentUser?.role === 'student' && unviewedStudyMaterials.length > 0 && (
+                              <div className="bg-indigo-50/80 dark:bg-indigo-950/40 p-3 border-b border-indigo-200/60 dark:border-indigo-900/40">
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1 font-mono">
+                                    <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> New Study Materials ({unviewedStudyMaterials.length})
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setShowNotifications(false);
+                                      onChangeTab('classes');
+                                    }}
+                                    className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-bold text-[9px] uppercase tracking-wider cursor-pointer"
+                                  >
+                                    Open Hub
+                                  </button>
+                                </div>
+                                <div className="space-y-1.5">
+                                  {unviewedStudyMaterials.slice(0, 3).map(mat => (
+                                    <div 
+                                      key={mat.id} 
+                                      onClick={() => {
+                                        setShowNotifications(false);
+                                        onChangeTab('classes');
+                                      }}
+                                      className="text-xs bg-white dark:bg-slate-800 rounded-lg p-2 border border-indigo-100 dark:border-indigo-900/50 shadow-2xs flex items-center justify-between cursor-pointer hover:border-indigo-400"
+                                    >
+                                      <div className="min-w-0 pr-2">
+                                        <p className="font-bold text-slate-900 dark:text-white truncate text-[11px]">{mat.title}</p>
+                                        <p className="text-[9.5px] text-slate-500 truncate">{mat.subject} • {mat.classTitle || 'Enrolled Class'}</p>
+                                      </div>
+                                      <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded text-[9px] font-extrabold uppercase shrink-0">
+                                        New
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {unviewedStudyMaterials.length > 3 && (
+                                    <p className="text-[9.5px] text-indigo-600 dark:text-indigo-400 text-center font-bold">
+                                      + {unviewedStudyMaterials.length - 3} more new resource files
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Upcoming Booked Classes Banner inside list if filter is 'all' or 'upcoming' */}
                             {(notifFilter === 'all' || notifFilter === 'upcoming') && upcomingClasses.length > 0 && (
                               <div className="bg-amber-50/80 dark:bg-amber-950/30 p-3 border-b border-amber-200/60 dark:border-amber-900/40">

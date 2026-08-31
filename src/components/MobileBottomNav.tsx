@@ -25,29 +25,41 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   const unreadCount = (notifications || []).filter(n => !n.isRead).length;
 
-  const baseNavItems = [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: Home,
-      action: () => onChangeTab('home'),
-      isActive: currentTab === 'home'
-    },
-    {
-      id: 'classes',
-      label: 'Classes',
-      icon: BookOpen,
-      action: () => onChangeTab('classes'),
-      isActive: currentTab === 'classes'
-    },
-    {
-      id: 'tutors',
-      label: 'Faculty',
-      icon: GraduationCap,
-      action: () => onChangeTab('tutors'),
-      isActive: currentTab === 'tutors'
-    }
-  ];
+  const isTutor = currentUser?.role === 'tutor';
+
+  const baseNavItems = isTutor 
+    ? [
+        {
+          id: 'home',
+          label: 'Home',
+          icon: Home,
+          action: () => onChangeTab('home'),
+          isActive: currentTab === 'home'
+        }
+      ]
+    : [
+        {
+          id: 'home',
+          label: 'Home',
+          icon: Home,
+          action: () => onChangeTab('home'),
+          isActive: currentTab === 'home'
+        },
+        {
+          id: 'classes',
+          label: 'Classes',
+          icon: BookOpen,
+          action: () => onChangeTab('classes'),
+          isActive: currentTab === 'classes'
+        },
+        {
+          id: 'tutors',
+          label: 'Faculty',
+          icon: GraduationCap,
+          action: () => onChangeTab('tutors'),
+          isActive: currentTab === 'tutors'
+        }
+      ];
 
   return (
     <nav 
@@ -55,8 +67,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       id="mobile_bottom_navigation"
       aria-label="Mobile Navigation"
     >
-      <div className="grid grid-cols-4 items-center justify-around px-2 py-1.5 max-w-md mx-auto">
-        {/* Core items: Home, Classes, Faculty */}
+      <div className={`grid ${isTutor ? 'grid-cols-2' : 'grid-cols-4'} items-center justify-around px-2 py-1.5 max-w-md mx-auto`}>
+        {/* Core items */}
         {baseNavItems.map((item) => {
           const Icon = item.icon;
           const active = item.isActive;

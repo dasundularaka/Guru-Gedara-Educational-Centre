@@ -9,7 +9,8 @@ import {
   deleteDoc,
   query, 
   where,
-  limit
+  limit,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, firebaseConfig } from './firebase';
 import { safeStringify } from './firestoreService';
@@ -254,5 +255,31 @@ export const genericFirestoreService = {
     });
 
     return Array.from(mergedMap.values());
+  },
+
+  /**
+   * Real-time subscription to collection changes
+   */
+  onCollectionSnapshot<T>(collectionName: string, callback: (items: T[]) => void): () => void {
+    // Initial emission from local fallback
+    const initialLocal = getLocalFallbackList<T>(collectionName);
+    callback(initialLocal);
+
+    try {
+      return onSnapshot(
+        collection(db, collectionName),
+        (snap) => {
+          const docs = snap.docs.map(doc => doc.data() as T);
+          saveLocalFallbackList(collectionName, docs);
+          callback(docs);
+        },
+        (error) => {
+          console.warn(`[GenericFirestore] Snapshot error on ${collectionName}:`, error);
+        }
+      );
+    } catch (e) {
+      console.warn(`[GenericFirestore] Failed to attach snapshot listener for ${collectionName}`, e);
+      return () => {};
+    }
   }
 };

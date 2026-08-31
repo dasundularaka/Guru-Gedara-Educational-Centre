@@ -49,6 +49,7 @@ export interface UserProfile {
   dob?: string;
   notes?: string;
   selectedClasses?: string[];
+  preferredSubjects?: string[];
   classEnrollmentStatus?: { [classId: string]: 'active' | 'suspended' | 'late_payment' | 'free_card' };
   photoURL?: string;
   pendingPhotoURL?: string;
@@ -58,10 +59,20 @@ export interface UserProfile {
   createdAt: string;
   availabilityStatus?: 'active' | 'away' | 'in_class';
   
-  // Registration and Fee Details
+  // Registration, Admission and Fee Details
   admissionFeeCollected?: boolean;
   admissionAmount?: number;
+  admissionReceiptNo?: string;
+  approvedBy?: string;
+  approvedAt?: string;
   isFreeCard?: boolean;
+
+  // Study Resource Access & Audit
+  viewedMaterialIds?: string[];
+  materialAccessLog?: { [materialId: string]: string }; // materialId -> ISO timestamp of last view
+
+  // Customizable Dashboard Widgets
+  dashboardWidgets?: string[];
 
   // Parent / Guardian Email Linking & Notification CC
   parentEmail?: string;
@@ -91,7 +102,7 @@ export interface UserProfile {
     experience: number; // in years
     experienceYears?: number;
     qualification: string;
-    hourlyRate: number;
+    hourlyRate?: number;
     rating: number;
     workingHours?: {
       day: string;

@@ -15,6 +15,7 @@ import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
+import { StudentIntakeApprovalModal } from '../components/StudentIntakeApprovalModal';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -576,6 +577,7 @@ export const AdminDashboard: React.FC = () => {
   const [adminNameQuery, setAdminNameQuery] = useState('');
   const [adminUserQuery, setAdminUserQuery] = useState('');
   const [selectedUserForIdCard, setSelectedUserForIdCard] = useState<UserProfile | null>(null);
+  const [selectedStudentForAdmissionModal, setSelectedStudentForAdmissionModal] = useState<UserProfile | null>(null);
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1460,15 +1462,6 @@ export const AdminDashboard: React.FC = () => {
               fixHint: "Use a different email address or edit the existing instructor profile."
             });
           }
-        }
-
-        // 3. Hourly Rate validation
-        if (!tutorHourlyRate || isNaN(numRate) || numRate <= 0) {
-          validationIssues.push({
-            field: "Hourly Rate",
-            message: "Hourly rate must be a valid positive number greater than $0.",
-            fixHint: "Enter the tutor's hourly fee in USD or LKR (e.g., 45)."
-          });
         }
 
         // 4. Experience validation
@@ -2753,20 +2746,37 @@ export const AdminDashboard: React.FC = () => {
                               )}
                             </div>
 
-                            {preferredTitles.length > 0 && (
-                              <div className="pt-1">
-                                <span className="block text-[10px] font-bold text-indigo-750 uppercase tracking-wide">Enrolled Classes:</span>
-                                <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">{preferredTitles.join(', ')}</p>
-                              </div>
+                            {/* Preferred Subjects / Enrolled Classes */}
+                            {isPending ? (
+                              ((stud.preferredSubjects && stud.preferredSubjects.length > 0) || (stud.studentDetails?.interests && stud.studentDetails.interests.length > 0) || preferredTitles.length > 0) && (
+                                <div className="pt-1 bg-amber-50/60 p-2 rounded-xl border border-amber-200/70">
+                                  <span className="block text-[9.5px] font-black text-amber-900 uppercase tracking-wide">Requested Preferred Subjects:</span>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {(stud.preferredSubjects || stud.studentDetails?.interests || preferredTitles).map((subj, idx) => (
+                                      <span key={idx} className="px-1.5 py-0.5 bg-white text-slate-800 border border-amber-300/80 rounded-md text-[9px] font-bold">
+                                        {subj}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            ) : (
+                              preferredTitles.length > 0 && (
+                                <div className="pt-1">
+                                  <span className="block text-[10px] font-bold text-indigo-750 uppercase tracking-wide">Enrolled Classes:</span>
+                                  <p className="text-[10px] text-slate-500 italic mt-0.5 leading-tight">{preferredTitles.join(', ')}</p>
+                                </div>
+                              )
                             )}
 
                             {isPending && (
                               <button
                                 id={`approve-student-btn-${stud.uid}`}
-                                onClick={() => handleApproveStudent(stud.uid, stud.gender)}
-                                className="mt-2 w-full py-2 px-3 bg-slate-900 border border-slate-950 text-white rounded-xl text-xs font-black hover:bg-slate-950 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                onClick={() => setSelectedStudentForAdmissionModal(stud)}
+                                className="mt-2.5 w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow"
                               >
-                                Approve & Generate Username
+                                <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                                Review Intake & Confirm Admission
                               </button>
                             )}
                             {stud.pendingPhotoURL && (
@@ -3254,7 +3264,6 @@ export const AdminDashboard: React.FC = () => {
                           <p className="text-gray-500 text-[11px]">Degree: <span className="font-bold text-gray-800 font-sans">{tut.tutorDetails?.qualification || 'Certified Professional'}</span></p>
                           
                           <div className="flex gap-1.5 flex-wrap pt-1">
-                            <span className="font-extrabold text-emerald-850 font-mono text-[11px] bg-emerald-50 px-2 py-0.5 border border-emerald-150 rounded">${tut.tutorDetails?.hourlyRate || (tut as any).hourlyRate || 35}/Hr</span>
                             {tut.username && (tut.username.startsWith('GT') || tut.uid.startsWith('GT')) ? (
                               <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-800 border border-slate-205 rounded font-mono text-[9px] font-bold">
                                 ID: {tut.username.startsWith('GT') ? tut.username : tut.uid}
@@ -4958,35 +4967,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
-                        Hourly Rate ($) <span className="text-red-500">*</span>
-                      </label>
-                      <input 
-                        required 
-                        disabled={isSavingTutor}
-                        type="number" 
-                        min="1"
-                        value={tutorHourlyRate} 
-                        onChange={(e) => {
-                          setTutorHourlyRate(e.target.value);
-                          setTutorErrors(prev => prev.filter(err => !err.field.toLowerCase().includes('rate')));
-                        }}
-                        placeholder="45"
-                        className={`w-full p-2.5 border rounded-xl outline-none transition-colors ${
-                          tutorErrors.some(e => e.field.toLowerCase().includes('rate'))
-                            ? 'border-red-400 bg-red-50/30 focus:border-red-500'
-                            : 'border-gray-200 focus:border-blue-500'
-                        } ${isSavingTutor ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''}`}
-                      />
-                      {tutorErrors.find(e => e.field.toLowerCase().includes('rate')) && (
-                        <p className="text-[10px] text-red-600 mt-1 font-medium flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" />
-                          {tutorErrors.find(e => e.field.toLowerCase().includes('rate'))?.message}
-                        </p>
-                      )}
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest font-mono mb-1">
                         Experience (Yrs) <span className="text-red-500">*</span>
@@ -5785,6 +5766,20 @@ export const AdminDashboard: React.FC = () => {
         isOpen={showEmailLogsModal}
         onClose={() => setShowEmailLogsModal(false)}
       />
+
+      {/* Student Admission & Intake Review Modal */}
+      {selectedStudentForAdmissionModal && (
+        <StudentIntakeApprovalModal
+          isOpen={!!selectedStudentForAdmissionModal}
+          onClose={() => setSelectedStudentForAdmissionModal(null)}
+          student={selectedStudentForAdmissionModal}
+          classes={classesList}
+          onApproveSuccess={async () => {
+            await fetchAdminDatasets();
+          }}
+          showToast={showToast}
+        />
+      )}
 
       {/* Role-Adaptive Digital ID Card Modal (Executive Admin, Faculty Tutor, Student Scholar) */}
       {selectedUserForIdCard && (
