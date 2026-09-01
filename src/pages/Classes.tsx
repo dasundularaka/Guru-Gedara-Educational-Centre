@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { ClassCard } from '../components/ClassCard';
 import { firestoreService } from '../lib/firestoreService';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { ClassProfileModal } from '../components/ClassProfileModal';
+import { TutorProfileModal } from '../components/TutorProfileModal';
 import { 
   Search, 
   SlidersHorizontal, 
@@ -15,7 +17,7 @@ import {
   Plus, 
   ExternalLink 
 } from 'lucide-react';
-import { ClassItem, StudyMaterial, SubjectItem } from '../types';
+import { ClassItem, StudyMaterial, SubjectItem, UserProfile, AttendanceRecord } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { genericFirestoreService } from '../lib/genericFirestore';
 import { binaryStore } from '../lib/binaryStore';
@@ -31,7 +33,7 @@ const DEFAULT_SUBJECT_CATEGORIES = ["All Subjects", "Mathematics", "Physics", "E
 const INITIAL_MATERIALS: StudyMaterial[] = [];
 
 export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
-  const { classes, refreshClasses, currentUser, showToast, bookings } = useApp();
+  const { classes, refreshClasses, currentUser, showToast, bookings, payments, reviews, refreshBookings, refreshUserProfile } = useApp();
   
   // Tab Switch: 'classes' or 'resources'
   const [activeTab, setActiveTab] = useState<'classes' | 'resources'>('classes');
@@ -48,6 +50,12 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   const [selectedDay, setSelectedDay] = useState("All Days");
   const [selectedTimeOfDay, setSelectedTimeOfDay] = useState("All Times");
   const [filteredClasses, setFilteredClasses] = useState<ClassItem[]>([]);
+
+  // Modals for Class Profile and Tutor Profile
+  const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
+  const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
   // Resources states
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
@@ -77,6 +85,21 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
       const merged = Array.from(new Set(["All Subjects", ...DEFAULT_SUBJECT_CATEGORIES.filter(c => c !== "All Subjects"), ...names]));
       setSubjectCategories(merged);
     });
+
+    const loadModalData = async () => {
+      try {
+        const [users, atts] = await Promise.all([
+          firestoreService.getAllUsers(),
+          firestoreService.getAttendanceRecords()
+        ]);
+        setAllUsers(users || []);
+        setAttendanceRecords(atts || []);
+      } catch (e) {
+        console.warn("Could not load supporting modal data in Classes", e);
+      }
+    };
+    loadModalData();
+
     return () => {
       unsubMaterials();
       unsubSubjects();
@@ -108,9 +131,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   };
 
   const enrolledClassIds = currentUser?.selectedClasses || [];
-  const [showEnrolledOnly, setShowEnrolledOnly] = useState<boolean>(
-    currentUser?.role === 'student' && enrolledClassIds.length > 0
-  );
+  const [showEnrolledOnly, setShowEnrolledOnly] = useState<boolean>(false);
 
   // Filter Tuition Classes
   useEffect(() => {
@@ -583,6 +604,8 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
                       item={item} 
                       onBookSuccess={() => onNavigateTab('dashboard')}
                       onRedirectToLogin={() => onNavigateTab('auth')}
+                      onOpenClassProfile={(cls) => setSelectedClassForProfile(cls)}
+                      onOpenTutorProfile={(tut) => setSelectedTutorForProfile(tut)}
                     />
                   </div>
                 ))}
@@ -904,6 +927,36 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
         confirmBtnId="delete_material_confirm_btn"
         cancelBtnId="delete_material_cancel_btn"
       />
+
+      {/* Class Profile Modal */}
+      {selectedClassForProfile && currentUser && (
+        <ClassProfileModal
+          isOpen={!!selectedClassForProfile}
+          onClose={() => setSelectedClassForProfile(null)}
+          classItem={selectedClassForProfile}
+          currentUser={currentUser}
+          bookings={bookings || []}
+          allUsers={allUsers || []}
+          payments={payments || []}
+          attendanceRecords={attendanceRecords || []}
+          onUpdateData={async () => {
+            if (refreshClasses) await refreshClasses();
+            if (refreshBookings) await refreshBookings();
+            if (refreshUserProfile) await refreshUserProfile();
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Tutor Profile Modal */}
+      {selectedTutorForProfile && (
+        <TutorProfileModal
+          tutor={selectedTutorForProfile}
+          isOpen={!!selectedTutorForProfile}
+          onClose={() => setSelectedTutorForProfile(null)}
+          reviews={reviews || []}
+        />
+      )}
     </div>
   );
 };

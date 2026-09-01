@@ -674,6 +674,40 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Class Enrollment Request Handlers
+  const handleApproveEnrollmentRequest = async (bookingId: string) => {
+    try {
+      await firestoreService.approveClassEnrollmentRequest(
+        bookingId,
+        'active',
+        'Normal',
+        currentUser?.name || 'Admin'
+      );
+      showToast("Student enrollment request successfully approved and activated!", "success");
+      await fetchAdminDatasets();
+      if (refreshBookings) await refreshBookings();
+      if (refreshClasses) await refreshClasses();
+    } catch (err: any) {
+      showToast("Failed to approve enrollment request: " + (err.message || 'Unknown error'), "error");
+    }
+  };
+
+  const handleRejectEnrollmentRequest = async (bookingId: string) => {
+    try {
+      await firestoreService.rejectClassEnrollmentRequest(
+        bookingId,
+        'Administrative decision / capacity constraint',
+        currentUser?.name || 'Admin'
+      );
+      showToast("Student enrollment request declined.", "info");
+      await fetchAdminDatasets();
+      if (refreshBookings) await refreshBookings();
+      if (refreshClasses) await refreshClasses();
+    } catch (err: any) {
+      showToast("Failed to decline enrollment request: " + (err.message || 'Unknown error'), "error");
+    }
+  };
+
   // Photo Approval Handlers (Approval workflow for Students & Tutors)
   const handleApprovePhoto = async (targetUser: UserProfile) => {
     if (!targetUser.pendingPhotoURL) return;
@@ -3391,23 +3425,102 @@ export const AdminDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4"
+                className="space-y-6"
               >
-                <div className="flex justify-between items-center border-b pb-3 border-gray-50">
-                  <div>
-                    <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-1.5">
-                      <BookOpen className="w-5 h-5 text-blue-500" /> Published Courses Curriculum Directory ({classesList.length})
-                    </h3>
-                    <p className="text-[10px] text-gray-400">Publish class syllabus pages, set capacity limits and modify time schedules</p>
+                {/* Pending Class Enrollment Requests section */}
+                {(() => {
+                  const pendingRequests = bookingsList.filter(b => b.status === 'pending_approval');
+                  if (pendingRequests.length === 0) return null;
+                  return (
+                    <div className="bg-amber-50/70 border-2 border-amber-200/80 rounded-2xl p-5 shadow-sm space-y-3" id="admin_pending_enrollment_requests_section">
+                      <div className="flex items-center justify-between border-b border-amber-200/70 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
+                            <Clock className="w-4 h-4" />
+                          </span>
+                          <div>
+                            <h3 className="text-sm font-extrabold text-amber-950">
+                              Pending Class Enrollment Requests ({pendingRequests.length})
+                            </h3>
+                            <p className="text-[11px] text-amber-800">
+                              Students requesting manual admission approval for published classes
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-1 bg-amber-200/70 text-amber-900 font-bold text-[10px] uppercase tracking-wider rounded-lg font-mono">
+                          Action Required
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                        {pendingRequests.map((req) => (
+                          <div 
+                            key={req.id}
+                            className="bg-white p-4 rounded-xl border border-amber-200/80 shadow-xs flex flex-col justify-between space-y-3"
+                          >
+                            <div className="space-y-1.5 text-xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-extrabold text-slate-900 text-sm">{req.studentName}</span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {req.bookingDate ? new Date(req.bookingDate).toLocaleDateString() : 'Recent'}
+                                </span>
+                              </div>
+                              <p className="text-slate-500 font-mono text-[11px]">{req.studentEmail}</p>
+                              
+                              <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-150 space-y-1 mt-2 text-[11px]">
+                                <p className="text-slate-700">
+                                  <span className="font-bold text-slate-900">Class:</span> {req.classTitle}
+                                </p>
+                                <p className="text-slate-650">
+                                  <span className="font-bold text-slate-900">Instructor:</span> {req.tutorName}
+                                </p>
+                                {req.timeSlot && (
+                                  <p className="text-slate-500 font-mono">
+                                    <span className="font-bold text-slate-700">Schedule:</span> {req.dayOfWeek} {req.timeSlot}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-2 border-t border-slate-100">
+                              <button
+                                onClick={() => handleRejectEnrollmentRequest(req.id)}
+                                className="w-1/3 py-1.5 px-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-slate-650 text-xs font-bold rounded-lg border border-slate-200 transition-all cursor-pointer"
+                                id={`btn_reject_req_${req.id}`}
+                              >
+                                Decline
+                              </button>
+                              <button
+                                onClick={() => handleApproveEnrollmentRequest(req.id)}
+                                className="w-2/3 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                id={`btn_approve_req_${req.id}`}
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" /> Approve Admission
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+                  <div className="flex justify-between items-center border-b pb-3 border-gray-50">
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-1.5">
+                        <BookOpen className="w-5 h-5 text-blue-500" /> Published Courses Curriculum Directory ({classesList.length})
+                      </h3>
+                      <p className="text-[10px] text-gray-400">Publish class syllabus pages, set capacity limits and modify time schedules</p>
+                    </div>
+                    <button 
+                      id="admin_btn_publish_class"
+                      onClick={() => openAddModal('class')}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Publish New Class
+                    </button>
                   </div>
-                  <button 
-                    id="admin_btn_publish_class"
-                    onClick={() => openAddModal('class')}
-                    className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Publish New Class
-                  </button>
-                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {classesList.map((c) => {
@@ -3512,6 +3625,7 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                     );
                   })}
+                </div>
                 </div>
               </motion.div>
             )}

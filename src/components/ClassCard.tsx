@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem, UserProfile } from '../types';
-import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode, AlertCircle, CheckCircle } from 'lucide-react';
+import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode, AlertCircle, CheckCircle, CheckCircle2, Clock, Send } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ReviewsModal } from './ReviewsModal';
 import { checkClassAvailability, AvailabilityCheckResult } from '../utils/tutorAvailability';
@@ -13,6 +13,7 @@ interface ClassCardProps {
   onRedirectToLogin?: () => void;
   onBookClick?: () => void;
   onOpenClassProfile?: (classItem: ClassItem) => void;
+  onOpenTutorProfile?: (tutor: UserProfile) => void;
   onOpenScanner?: (classItem: ClassItem) => void;
 }
 
@@ -21,11 +22,15 @@ export const ClassCard: React.FC<ClassCardProps> = ({
   onBookSuccess, 
   onRedirectToLogin,
   onOpenClassProfile,
+  onOpenTutorProfile,
   onOpenScanner
 }) => {
-  const { currentUser, showToast, refreshClasses, reviews } = useApp();
+  const { currentUser, showToast, refreshClasses, refreshBookings, bookings, reviews } = useApp();
   const [loading, setLoading] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestNote, setRequestNote] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Credit / Debit Card");
 
@@ -76,6 +81,20 @@ export const ClassCard: React.FC<ClassCardProps> = ({
     ? classReviews.reduce((sum, r) => sum + r.rating, 0) / classReviews.length 
     : 5.0;
 
+  // Enrollment Status Checks
+  const isStudent = currentUser?.role === 'student';
+  const enrolledClassIds = currentUser?.selectedClasses || [];
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
+  
+  const isEnrolled = isStudent && (
+    enrolledClassIds.includes(item.id) ||
+    safeBookings.some(b => (b.studentId === currentUser?.uid || b.studentEmail === currentUser?.email) && b.classId === item.id && b.status === 'active')
+  );
+
+  const isPendingRequest = isStudent && safeBookings.some(
+    b => (b.studentId === currentUser?.uid || b.studentEmail === currentUser?.email) && b.classId === item.id && b.status === 'pending_approval'
+  );
+
   // Render subject-colored pills
   const getSubjectColor = (subject: string) => {
     switch (subject.toLowerCase()) {
@@ -94,6 +113,64 @@ export const ClassCard: React.FC<ClassCardProps> = ({
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  const handleRequestEnrollment = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentUser) {
+      showToast("Please log in to request class enrollment.", "info");
+      if (onRedirectToLogin) onRedirectToLogin();
+      return;
+    }
+
+    if (currentUser.role !== 'student') {
+      showToast("Only student accounts can request enrollment.", "error");
+      return;
+    }
+
+    setSubmittingRequest(true);
+    try {
+      await firestoreService.requestClassEnrollment(
+        currentUser.uid,
+        currentUser.name || currentUser.username || 'Student',
+        item,
+        requestNote
+      );
+
+      showToast(`Enrollment request for '${item.title}' sent to administrators for manual approval.`, "success");
+      setShowRequestModal(false);
+      setRequestNote("");
+      if (refreshBookings) await refreshBookings();
+      if (refreshClasses) await refreshClasses();
+      if (onBookSuccess) onBookSuccess();
+    } catch (err: any) {
+      showToast("Could not submit request. Please try again.", "error");
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
+  const handleTutorClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenTutorProfile) {
+      if (tutorProfile) {
+        onOpenTutorProfile(tutorProfile);
+      } else if (item.tutorId) {
+        const p = await firestoreService.getUserProfile(item.tutorId);
+        if (p) {
+          onOpenTutorProfile(p);
+        } else {
+          onOpenTutorProfile({
+            uid: item.tutorId,
+            name: item.tutorName,
+            email: '',
+            role: 'tutor',
+            photoURL: item.tutorPhoto,
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
     }
   };
 
@@ -243,11 +320,15 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             </span>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3.5">
-            <div className="flex items-center gap-2">
+            <div 
+              onClick={handleTutorClick}
+              className="flex items-center gap-2 cursor-pointer hover:opacity-90 group/tutor"
+              title={`View faculty profile for ${item.tutorName}`}
+            >
               {item.tutorPhoto ? (
                 <img 
                   referrerPolicy="no-referrer"
-                  className="h-5 w-5 rounded-full object-cover border border-white/40" 
+                  className="h-5 w-5 rounded-full object-cover border border-white/40 ring-1 ring-white/20" 
                   src={item.tutorPhoto} 
                   alt={item.tutorName} 
                 />
@@ -256,7 +337,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({
                   <User className="w-2.5 h-2.5" />
                 </div>
               )}
-              <span className="text-[11px] text-white/90 font-medium whitespace-nowrap">by {item.tutorName}</span>
+              <span className="text-[11px] text-white/90 font-medium whitespace-nowrap group-hover/tutor:underline">by {item.tutorName}</span>
             </div>
           </div>
         </div>
@@ -290,7 +371,11 @@ export const ClassCard: React.FC<ClassCardProps> = ({
           </h4>
           
           {/* Tutor row */}
-          <div className="mt-4 flex items-center gap-2.5">
+          <div 
+            onClick={handleTutorClick}
+            className="mt-4 flex items-center gap-2.5 cursor-pointer hover:opacity-80 group/tutor"
+            title={`View faculty profile for ${item.tutorName}`}
+          >
             {item.tutorPhoto ? (
               <img 
                 referrerPolicy="no-referrer"
@@ -303,7 +388,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({
                 <User className="w-3 h-3" />
               </div>
             )}
-            <span className="text-xs text-slate-650 font-medium">by {item.tutorName}</span>
+            <span className="text-xs text-slate-650 font-medium group-hover/tutor:underline">by {item.tutorName}</span>
           </div>
         </div>
       )}
@@ -377,7 +462,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({
           </div>
         </div>
 
-        {/* Dynamic button control based on user role */}
+        {/* Dynamic button control based on user role & enrollment status */}
         <div className="flex gap-2 mt-5">
           <button
             onClick={() => setShowReviewsModal(true)}
@@ -389,24 +474,164 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             <span className="text-[10px] text-slate-400 font-semibold">({classReviews.length})</span>
           </button>
 
-          <button
-            onClick={handleBookingClick}
-            disabled={isFull || isTutorUnavailable || currentUser?.role === 'tutor' || currentUser?.role === 'admin'}
-            className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold transition-all duration-230 cursor-pointer ${
-              isFull 
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                : isTutorUnavailable
-                  ? 'bg-rose-50 text-rose-500 border border-rose-200 cursor-not-allowed'
-                  : currentUser?.role === 'tutor' || currentUser?.role === 'admin'
-                    ? 'bg-slate-50 text-slate-350 cursor-not-allowed border border-slate-150'
+          {/* Student: Enrolled Button -> opens relevant class profile */}
+          {currentUser && isStudent && isEnrolled && (
+            <button
+              onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
+              className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-emerald-600/20 transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5"
+              id={`enrolled_btn_${item.id}`}
+              title="You are actively enrolled. Click to open class profile"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" /> Enrolled
+            </button>
+          )}
+
+          {/* Student: Pending Request Button */}
+          {currentUser && isStudent && !isEnrolled && isPendingRequest && (
+            <button
+              onClick={() => showToast(`Your enrollment request for '${item.title}' has been submitted and is currently pending review & approval by academy administrators.`, "info")}
+              className="flex-1 text-center py-2.5 px-3 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-xs transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5"
+              id={`pending_btn_${item.id}`}
+              title="Enrollment request pending review and approval by administrators"
+            >
+              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-600 shrink-0" />
+              <span className="truncate">Requested (Pending)</span>
+            </button>
+          )}
+
+          {/* Student: Unenrolled -> Request Button */}
+          {currentUser && isStudent && !isEnrolled && !isPendingRequest && (
+            <button
+              onClick={() => setShowRequestModal(true)}
+              disabled={isFull || isTutorUnavailable}
+              className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5 ${
+                isFull 
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+                  : isTutorUnavailable
+                    ? 'bg-rose-50 text-rose-500 border border-rose-200 cursor-not-allowed'
                     : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10'
-            }`}
-            id={`enroll_btn_${item.id}`}
-          >
-            {isFull ? 'Full' : isTutorUnavailable ? 'Unavailable' : 'Enroll Now'}
-          </button>
+              }`}
+              id={`request_btn_${item.id}`}
+            >
+              {isFull ? 'Full' : isTutorUnavailable ? 'Unavailable' : (
+                <>
+                  <Send className="w-3.5 h-3.5" /> Request
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Admin or Tutor: View Class Profile Button */}
+          {currentUser && (currentUser.role === 'admin' || currentUser.role === 'tutor') && (
+            <button
+              onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
+              className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5"
+              id={`view_profile_btn_${item.id}`}
+            >
+              <BookOpen className="w-3.5 h-3.5" /> Class Profile
+            </button>
+          )}
+
+          {/* Guest / Not Logged In: Request to Enroll Button */}
+          {!currentUser && (
+            <button
+              onClick={() => {
+                showToast("Please log in as a student to request class enrollment.", "info");
+                if (onRedirectToLogin) onRedirectToLogin();
+              }}
+              className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg transition-all cursor-pointer"
+              id={`login_req_btn_${item.id}`}
+            >
+              Request to Enroll
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Student Class Enrollment Request Modal */}
+      {showRequestModal && currentUser && (
+        <div className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4" id="class_enrollment_request_modal">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-150 shadow-2xl relative font-sans">
+            <button 
+              onClick={() => setShowRequestModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-650 p-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getSubjectColor(item.subject)}`}>
+                {item.subject}
+              </span>
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">Class Enrollment Request</span>
+            </div>
+
+            <h3 className="text-base font-extrabold text-slate-900 mb-1">
+              Request Enrollment in {item.title}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Your request will be sent directly to academy administrators for review and manual approval.
+            </p>
+
+            <div className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-650">
+                <span className="text-slate-400">Class Schedule:</span>
+                <span className="font-semibold text-slate-900">{item.schedule}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-650">
+                <span className="text-slate-400">Instructor:</span>
+                <span className="font-semibold text-slate-900">{item.tutorName}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-650">
+                <span className="text-slate-400">Monthly Tuition:</span>
+                <span className="font-extrabold text-indigo-600 font-mono">LKR {item.price}.00</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-650 pt-2 border-t border-slate-200">
+                <span className="text-slate-400">Applicant:</span>
+                <span className="font-bold text-slate-900">{currentUser.name} ({currentUser.email})</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleRequestEnrollment} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                  Applicant Note to Admins (Optional):
+                </label>
+                <textarea
+                  rows={3}
+                  value={requestNote}
+                  onChange={(e) => setRequestNote(e.target.value)}
+                  placeholder="e.g., Requesting enrollment for academic semester 2026. Looking forward to attending classes."
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-600 focus:bg-white transition-all font-sans leading-relaxed"
+                ></textarea>
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>Once submitted, administrators will review your admission and verify scheduling. You will receive an immediate notification upon approval.</span>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowRequestModal(false)}
+                  className="w-1/2 py-2.5 border border-slate-250 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRequest}
+                  className="w-1/2 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  id="btn_submit_class_enrollment_request"
+                >
+                  {submittingRequest ? 'Submitting...' : 'Send Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Pay Mockup Modal overlay */}
       {showPayModal && (

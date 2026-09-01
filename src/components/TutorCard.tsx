@@ -12,7 +12,7 @@ interface TutorCardProps {
   onContactClick?: () => void;
 }
 
-export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
+export const TutorCard: React.FC<TutorCardProps> = ({ tutor, onContactClick }) => {
   const { currentUser, showToast, reviews } = useApp();
   const [showChatModal, setShowChatModal] = useState(false);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
@@ -20,19 +20,27 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Retrieve detail sections
-  const details = tutor.tutorDetails;
-  if (!details) return null;
+  if (!tutor) return null;
 
-  const tutorReviews = reviews.filter(r => r.tutorId === tutor.uid && r.status === 'approved');
+  const tutorName = tutor.name || tutor.displayName || tutor.username || 'Faculty Tutor';
+  const details = tutor.tutorDetails || {
+    bio: `${tutorName} is a dedicated faculty member at Guru Gedara Academy.`,
+    subjects: tutor.preferredSubjects || ['General Tuition'],
+    qualification: 'Academic Faculty Specialist',
+    experience: 3,
+    rating: 5.0
+  };
+
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
+  const tutorReviews = safeReviews.filter(r => r.tutorId === tutor.uid && r.status === 'approved');
   const avgRating = tutorReviews.length > 0 
     ? tutorReviews.reduce((sum, r) => sum + r.rating, 0) / tutorReviews.length 
-    : 5.0;
+    : (details.rating || 5.0);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
-      showToast("Please login first to chat with Dr. " + tutor.name, "info");
+      showToast("Please login first to chat with " + tutorName, "info");
       return;
     }
 
@@ -42,15 +50,15 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
     try {
       await firestoreService.sendDirectMessage(
         currentUser.uid,
-        currentUser.name,
+        currentUser.name || 'Student',
         tutor.uid,
         messageText
       );
-      showToast(`Message successfully sent to ${tutor.name}!`, "success");
+      showToast(`Message successfully sent to ${tutorName}!`, "success");
       setMessageText("");
       setShowChatModal(false);
     } catch (err) {
-      showToast("Failed to compile direct feedback message.", "error");
+      showToast("Failed to send direct message.", "error");
     } finally {
       setSending(false);
     }
@@ -86,7 +94,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
           )}
 
           <div className="min-w-0">
-            <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">{tutor.name}</h4>
+            <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">{tutorName}</h4>
             
             {/* Real-time Booking Availability Badge */}
             <div className="mt-1 flex items-center">
@@ -111,7 +119,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
                 <span className="font-mono text-[10px] sm:text-xs">{avgRating.toFixed(1)}</span>
                 <span className="text-[8px] sm:text-[9px] text-slate-400">({tutorReviews.length})</span>
               </button>
-              <span className="text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">({details.experience}+ Yrs Exp)</span>
+              <span className="text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">({details.experience || 3}+ Yrs Exp)</span>
             </div>
           </div>
         </div>
@@ -125,7 +133,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
         <div className="space-y-2 mb-3 sm:mb-5 bg-slate-50 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-100 text-[10px] sm:text-[11px] text-slate-600">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-            <span className="truncate font-semibold text-slate-700" title={details.qualification}>{details.qualification}</span>
+            <span className="truncate font-semibold text-slate-700" title={details.qualification || 'Academic Faculty Specialist'}>{details.qualification || 'Academic Faculty Specialist'}</span>
           </div>
           <div className="flex items-center gap-2">
             <Award className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
@@ -137,7 +145,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
         <div className="mb-3 sm:mb-5">
           <span className="block text-[8px] sm:text-[9px] text-slate-400 font-mono uppercase tracking-widest mb-1.5 sm:mb-2">Instruction Subjects:</span>
           <div className="flex flex-wrap gap-1 sm:gap-1.5">
-            {details.subjects.map((sub, sIdx) => (
+            {(details.subjects || tutor.preferredSubjects || ['General Tuition']).map((sub, sIdx) => (
               <span 
                 key={sIdx} 
                 className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
@@ -154,7 +162,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor }) => {
           <div>
             <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider block leading-none">Experience</span>
             <span className="text-sm font-extrabold text-slate-900 block mt-1.5 leading-none font-mono">
-              {details.experience} Years
+              {details.experience || 3} Years
             </span>
           </div>
 

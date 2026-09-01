@@ -1440,6 +1440,176 @@ const firestoreServiceRaw = {
     } catch (_) {}
   },
 
+  /**
+   * Request class enrollment by a student (submitted to admins for review and manual approval)
+   */
+  async requestClassEnrollment(
+    studentId: string,
+    studentName: string,
+    classItem: ClassItem,
+    studentNote?: string
+  ): Promise<Booking> {
+    const studentUser = await this.getUserProfile(studentId);
+    const bookingId = "req_booking_" + classItem.id + "_" + studentId + "_" + Date.now().toString(36);
+    
+    const newBooking: Booking = {
+      id: bookingId,
+      studentId,
+      studentName: studentName || studentUser?.name || 'Student',
+      studentEmail: studentUser?.email || '',
+      classId: classItem.id,
+      classTitle: classItem.title,
+      tutorId: classItem.tutorId,
+      tutorName: classItem.tutorName,
+      dayOfWeek: classItem.dayOfWeek,
+      timeSlot: classItem.timeSlot,
+      bookingDate: new Date().toISOString(),
+      status: 'pending_approval',
+      createdAt: new Date().toISOString()
+    };
+
+    // 1. Save to Cloud / Local
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'bookings', bookingId), newBooking);
+      } catch (e) {
+        console.warn("[firestoreService] Cloud requestClassEnrollment error:", e);
+      }
+    }
+
+    const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    const filtered = bookings.filter(b => !(b.studentId === studentId && b.classId === classItem.id && b.status === 'pending_approval'));
+    filtered.push(newBooking);
+    saveFallback('local_bookings', filtered);
+
+    // 2. Notify student
+    try {
+      await this.triggerNotification(
+        studentId,
+        `⏳ Enrollment Request Submitted: ${classItem.title}`,
+        `Your enrollment request for '${classItem.title}' (${classItem.schedule}) has been received and submitted to administrators for review and manual approval.`,
+        'announcement'
+      );
+    } catch (_) {}
+
+    // 3. Notify Admins
+    try {
+      const users = await this.getAllUsers();
+      const adminUsers = users.filter(u => u.role === 'admin');
+      for (const admin of adminUsers) {
+        await this.triggerNotification(
+          admin.uid,
+          `📥 New Class Enrollment Request`,
+          `Student '${studentName}' has requested enrollment into '${classItem.title}'. Review and approve in Class Enrollment Requests.`,
+          'reminder'
+        );
+      }
+    } catch (_) {}
+
+    // 4. Audit Log
+    try {
+      await this.addAuditLog({
+        username: studentName || 'Student',
+        action: 'CLASS_ENROLLMENT_REQUESTED',
+        details: `Student '${studentName}' (${studentId}) requested enrollment for class '${classItem.title}' (${classItem.id}). Note: ${studentNote || 'None'}`
+      });
+    } catch (_) {}
+
+    return newBooking;
+  },
+
+  /**
+   * Approve a pending class enrollment request
+   */
+  async approveClassEnrollmentRequest(
+    bookingId: string,
+    initialStatus: 'active' | 'suspended' = 'active',
+    paymentCategory: 'Normal' | 'Free Card' | 'Half Card' = 'Normal',
+    performedBy?: string
+  ): Promise<{ booking: Booking; student: UserProfile }> {
+    let booking: Booking | null = null;
+
+    if (isUsingCloud) {
+      try {
+        const bDoc = await getDoc(doc(db, 'bookings', bookingId));
+        if (bDoc.exists()) {
+          booking = { id: bDoc.id, ...bDoc.data() } as Booking;
+        }
+      } catch (e) {
+        console.warn("[firestoreService] Cloud get booking for approval failed:", e);
+      }
+    }
+
+    if (!booking) {
+      const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+      booking = bookings.find(b => b.id === bookingId) || null;
+    }
+
+    if (!booking) {
+      throw new Error(`Booking request '${bookingId}' not found.`);
+    }
+
+    return await this.enrollStudentInClass(
+      booking.studentId,
+      booking.classId,
+      initialStatus,
+      paymentCategory,
+      performedBy
+    );
+  },
+
+  /**
+   * Reject / Cancel a pending class enrollment request
+   */
+  async rejectClassEnrollmentRequest(
+    bookingId: string,
+    reason?: string,
+    performedBy?: string
+  ): Promise<void> {
+    let booking: Booking | null = null;
+
+    if (isUsingCloud) {
+      try {
+        const bDoc = await getDoc(doc(db, 'bookings', bookingId));
+        if (bDoc.exists()) {
+          booking = { id: bDoc.id, ...bDoc.data() } as Booking;
+          await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
+        }
+      } catch (e) {
+        console.warn("[firestoreService] Cloud reject enrollment request failed:", e);
+      }
+    }
+
+    const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    const updatedBookings = bookings.map(b => {
+      if (b.id === bookingId) {
+        booking = b;
+        return { ...b, status: 'cancelled' as const };
+      }
+      return b;
+    });
+    saveFallback('local_bookings', updatedBookings);
+
+    if (booking) {
+      try {
+        await this.triggerNotification(
+          (booking as Booking).studentId,
+          `❌ Class Enrollment Request Update: ${(booking as Booking).classTitle}`,
+          `Your enrollment request for '${(booking as Booking).classTitle}' was declined. Reason: ${reason || 'Capacity or administrative review'}.`,
+          'announcement'
+        );
+      } catch (_) {}
+
+      try {
+        await this.addAuditLog({
+          username: performedBy || 'Admin',
+          action: 'CLASS_ENROLLMENT_REQUEST_REJECTED',
+          details: `Declined enrollment request for student ${(booking as Booking).studentName} in class ${(booking as Booking).classTitle}. Reason: ${reason || 'N/A'}`
+        });
+      } catch (_) {}
+    }
+  },
+
   async cancelBooking(bookingId: string, classId: string, customStudentId?: string): Promise<void> {
     let studentId = customStudentId;
 
