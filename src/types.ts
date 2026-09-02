@@ -61,11 +61,27 @@ export interface UserProfile {
   
   // Registration, Admission and Fee Details
   admissionFeeCollected?: boolean;
+  paymentConfirmed?: boolean;
   admissionAmount?: number;
   admissionReceiptNo?: string;
+  admissionPaymentSlipUrl?: string;
+  admissionSlipFileName?: string;
   approvedBy?: string;
   approvedAt?: string;
   isFreeCard?: boolean;
+
+  // Academic Class Enrollment History
+  enrolledClassesHistory?: {
+    classId: string;
+    classTitle: string;
+    subject?: string;
+    tutorName?: string;
+    enrolledAt: string;
+    completionDate?: string;
+    status: 'Active' | 'Completed' | 'Dropped' | 'Suspended';
+    grade?: string;
+    note?: string;
+  }[];
 
   // Study Resource Access & Audit
   viewedMaterialIds?: string[];

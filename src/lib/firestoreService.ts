@@ -1308,7 +1308,7 @@ const firestoreServiceRaw = {
     // 2. Increment Class booked slots
     await this.updateClassBookingsCount(classId, 1);
 
-    // 3. Update Student Profile: add classId to selectedClasses & update classEnrollmentStatus
+    // 3. Update Student Profile: add classId to selectedClasses & update classEnrollmentStatus & history
     const currentSelected = studentUser.selectedClasses || [];
     const updatedSelected = Array.from(new Set([...currentSelected, classId]));
     const updatedStatusMap = {
@@ -1316,15 +1316,40 @@ const firestoreServiceRaw = {
       [classId]: initialStatus as 'active' | 'suspended'
     };
 
+    // Update or add to academic class history
+    const existingHistory = studentUser.enrolledClassesHistory || [];
+    const historyIdx = existingHistory.findIndex(h => h.classId === classId);
+    let updatedHistory = [...existingHistory];
+    if (historyIdx >= 0) {
+      updatedHistory[historyIdx] = {
+        ...updatedHistory[historyIdx],
+        status: initialStatus === 'suspended' ? 'Suspended' : 'Active',
+        classTitle: targetClass.title,
+        subject: targetClass.subject,
+        tutorName: targetClass.tutorName
+      };
+    } else {
+      updatedHistory.push({
+        classId: targetClass.id,
+        classTitle: targetClass.title,
+        subject: targetClass.subject,
+        tutorName: targetClass.tutorName,
+        enrolledAt: new Date().toISOString(),
+        status: initialStatus === 'suspended' ? 'Suspended' : 'Active'
+      });
+    }
+
     await this.updateUserProfile(studentId, {
       selectedClasses: updatedSelected,
-      classEnrollmentStatus: updatedStatusMap
+      classEnrollmentStatus: updatedStatusMap,
+      enrolledClassesHistory: updatedHistory
     });
 
     const updatedStudent: UserProfile = {
       ...studentUser,
       selectedClasses: updatedSelected,
-      classEnrollmentStatus: updatedStatusMap
+      classEnrollmentStatus: updatedStatusMap,
+      enrolledClassesHistory: updatedHistory
     };
 
     // 4. Send Notifications
@@ -1636,7 +1661,7 @@ const firestoreServiceRaw = {
     saveFallback('local_bookings', updated);
     await this.updateClassBookingsCount(classId, -1);
 
-    // Synchronize User Profile: remove classId from student's selectedClasses
+    // Synchronize User Profile: remove classId from student's selectedClasses and mark history as Dropped
     if (studentId) {
       try {
         const studentUser = await this.getUserProfile(studentId);
@@ -1645,15 +1670,199 @@ const firestoreServiceRaw = {
           const updatedStatusMap = { ...(studentUser.classEnrollmentStatus || {}) };
           delete updatedStatusMap[classId];
 
+          const existingHistory = studentUser.enrolledClassesHistory || [];
+          const historyIdx = existingHistory.findIndex(h => h.classId === classId);
+          let updatedHistory = [...existingHistory];
+          if (historyIdx >= 0) {
+            updatedHistory[historyIdx] = {
+              ...updatedHistory[historyIdx],
+              status: 'Dropped',
+              completionDate: new Date().toISOString()
+            };
+          }
+
           await this.updateUserProfile(studentId, {
             selectedClasses: updatedSelected,
-            classEnrollmentStatus: updatedStatusMap
+            classEnrollmentStatus: updatedStatusMap,
+            enrolledClassesHistory: updatedHistory
           });
         }
       } catch (uErr) {
         console.warn("[firestoreService] Could not update student selectedClasses on cancelBooking:", uErr);
       }
     }
+  },
+
+  /**
+   * Update student enrollment status for a specific class (e.g. Active, Suspended, Completed, Dropped)
+   */
+  async updateStudentClassEnrollmentStatus(
+    studentId: string,
+    classId: string,
+    newStatus: 'active' | 'suspended' | 'completed' | 'dropped',
+    performedBy?: string
+  ): Promise<UserProfile> {
+    const studentUser = await this.getUserProfile(studentId);
+    if (!studentUser) throw new Error(`Student ${studentId} not found`);
+
+    const classes = await this.getClasses();
+    const targetClass = classes.find(c => c.id === classId);
+
+    const updatedStatusMap = {
+      ...(studentUser.classEnrollmentStatus || {}),
+      [classId]: (newStatus === 'completed' || newStatus === 'dropped') ? 'active' : newStatus
+    };
+
+    let updatedSelected = studentUser.selectedClasses || [];
+    if (newStatus === 'dropped') {
+      updatedSelected = updatedSelected.filter(id => id !== classId);
+      delete updatedStatusMap[classId];
+    } else {
+      if (!updatedSelected.includes(classId)) {
+        updatedSelected = [...updatedSelected, classId];
+      }
+    }
+
+    // Update History Record
+    const existingHistory = studentUser.enrolledClassesHistory || [];
+    const historyIdx = existingHistory.findIndex(h => h.classId === classId);
+    let updatedHistory = [...existingHistory];
+    const historyStatus: 'Active' | 'Suspended' | 'Completed' | 'Dropped' = 
+      newStatus === 'completed' ? 'Completed' :
+      newStatus === 'dropped' ? 'Dropped' :
+      newStatus === 'suspended' ? 'Suspended' : 'Active';
+
+    if (historyIdx >= 0) {
+      updatedHistory[historyIdx] = {
+        ...updatedHistory[historyIdx],
+        status: historyStatus,
+        completionDate: (newStatus === 'completed' || newStatus === 'dropped') ? new Date().toISOString() : updatedHistory[historyIdx].completionDate
+      };
+    } else {
+      updatedHistory.push({
+        classId,
+        classTitle: targetClass?.title || 'Course',
+        subject: targetClass?.subject,
+        tutorName: targetClass?.tutorName,
+        enrolledAt: new Date().toISOString(),
+        completionDate: (newStatus === 'completed' || newStatus === 'dropped') ? new Date().toISOString() : undefined,
+        status: historyStatus
+      });
+    }
+
+    const updates: Partial<UserProfile> = {
+      selectedClasses: updatedSelected,
+      classEnrollmentStatus: updatedStatusMap,
+      enrolledClassesHistory: updatedHistory
+    };
+
+    await this.updateUserProfile(studentId, updates);
+
+    // Trigger Notification
+    try {
+      await this.triggerNotification(
+        studentId,
+        `📋 Class Status Update: ${targetClass?.title || 'Class'}`,
+        `Your status in ${targetClass?.title || 'the class'} has been updated to ${historyStatus.toUpperCase()}.`,
+        'announcement'
+      );
+    } catch (_) {}
+
+    return {
+      ...studentUser,
+      ...updates
+    };
+  },
+
+  /**
+   * Confirm student payment and activate their account across database & dashboard
+   */
+  async confirmStudentPaymentAndActivate(
+    studentId: string,
+    performedBy: string = 'Admin'
+  ): Promise<UserProfile> {
+    const studentUser = await this.getUserProfile(studentId);
+    if (!studentUser) throw new Error(`Student ${studentId} not found`);
+
+    const allUsers = await this.getAllUsers();
+
+    // Generate numeric student ID if missing
+    let assignedUsername = studentUser.username;
+    if (!assignedUsername) {
+      const g = studentUser.gender || 'male';
+      const prefix = g === 'male' ? 'GB' : 'GG';
+      let attempts = 0;
+      while (attempts < 100) {
+        const candidate = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
+        if (!allUsers.some(u => u.username === candidate)) {
+          assignedUsername = candidate;
+          break;
+        }
+        attempts++;
+      }
+      if (!assignedUsername) {
+        assignedUsername = prefix + Math.floor(10000000 + Math.random() * 90000000).toString();
+      }
+    }
+
+    const admissionReceipt = studentUser.admissionReceiptNo || `ADM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const updates: Partial<UserProfile> = {
+      status: 'active',
+      paymentConfirmed: true,
+      admissionFeeCollected: true,
+      admissionAmount: studentUser.admissionAmount || 2500,
+      admissionReceiptNo: admissionReceipt,
+      username: assignedUsername,
+      approvedBy: performedBy,
+      approvedAt: new Date().toISOString()
+    };
+
+    await this.updateUserProfile(studentId, updates);
+
+    // Record admission payment in Payments collection
+    try {
+      await this.createPayment(
+        studentId,
+        studentUser.name,
+        'admission_fee',
+        'Academy Student Admission & Registration Fee',
+        studentUser.admissionAmount || 2500,
+        'Admission Counter / Admin Verification',
+        'paid',
+        {
+          paymentType: 'admission',
+          transactionId: admissionReceipt,
+          studentEmail: studentUser.email
+        }
+      );
+    } catch (payErr) {
+      console.warn("[firestoreService] Admission payment creation note:", payErr);
+    }
+
+    // Send confirmation notification
+    try {
+      await this.triggerNotification(
+        studentId,
+        "🎉 Account Activated & Payment Confirmed!",
+        `Your admission fee payment has been confirmed by administration. Your official Student ID is ${assignedUsername}. You can now access your full classroom portal and materials.`,
+        'announcement'
+      );
+    } catch (_) {}
+
+    // Audit log
+    try {
+      await this.addAuditLog({
+        username: performedBy,
+        action: 'STUDENT_PAYMENT_CONFIRMED_ACTIVATED',
+        details: `Confirmed admission payment and activated account for student '${studentUser.name}' (${studentId}). Allocated ID: ${assignedUsername}.`
+      });
+    } catch (_) {}
+
+    return {
+      ...studentUser,
+      ...updates
+    };
   },
 
   // -------------------------------------------------------------

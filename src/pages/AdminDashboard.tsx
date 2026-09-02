@@ -17,6 +17,7 @@ import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { StudentIntakeApprovalModal } from '../components/StudentIntakeApprovalModal';
 import { AddStudentToClassModal } from '../components/AddStudentToClassModal';
+import { ClassRosterModal } from '../components/ClassRosterModal';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -73,6 +74,7 @@ import {
   Layers,
   Image as ImageIcon,
   ExternalLink,
+  FileText,
   Check,
   Power,
   Bell,
@@ -526,6 +528,9 @@ export const AdminDashboard: React.FC = () => {
   const [tutorHourlyRate, setTutorHourlyRate] = useState("45");
   const [tutorExperience, setTutorExperience] = useState("5");
   const [tutorQualification, setTutorQualification] = useState("M.Sc. in Physics");
+  const [tutorPhotoURL, setTutorPhotoURL] = useState("");
+  const [selectedClassForRoster, setSelectedClassForRoster] = useState<ClassItem | null>(null);
+  const [previewPaymentSlipStudent, setPreviewPaymentSlipStudent] = useState<UserProfile | null>(null);
 
   // Tutor Validation & Visual Loading State
   interface TutorValidationError {
@@ -991,6 +996,7 @@ export const AdminDashboard: React.FC = () => {
     setTutorHourlyRate("45");
     setTutorExperience("5");
     setTutorQualification("M.Sc. in Physics");
+    setTutorPhotoURL("");
     setTutorErrors([]);
     setTutorErrorSummary(null);
     setIsSavingTutor(false);
@@ -1069,6 +1075,7 @@ export const AdminDashboard: React.FC = () => {
       setTutorHourlyRate(String(item.tutorDetails?.hourlyRate || 45));
       setTutorExperience(String(item.tutorDetails?.experience || 5));
       setTutorQualification(item.tutorDetails?.qualification || "");
+      setTutorPhotoURL(item.photoURL || "");
     } else if (type === 'class') {
       setClassTitle(item.title || "");
       setClassSubject(item.subject || "");
@@ -1581,6 +1588,7 @@ export const AdminDashboard: React.FC = () => {
           phone: cleanPhone,
           role: 'tutor',
           status: 'approved',
+          photoURL: tutorPhotoURL.trim() || undefined,
           tutorDetails
         };
 
@@ -2817,6 +2825,66 @@ export const AdminDashboard: React.FC = () => {
                                 Review Intake & Confirm Admission
                               </button>
                             )}
+
+                            {/* Admission & Monthly Payment Confirmed Toggle */}
+                            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-100/80 border border-slate-200/80 mt-2.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <CreditCard className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                <span className="text-[10px] font-bold text-slate-700">Payment:</span>
+                                {stud.paymentConfirmed ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                    <CheckCircle className="w-2.5 h-2.5 text-emerald-600" /> Confirmed
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                id={`toggle-payment-btn-${stud.uid}`}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    if (!stud.paymentConfirmed) {
+                                      await firestoreService.confirmStudentPaymentAndActivate(stud.uid, currentUser?.name || 'Administrator');
+                                      showToast(`Payment confirmed and account activated for ${stud.name}!`, "success");
+                                    } else {
+                                      await firestoreService.updateUserProfile(stud.uid, { paymentConfirmed: false });
+                                      showToast(`Payment status marked as unconfirmed for ${stud.name}.`, "info");
+                                    }
+                                    await fetchAdminDatasets();
+                                  } catch (err: any) {
+                                    showToast(err.message || "Failed to update payment status.", "error");
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer shadow-2xs flex items-center gap-1 shrink-0 ${
+                                  stud.paymentConfirmed
+                                    ? 'bg-white hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-250'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500'
+                                }`}
+                              >
+                                {stud.paymentConfirmed ? 'Revoke' : 'Confirm Payment'}
+                              </button>
+                            </div>
+
+                            {/* Attached Admission Payment Slip View */}
+                            {stud.admissionPaymentSlipUrl && (
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-50/70 border border-indigo-150 mt-1.5">
+                                <span className="text-[10px] font-bold text-indigo-900 flex items-center gap-1 truncate">
+                                  <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> Receipt Attached
+                                </span>
+                                <button
+                                  type="button"
+                                  id={`btn-view-slip-${stud.uid}`}
+                                  onClick={() => setPreviewPaymentSlipStudent(stud)}
+                                  className="px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[9.5px] font-black cursor-pointer transition-all shrink-0"
+                                >
+                                  View Slip
+                                </button>
+                              </div>
+                            )}
                             {stud.pendingPhotoURL && (
                               <div className="mt-3 p-3 bg-amber-50/70 border border-amber-205 rounded-xl space-y-2">
                                 <span className="block text-[10px] font-black text-amber-800 uppercase tracking-widest font-mono">
@@ -3547,6 +3615,18 @@ export const AdminDashboard: React.FC = () => {
                               >
                                 <UserPlus className="w-3.5 h-3.5" />
                                 <span>Add Student</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedClassForRoster(c);
+                                }}
+                                className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-slate-700/50 flex items-center gap-1 text-[10px] font-bold"
+                                title="Manage Student Class Roster"
+                                id={`admin_btn_class_roster_${c.id}`}
+                              >
+                                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>Roster</span>
                               </button>
                               <button
                                 onClick={(e) => {
@@ -5232,6 +5312,72 @@ export const AdminDashboard: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Tutor Profile Photo Management */}
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-3">
+                    <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest font-mono">
+                      Faculty Profile Photo (Optional)
+                    </label>
+                    
+                    <div className="flex items-center gap-4">
+                      {tutorPhotoURL ? (
+                        <div className="relative shrink-0">
+                          <img 
+                            referrerPolicy="no-referrer"
+                            src={tutorPhotoURL} 
+                            alt="Tutor Preview" 
+                            className="w-14 h-14 rounded-2xl object-cover border-2 border-indigo-400 shadow-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setTutorPhotoURL("")}
+                            className="absolute -top-1.5 -right-1.5 p-0.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-xs cursor-pointer"
+                            title="Remove Photo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-dashed border-indigo-200 flex flex-col items-center justify-center text-indigo-500 shrink-0">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      <div className="flex-1 space-y-2">
+                        <input 
+                          type="url"
+                          value={tutorPhotoURL}
+                          onChange={(e) => setTutorPhotoURL(e.target.value)}
+                          placeholder="Paste image URL (https://...)"
+                          className="w-full text-xs p-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
+                        />
+                        <div className="flex items-center gap-2">
+                          <label className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 cursor-pointer shadow-2xs flex items-center gap-1.5">
+                            <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Upload File</span>
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  try {
+                                    const base64 = await optimizeImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.85 });
+                                    setTutorPhotoURL(base64);
+                                    showToast("Tutor photo loaded & optimized.", "success");
+                                  } catch {
+                                    showToast("Failed to process image.", "error");
+                                  }
+                                }
+                              }}
+                            />
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-sans">PNG, JPG or WebP</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {modalMode === 'add' && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3.5">
                       <div className="flex items-center justify-between">
@@ -5960,6 +6106,103 @@ export const AdminDashboard: React.FC = () => {
           }}
           showToast={showToast}
         />
+      )}
+
+      {/* Class Roster Management Modal */}
+      {selectedClassForRoster && (
+        <ClassRosterModal
+          isOpen={!!selectedClassForRoster}
+          onClose={() => setSelectedClassForRoster(null)}
+          classItem={selectedClassForRoster}
+          allUsers={users || []}
+          bookings={bookingsList || []}
+          attendanceRecords={attendanceRecords || []}
+          currentUser={currentUser}
+          onRosterUpdated={async () => {
+            await fetchAdminDatasets();
+            if (refreshClasses) refreshClasses();
+            if (refreshBookings) refreshBookings();
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Payment Receipt / Admission Slip Preview Modal */}
+      {previewPaymentSlipStudent && (
+        <div 
+          className="fixed inset-0 z-60 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setPreviewPaymentSlipStudent(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-4 relative font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-600" />
+                  Admission Payment Receipt
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Student: <strong className="text-slate-800">{previewPaymentSlipStudent.name}</strong> ({previewPaymentSlipStudent.email})
+                </p>
+              </div>
+              <button 
+                onClick={() => setPreviewPaymentSlipStudent(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-900 rounded-2xl overflow-hidden max-h-[60vh] flex items-center justify-center border border-slate-800 p-2">
+              <img 
+                referrerPolicy="no-referrer"
+                src={previewPaymentSlipStudent.admissionPaymentSlipUrl} 
+                alt="Payment Receipt Slip" 
+                className="max-h-[55vh] max-w-full object-contain rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <span className="text-[11px] font-mono text-slate-500">
+                Status: {previewPaymentSlipStudent.paymentConfirmed ? (
+                  <strong className="text-emerald-600 uppercase">Confirmed</strong>
+                ) : (
+                  <strong className="text-amber-600 uppercase">Pending Verification</strong>
+                )}
+              </span>
+
+              <div className="flex items-center gap-2">
+                {!previewPaymentSlipStudent.paymentConfirmed && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await firestoreService.confirmStudentPaymentAndActivate(previewPaymentSlipStudent.uid, currentUser?.name || 'Administrator');
+                        showToast(`Payment confirmed for ${previewPaymentSlipStudent.name}!`, "success");
+                        setPreviewPaymentSlipStudent(null);
+                        await fetchAdminDatasets();
+                      } catch (err: any) {
+                        showToast(err.message || "Failed to confirm payment.", "error");
+                      }
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Confirm & Activate
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewPaymentSlipStudent(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </motion.div>
   );

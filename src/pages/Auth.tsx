@@ -30,7 +30,8 @@ import {
   Upload,
   X,
   Calendar,
-  BadgeCheck
+  BadgeCheck,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -84,6 +85,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [preferredSubjects, setPreferredSubjects] = useState<string[]>([]);
   const [customSubjectInput, setCustomSubjectInput] = useState("");
   const [grade, setGrade] = useState("11");
+  const [admissionPaymentSlipUrl, setAdmissionPaymentSlipUrl] = useState("");
+  const [admissionSlipFileName, setAdmissionSlipFileName] = useState("");
+  const [isUploadingSlip, setIsUploadingSlip] = useState(false);
 
   const AVAILABLE_SUBJECTS = [
     "Combined Mathematics",
@@ -128,6 +132,42 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
       }
     }
   }, [currentUser]);
+
+  const handleAdmissionSlipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+      showToast("Please upload an image file (PNG, JPG, WebP) or receipt screenshot.", "error");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("File size exceeds 5MB limit. Please upload a smaller image.", "error");
+      return;
+    }
+
+    setIsUploadingSlip(true);
+    setAdmissionSlipFileName(file.name);
+
+    try {
+      if (file.type.startsWith('image/')) {
+        const optimized = await optimizeImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.85 });
+        setAdmissionPaymentSlipUrl(optimized);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setAdmissionPaymentSlipUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+      showToast("Payment slip receipt uploaded successfully!", "success");
+    } catch (err: any) {
+      showToast("Failed to process payment slip image.", "error");
+    } finally {
+      setIsUploadingSlip(false);
+    }
+  };
 
   const handleSubjectToggle = (subjectName: string) => {
     if (preferredSubjects.includes(subjectName)) {
@@ -282,6 +322,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           guardianPhone,
           preferredSubjects,
           selectedClasses: preferredSubjects,
+          admissionPaymentSlipUrl: admissionPaymentSlipUrl || undefined,
+          admissionSlipFileName: admissionSlipFileName || undefined,
+          paymentConfirmed: false,
           status: 'pending', // Pending administrator approval
           studentDetails: {
             grade,
@@ -1099,10 +1142,94 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
               )}
             </div>
 
-            {/* SECTION 6: OPTIONAL NOTES */}
+            {/* SECTION 6: ADMISSION FEE PAYMENT RECEIPT / SLIP UPLOAD */}
+            <div className="bg-slate-50/80 border border-slate-100 p-4 sm:p-5 rounded-2xl space-y-3" id="admission_payment_slip_section">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-slate-900">
+                  <Upload className="w-4 h-4 text-indigo-600" />
+                  <span>6. Admission Fee Payment Slip / Receipt (Optional / Recommended)</span>
+                </div>
+                {admissionPaymentSlipUrl && (
+                  <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Slip Attached
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Upload a screenshot or photo of your bank transfer, slip, or payment confirmation (Standard Admission Fee: LKR 2,500). Administrators can verify this receipt directly to confirm your payment and immediately activate your official Student ID.
+              </p>
+
+              {/* Upload Drop Area */}
+              <div className="relative border-2 border-dashed border-slate-200 hover:border-indigo-400 transition-colors rounded-2xl p-4 bg-white text-center">
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleAdmissionSlipUpload}
+                  disabled={isUploadingSlip}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  id="admission_receipt_file_input"
+                />
+
+                {isUploadingSlip ? (
+                  <div className="py-4 flex flex-col items-center justify-center gap-2">
+                    <RefreshCw className="w-6 h-6 text-indigo-600 animate-spin" />
+                    <p className="text-xs font-bold text-slate-700">Processing and optimizing receipt...</p>
+                  </div>
+                ) : admissionPaymentSlipUrl ? (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-2 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                    <div className="flex items-center gap-3">
+                      {admissionPaymentSlipUrl.startsWith('data:image') ? (
+                        <img 
+                          src={admissionPaymentSlipUrl} 
+                          alt="Admission slip preview" 
+                          className="w-14 h-14 object-cover rounded-lg border border-emerald-200" 
+                        />
+                      ) : (
+                        <div className="w-14 h-14 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-emerald-950 truncate max-w-[200px]">
+                          {admissionSlipFileName || "Payment_Receipt.png"}
+                        </p>
+                        <p className="text-[10px] text-emerald-600 font-semibold">
+                          Receipt ready for admin verification
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAdmissionPaymentSlipUrl("");
+                        setAdmissionSlipFileName("");
+                      }}
+                      className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <X className="w-3.5 h-3.5" /> Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="py-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+                    <Upload className="w-7 h-7 text-indigo-500" />
+                    <p className="text-xs font-bold text-slate-800">
+                      Click to upload bank transfer slip or receipt screenshot
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      Supports JPG, PNG, WebP up to 5MB
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 7: OPTIONAL NOTES */}
             <div className="bg-slate-50/80 border border-slate-100 p-4 sm:p-5 rounded-2xl space-y-2">
               <label className="block text-xs font-bold text-slate-700">
-                Additional Notes or Special Requests (Optional):
+                7. Additional Notes or Special Requests (Optional):
               </label>
               <textarea
                 rows={2}

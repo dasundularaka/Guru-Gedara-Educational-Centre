@@ -5,7 +5,7 @@ import { SyncStatusIndicator } from '../components/SyncTelemetryConsole';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { SyncBadge } from '../components/SyncBadge';
 import { firestoreService } from '../lib/firestoreService';
-import { Booking, Payment, NotificationItem, AttendanceRecord, ClassItem } from '../types';
+import { Booking, Payment, NotificationItem, AttendanceRecord, ClassItem, UserProfile } from '../types';
 import { CalendarView } from '../components/CalendarView';
 import { ChatWidget } from '../components/ChatWidget';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
@@ -13,11 +13,13 @@ import { StudentModuleRoadmap } from '../components/StudentModuleRoadmap';
 import { ClassScheduleWidget } from '../components/ClassScheduleWidget';
 import { UpcomingDeadlines } from '../components/UpcomingDeadlines';
 import { ClassProfileModal } from '../components/ClassProfileModal';
+import { TutorProfileModal } from '../components/TutorProfileModal';
 import { StudentPaymentHistory } from '../components/StudentPaymentHistory';
 import { ClassQRCodeAttendanceModal } from '../components/ClassQRCodeAttendanceModal';
 import { Class15MinReminderBanner } from '../components/Class15MinReminderBanner';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { DashboardWidgetCustomizer } from '../components/DashboardWidgetCustomizer';
+import { StudentAcademicHistory } from '../components/StudentAcademicHistory';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -46,7 +48,8 @@ import {
   CheckCircle2,
   Printer,
   GraduationCap,
-  Layers
+  Layers,
+  Award
 } from 'lucide-react';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
@@ -68,10 +71,11 @@ export const StudentDashboard: React.FC = () => {
     payments,
     refreshBookings,
     refreshPayments,
+    reviews,
     executeWriteWithRetry
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'history' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
@@ -83,6 +87,35 @@ export const StudentDashboard: React.FC = () => {
   const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
+  const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
+
+  const handleOpenTutorProfile = async (tutorId?: string, tutorName?: string) => {
+    if (!tutorId && !tutorName) return;
+    try {
+      if (tutorId) {
+        const fetched = await firestoreService.getUserProfile(tutorId);
+        if (fetched) {
+          setSelectedTutorForProfile(fetched);
+          return;
+        }
+      }
+      setSelectedTutorForProfile({
+        uid: tutorId || 'tutor_fallback',
+        name: tutorName || 'Faculty Instructor',
+        email: '',
+        role: 'tutor',
+        createdAt: new Date().toISOString()
+      });
+    } catch {
+      setSelectedTutorForProfile({
+        uid: tutorId || 'tutor_fallback',
+        name: tutorName || 'Faculty Instructor',
+        email: '',
+        role: 'tutor',
+        createdAt: new Date().toISOString()
+      });
+    }
+  };
 
   // Review states
   const [showSubmitReviewModal, setShowSubmitReviewModal] = useState(false);
@@ -543,6 +576,7 @@ export const StudentDashboard: React.FC = () => {
             const studentSectionItems: SectionSidebarItem[] = [
               { id: 'schedule', label: 'Timetable & Calendar', icon: <Calendar className="w-4 h-4 text-indigo-500" />, description: 'Your class schedules' },
               { id: 'classes', label: 'Enrolled Classes', icon: <BookOpen className="w-4 h-4 text-blue-500" />, description: 'Class roster & learning materials' },
+              { id: 'history', label: 'Academic Course History', icon: <Award className="w-4 h-4 text-amber-500" />, description: 'Past & active enrolled class records' },
               { id: 'payments', label: 'Payment Receipts', icon: <FileText className="w-4 h-4 text-emerald-500" />, description: 'Invoices & slips' },
               { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" />, description: 'Marks & attendance history' },
               { id: 'roadmap', label: 'Syllabus Roadmap', icon: <Compass className="w-4 h-4 text-purple-500" />, description: 'A/L curriculum tracking' },
@@ -576,6 +610,7 @@ export const StudentDashboard: React.FC = () => {
                       <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
                         {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
                         {activeSubTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                        {activeSubTab === 'history' && <Award className="w-4 h-4" />}
                         {activeSubTab === 'payments' && <FileText className="w-4 h-4" />}
                         {activeSubTab === 'performance' && <TrendingUp className="w-4 h-4" />}
                         {activeSubTab === 'roadmap' && <Compass className="w-4 h-4" />}
@@ -585,6 +620,7 @@ export const StudentDashboard: React.FC = () => {
                       <span className="capitalize">
                         {activeSubTab === 'schedule' && 'Timetable'}
                         {activeSubTab === 'classes' && 'Enrolled Classes'}
+                        {activeSubTab === 'history' && 'Course History'}
                         {activeSubTab === 'payments' && 'Payments'}
                         {activeSubTab === 'performance' && 'Progress & Attendance'}
                         {activeSubTab === 'roadmap' && 'Syllabus Roadmap'}
@@ -641,6 +677,7 @@ export const StudentDashboard: React.FC = () => {
           {[
             { id: 'schedule', label: 'Timetable', icon: <Calendar className="w-3.5 h-3.5" /> },
             { id: 'classes', label: 'Classes', icon: <BookOpen className="w-3.5 h-3.5" /> },
+            { id: 'history', label: 'History', icon: <Award className="w-3.5 h-3.5" /> },
             { id: 'payments', label: 'Payments', icon: <FileText className="w-3.5 h-3.5" /> },
             { id: 'performance', label: 'Progress', icon: <TrendingUp className="w-3.5 h-3.5" /> },
             { id: 'roadmap', label: 'Roadmap', icon: <Compass className="w-3.5 h-3.5" /> },
@@ -751,7 +788,16 @@ export const StudentDashboard: React.FC = () => {
                               <div>
                                 <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[9px] font-bold uppercase tracking-wider">{c.subject}</span>
                                 <h4 className="text-xs font-extrabold text-slate-850 leading-snug mt-1">{c.title}</h4>
-                                <p className="text-[10px] text-slate-500">Instructor: <span className="font-semibold text-slate-700">{c.tutorName || "Faculty Instructor"}</span></p>
+                                <p className="text-[10px] text-slate-500">
+                                  Instructor:{' '}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenTutorProfile(c.tutorId, c.tutorName)}
+                                    className="font-semibold text-indigo-650 hover:underline hover:text-indigo-800 cursor-pointer"
+                                  >
+                                    {c.tutorName || "Faculty Instructor"}
+                                  </button>
+                                </p>
                               </div>
                               <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] mt-1">
                                 <span className="text-slate-500 font-bold font-mono">{c.schedule}</span>
@@ -787,7 +833,16 @@ export const StudentDashboard: React.FC = () => {
                           <div>
                             <span className="text-[9px] font-bold font-mono tracking-wider text-blue-600 uppercase">Enrolled Course Slot</span>
                             <h4 className="text-sm font-bold text-blue-950 mt-1 leading-snug">{b.classTitle}</h4>
-                            <p className="text-xs text-gray-500 mt-1">Instructor: <span className="font-semibold text-gray-800">{b.tutorName}</span></p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Instructor:{' '}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTutorProfile(b.tutorId, b.tutorName)}
+                                className="font-semibold text-indigo-650 hover:underline hover:text-indigo-800 cursor-pointer"
+                              >
+                                {b.tutorName}
+                              </button>
+                            </p>
                             <p className="text-[11px] text-blue-600 font-medium mt-1 font-mono">Sessions: {b.dayOfWeek}s at {b.timeSlot}</p>
                           </div>
                           
@@ -892,6 +947,23 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
+              </motion.div>
+            )}
+
+            {/* Academic History & Course Record Tab */}
+            {activeSubTab === 'history' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <StudentAcademicHistory
+                  currentUser={currentUser}
+                  classes={classes}
+                  bookings={studentBookings}
+                  attendanceRecords={attendanceRecords}
+                  onOpenClassProfile={(cls) => setSelectedClassForProfile(cls)}
+                />
               </motion.div>
             )}
 
@@ -1285,6 +1357,16 @@ export const StudentDashboard: React.FC = () => {
           attendanceRecords={attendanceRecords}
           showToast={showToast}
           onUpdateData={fetchDashboardData}
+        />
+      )}
+
+      {/* Tutor Profile Modal for Students */}
+      {selectedTutorForProfile && (
+        <TutorProfileModal
+          tutor={selectedTutorForProfile}
+          isOpen={!!selectedTutorForProfile}
+          onClose={() => setSelectedTutorForProfile(null)}
+          reviews={reviews || []}
         />
       )}
     </motion.div>

@@ -36,7 +36,9 @@ import {
   Download,
   Upload,
   CalendarCheck,
-  Clock3
+  Clock3,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { ClassItem, Booking, UserProfile, Payment, StudyMaterial, AttendanceRecord, ResourceType } from '../types';
 import { firestoreService } from '../lib/firestoreService';
@@ -106,6 +108,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const [isBulkUpdating, setIsBulkUpdating] = useState<boolean>(false);
 
   // Materials State
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
@@ -464,16 +467,20 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-xs font-sans animate-fade-in">
+      <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullScreen ? 'p-0' : 'p-3 sm:p-5'} bg-slate-950/70 backdrop-blur-xs font-sans animate-fade-in`}>
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
-          className="bg-white rounded-3xl shadow-2xl border border-slate-150 overflow-hidden w-full max-w-4xl max-h-[90vh] flex flex-col relative"
+          className={`bg-white shadow-2xl border border-slate-150 overflow-hidden flex flex-col relative transition-all duration-200 ${
+            isFullScreen 
+              ? 'fixed inset-0 z-50 w-screen h-screen max-w-none max-h-none rounded-none' 
+              : 'w-full max-w-5xl max-h-[94vh] rounded-3xl'
+          }`}
           id={`class_profile_modal_${classItem.id}`}
         >
           {/* Cover Header Banner */}
-          <div className="relative h-44 sm:h-52 bg-slate-900 overflow-hidden shrink-0">
+          <div className={`relative ${isFullScreen ? 'h-36 sm:h-44' : 'h-44 sm:h-52'} bg-slate-900 overflow-hidden shrink-0 transition-all`}>
             {classItem.imageUrl ? (
               <img 
                 referrerPolicy="no-referrer"
@@ -486,14 +493,25 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             )}
             <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-950/40 to-transparent" />
 
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-slate-900/80 hover:bg-slate-900 text-white/80 hover:text-white rounded-full backdrop-blur-md transition-all cursor-pointer z-10"
-              id="btn_close_class_profile_modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Action Buttons: Fullscreen & Close */}
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+              <button
+                onClick={() => setIsFullScreen(!isFullScreen)}
+                className="p-2 bg-slate-900/80 hover:bg-slate-900 text-white/80 hover:text-white rounded-full backdrop-blur-md transition-all cursor-pointer shadow-md"
+                title={isFullScreen ? "Exit Fullscreen" : "Fit & View Fullscreen"}
+                id="btn_toggle_fullscreen_class_profile_modal"
+              >
+                {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+
+              <button
+                onClick={onClose}
+                className="p-2 bg-slate-900/80 hover:bg-slate-900 text-white/80 hover:text-white rounded-full backdrop-blur-md transition-all cursor-pointer shadow-md"
+                id="btn_close_class_profile_modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             {/* Top Right QR Scanner Action Button (Tutors & Admins Only) */}
             {isTutorOrAdmin && onOpenScanner && (
@@ -502,7 +520,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                   onClose();
                   onOpenScanner(classItem);
                 }}
-                className="absolute top-4 right-16 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all cursor-pointer z-10 border border-indigo-400/40"
+                className="absolute top-4 right-28 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all cursor-pointer z-10 border border-indigo-400/40"
                 id={`btn_open_class_qr_scanner_${classItem.id}`}
               >
                 <QrCode className="w-4 h-4" /> Scan Class Attendance
