@@ -20,7 +20,7 @@ import { db, auth, storage, firebaseConfig } from './firebase';
 import { binaryStore } from './binaryStore';
 import { optimizeImage } from './imageOptimizer';
 import { emailNotificationService } from './emailNotificationService';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -30,6 +30,26 @@ import {
   INITIAL_MESSAGES,
   INITIAL_REVIEWS
 } from '../data/mockData';
+
+export const INITIAL_ADMISSION_FEE_CONFIG: AdmissionFeeConfig = {
+  currentFee: 2500,
+  currency: 'LKR',
+  lastUpdated: new Date().toISOString(),
+  lastUpdatedBy: 'System Administrator',
+  lastUpdatedUsername: 'GA10000001',
+  history: [
+    {
+      id: 'afh_initial_seed',
+      previousFee: 2000,
+      newFee: 2500,
+      changedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      adminName: 'Academic Registrar',
+      adminUsername: 'GA89432109',
+      reason: 'Annual academic curriculum registration fee update'
+    }
+  ]
+};
+
 
 export function formatNameAsUid(name: string, fallbackEmailOrId?: string): string {
   if (name && typeof name === 'string' && name.trim()) {
@@ -278,6 +298,33 @@ function handleFallback<T>(localKey: string, initialData: T[]): T[] {
 }
 
 function saveFallback<T>(localKey: string, data: T[]): void {
+  const scopedKey = `${localKey}_${firebaseConfig.projectId || 'default'}`;
+  try {
+    localStorage.setItem(scopedKey, safeStringify(data));
+  } catch (err) {
+    console.warn(`[safeStringify] Failed to save fallback local storage for key ${scopedKey}`, err);
+  }
+}
+
+function handleFallbackItem<T>(localKey: string, initialData: T): T {
+  const scopedKey = `${localKey}_${firebaseConfig.projectId || 'default'}`;
+  const local = localStorage.getItem(scopedKey);
+  if (local) {
+    try {
+      return JSON.parse(local);
+    } catch (e) {
+      // ignore
+    }
+  }
+  try {
+    localStorage.setItem(scopedKey, safeStringify(initialData));
+  } catch (err) {
+    console.warn(`[safeStringify] Failed to save initial local storage for key ${scopedKey}`, err);
+  }
+  return initialData;
+}
+
+function saveFallbackItem<T>(localKey: string, data: T): void {
   const scopedKey = `${localKey}_${firebaseConfig.projectId || 'default'}`;
   try {
     localStorage.setItem(scopedKey, safeStringify(data));
@@ -893,6 +940,13 @@ const firestoreServiceRaw = {
       } catch (e) {
         console.warn("Failed saving user online. Writing locally.", e);
       }
+    }
+
+    // Unmark from deleted UIDs if present
+    const deletedUids = handleFallback<string>('local_deleted_uids', []);
+    const cleanDeletedUids = deletedUids.filter(id => id !== targetUid && id !== uid);
+    if (cleanDeletedUids.length !== deletedUids.length) {
+      saveFallback('local_deleted_uids', cleanDeletedUids);
     }
 
     // Save locally
@@ -3673,8 +3727,108 @@ const firestoreServiceRaw = {
     
     this.getDirectMessages(userId1, userId2).then(callback);
     return () => {};
+  },
+
+  // -------------------------------------------------------------
+  // ADMISSION FEE CONFIGURATION & AUDIT TRAIL
+  // -------------------------------------------------------------
+  async getAdmissionFeeConfig(): Promise<AdmissionFeeConfig> {
+    if (isUsingCloud) {
+      try {
+        const snap = await promiseWithTimeout(
+          getDoc(doc(db, 'settings', 'admission_fee')),
+          6000,
+          null
+        );
+        if (snap && snap.exists()) {
+          const cloudConfig = snap.data() as AdmissionFeeConfig;
+          saveFallbackItem('local_admission_fee_config', cloudConfig);
+          return cloudConfig;
+        }
+      } catch (e) {
+        console.warn("Falling back to local admission fee configuration", e);
+      }
+    }
+    const local = handleFallbackItem<AdmissionFeeConfig>('local_admission_fee_config', INITIAL_ADMISSION_FEE_CONFIG);
+    return local || INITIAL_ADMISSION_FEE_CONFIG;
+  },
+
+  async updateAdmissionFeeConfig(
+    newFee: number, 
+    admin: { name: string; username: string; uid?: string }, 
+    reason?: string
+  ): Promise<AdmissionFeeConfig> {
+    const currentConfig = await this.getAdmissionFeeConfig();
+    const previousFee = currentConfig.currentFee || 2500;
+    const nowISO = new Date().toISOString();
+
+    const historyItem: AdmissionFeeHistoryItem = {
+      id: 'afh_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      previousFee,
+      newFee,
+      changedAt: nowISO,
+      adminName: admin.name || 'System Administrator',
+      adminUsername: admin.username || 'GA00000000',
+      adminUid: admin.uid,
+      reason: reason?.trim() || 'Administrative fee adjustment'
+    };
+
+    const updatedConfig: AdmissionFeeConfig = {
+      currentFee: newFee,
+      currency: currentConfig.currency || 'LKR',
+      lastUpdated: nowISO,
+      lastUpdatedBy: admin.name || 'Administrator',
+      lastUpdatedUsername: admin.username || 'GA00000000',
+      history: [historyItem, ...(currentConfig.history || [])]
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'settings', 'admission_fee'), updatedConfig, { merge: true });
+      } catch (e) {
+        console.warn("Failed saving admission fee configuration online. Saved to local storage.", e);
+      }
+    }
+
+    saveFallbackItem('local_admission_fee_config', updatedConfig);
+
+    // Record system audit log
+    try {
+      await this.addAuditLog({
+        username: admin.username || admin.name || 'Administrator',
+        action: 'ADMISSION_FEE_UPDATED',
+        details: `Admission fee changed from LKR ${previousFee} to LKR ${newFee} by ${admin.name} (${admin.username}). Reason: ${reason || 'N/A'}`
+      });
+    } catch (_) {}
+
+    return updatedConfig;
+  },
+
+  subscribeAdmissionFeeConfig(callback: (config: AdmissionFeeConfig) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(doc(db, 'settings', 'admission_fee'), (snap) => {
+          if (snap.exists()) {
+            const data = snap.data() as AdmissionFeeConfig;
+            saveFallbackItem('local_admission_fee_config', data);
+            callback(data);
+          } else {
+            callback(handleFallbackItem<AdmissionFeeConfig>('local_admission_fee_config', INITIAL_ADMISSION_FEE_CONFIG));
+          }
+        }, (err) => {
+          console.warn("Snapshot error on admission fee config:", err);
+          this.getAdmissionFeeConfig().then(callback);
+        });
+      } catch (e) {
+        console.warn("Error setting up snapshot for admission fee config", e);
+      }
+    }
+
+    this.getAdmissionFeeConfig().then(callback);
+    return () => {};
   }
 };
+
 
 export const firestoreService = new Proxy(firestoreServiceRaw, {
   get(target: any, prop: string | symbol, receiver: any) {

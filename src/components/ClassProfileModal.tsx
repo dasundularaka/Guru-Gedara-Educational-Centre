@@ -46,6 +46,7 @@ import { binaryStore } from '../lib/binaryStore';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { StudentProfileModal } from './StudentProfileModal';
 import { AddStudentToClassModal } from './AddStudentToClassModal';
+import { ResourceEmbedViewerModal } from './ResourceEmbedViewerModal';
 import { checkClassAvailability, getTutorAvailabilitySummary, checkTutorAvailability } from '../utils/tutorAvailability';
 import { canUserViewStudyResource, canUserManageStudyResource } from '../utils/accessControl';
 import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
@@ -111,6 +112,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [selectedMaterialForEmbed, setSelectedMaterialForEmbed] = useState<StudyMaterial | null>(null);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -1246,18 +1248,38 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                                   )
                                 )}
                               </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">{mat.description || 'Class study resource'}</p>
-                              <button 
-                                type="button"
-                                onClick={() => {
-                                  recordMaterialAccess(mat.id, currentUser);
-                                  binaryStore.openOrDownload(mat);
-                                }}
-                                className="text-[10px] font-mono text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 mt-1 cursor-pointer font-bold"
-                              >
-                                {mat.storagePath || mat.fileName ? <Download className="w-3 h-3" /> : <LinkIcon className="w-3 h-3" />}
-                                <span>{mat.fileName || (mat.referenceUrl.startsWith('indexeddb://') ? 'Download Stored Document' : mat.referenceUrl)}</span>
-                              </button>
+                              <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm sm:max-w-md line-clamp-2">{mat.description || 'Class study resource'}</p>
+                              
+                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                {/* Prominent View Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    recordMaterialAccess(mat.id, currentUser);
+                                    setSelectedMaterialForEmbed(mat);
+                                  }}
+                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+                                  title="View and embed resource in academy viewer"
+                                  id={`btn_view_resource_embed_${mat.id}`}
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View</span>
+                                </button>
+
+                                {/* Download or Open Secondary Button */}
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    recordMaterialAccess(mat.id, currentUser);
+                                    binaryStore.openOrDownload(mat);
+                                  }}
+                                  className="text-[10px] font-mono text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 px-2 py-1 rounded-lg border border-slate-200 transition-colors flex items-center gap-1 cursor-pointer font-bold max-w-[200px] sm:max-w-xs truncate"
+                                  title={mat.fileName || mat.referenceUrl}
+                                >
+                                  {mat.storagePath || mat.fileName ? <Download className="w-3 h-3 text-emerald-600 shrink-0" /> : <LinkIcon className="w-3 h-3 text-indigo-500 shrink-0" />}
+                                  <span className="truncate">{mat.fileName || (mat.referenceUrl?.startsWith('indexeddb://') ? 'Download Document' : mat.referenceUrl?.replace(/^https?:\/\/(www\.)?/, ''))}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
 
@@ -1541,6 +1563,15 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             if (onUpdateData) onUpdateData();
           }}
           showToast={showToast}
+        />
+      )}
+
+      {/* Resource Embed Viewer Modal */}
+      {selectedMaterialForEmbed && (
+        <ResourceEmbedViewerModal
+          isOpen={!!selectedMaterialForEmbed}
+          onClose={() => setSelectedMaterialForEmbed(null)}
+          material={selectedMaterialForEmbed}
         />
       )}
     </AnimatePresence>

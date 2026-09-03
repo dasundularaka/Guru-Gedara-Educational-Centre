@@ -442,3 +442,24 @@ export interface ToastItem {
   createdAt: number;
   tag?: string;
 }
+
+export interface AdmissionFeeHistoryItem {
+  id: string;
+  previousFee: number;
+  newFee: number;
+  changedAt: string; // ISO String
+  adminName: string;
+  adminUsername: string;
+  adminUid?: string;
+  reason?: string;
+}
+
+export interface AdmissionFeeConfig {
+  currentFee: number;
+  currency: string;
+  lastUpdated: string;
+  lastUpdatedBy: string;
+  lastUpdatedUsername: string;
+  history: AdmissionFeeHistoryItem[];
+}
+

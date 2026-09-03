@@ -5,6 +5,7 @@ import { ClassItem, UserProfile, BannerImage, Review } from '../types';
 import { ClassCard } from '../components/ClassCard';
 import { TutorCard } from '../components/TutorCard';
 import { SmoothCarousel } from '../components/SmoothCarousel';
+import { EducationalNewsWidget } from '../components/EducationalNewsWidget';
 import { 
   Sparkles, 
   GraduationCap, 
@@ -537,6 +538,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
               </div>
             }
           />
+        </div>
+      </div>
+
+      {/* 4.5 REAL-TIME EDUCATIONAL NEWS & SEARCH-GROUNDED ACADEMIC BRIEFINGS */}
+      <div className="py-6 sm:py-10 bg-slate-50/50 border-t border-slate-200/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <EducationalNewsWidget />
         </div>
       </div>
 

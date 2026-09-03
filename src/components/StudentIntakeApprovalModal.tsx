@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { UserProfile, ClassItem } from '../types';
-import { firestoreService } from '../lib/firestoreService';
+import React, { useState, useMemo, useEffect } from 'react';
+import { UserProfile, ClassItem, AdmissionFeeConfig, AdmissionFeeHistoryItem } from '../types';
+import { firestoreService, INITIAL_ADMISSION_FEE_CONFIG } from '../lib/firestoreService';
+import { useApp } from '../context/AppContext';
 import { 
   X, 
   CheckCircle2, 
@@ -19,7 +20,18 @@ import {
   Square,
   Lock,
   Layers,
-  GraduationCap
+  GraduationCap,
+  History,
+  Settings2,
+  RefreshCw,
+  Banknote,
+  Building2,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  TrendingUp,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -40,9 +52,17 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
   onApproveSuccess,
   showToast
 }) => {
-  if (!isOpen || !student) return null;
+  const { currentUser } = useApp();
 
-  // Admission Fee States
+  // Admission Fee Global Config & Audit History
+  const [feeConfig, setFeeConfig] = useState<AdmissionFeeConfig>(INITIAL_ADMISSION_FEE_CONFIG);
+  const [showFeeHistory, setShowFeeHistory] = useState(false);
+  const [showEditFeeModal, setShowEditFeeModal] = useState(false);
+  const [newFeeValue, setNewFeeValue] = useState<number>(2500);
+  const [feeChangeReason, setFeeChangeReason] = useState<string>('');
+  const [isUpdatingGlobalFee, setIsUpdatingGlobalFee] = useState(false);
+
+  // Admission Payment States
   const [admissionFeeConfirmed, setAdmissionFeeConfirmed] = useState(false);
   const [admissionFeeAmount, setAdmissionFeeAmount] = useState<number>(2500);
   const [admissionPaymentMethod, setAdmissionPaymentMethod] = useState<string>('Cash at Academy Counter');
@@ -54,8 +74,57 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
   const [classSearch, setClassSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch / Subscribe admission fee config
+  useEffect(() => {
+    let unsubscribe = () => {};
+    if (isOpen) {
+      firestoreService.getAdmissionFeeConfig().then(cfg => {
+        setFeeConfig(cfg);
+        setAdmissionFeeAmount(cfg.currentFee || 2500);
+        setNewFeeValue(cfg.currentFee || 2500);
+      });
+      unsubscribe = firestoreService.subscribeAdmissionFeeConfig((cfg) => {
+        setFeeConfig(cfg);
+      });
+    }
+    return () => unsubscribe();
+  }, [isOpen]);
+
+  // Handle Global Fee Adjustment
+  const handleUpdateGlobalFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (newFeeValue < 0 || isNaN(newFeeValue)) {
+      showToast("Please provide a valid non-negative fee amount.", "error");
+      return;
+    }
+
+    setIsUpdatingGlobalFee(true);
+    try {
+      const updated = await firestoreService.updateAdmissionFeeConfig(
+        newFeeValue,
+        {
+          name: currentUser.name || 'Administrator',
+          username: currentUser.username || 'GA00000000',
+          uid: currentUser.uid
+        },
+        feeChangeReason.trim() || 'General intake revision'
+      );
+      setFeeConfig(updated);
+      setAdmissionFeeAmount(newFeeValue);
+      setShowEditFeeModal(false);
+      setFeeChangeReason('');
+      showToast(`Global admission fee updated to LKR ${newFeeValue.toLocaleString()} with audit record logged.`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to update global admission fee.", "error");
+    } finally {
+      setIsUpdatingGlobalFee(false);
+    }
+  };
+
   // Student's requested preferred subjects
   const preferredSubjects = useMemo(() => {
+    if (!student) return [];
     if (student.preferredSubjects && student.preferredSubjects.length > 0) {
       return student.preferredSubjects;
     }
@@ -101,6 +170,8 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
   };
 
   const handleApprove = async () => {
+    if (!student) return;
+
     // 1. Mandatory Admission Fee Validation
     if (!admissionFeeConfirmed) {
       showToast("Cannot approve submission: Admission fee payment confirmation is mandatory.", "error");
@@ -206,6 +277,8 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
     }
   };
 
+  if (!isOpen || !student) return null;
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
@@ -296,33 +369,115 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
               )}
             </div>
 
-            {/* 3. Mandatory Admission Fee Confirmation */}
-            <div className={`p-4 rounded-2xl border transition-all ${
+            {/* 3. Modernized Admission Fee Confirmation & System Rate Management */}
+            <div className={`p-5 rounded-3xl border transition-all shadow-xs ${
               admissionFeeConfirmed 
-                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800' 
-                : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/80'
+                ? 'bg-gradient-to-br from-emerald-500/10 via-white to-emerald-500/5 dark:from-emerald-950/30 dark:via-slate-900 dark:to-emerald-950/10 border-emerald-300 dark:border-emerald-700/60 ring-2 ring-emerald-500/20' 
+                : 'bg-white dark:bg-slate-850 border-slate-200/90 dark:border-slate-750'
             }`}>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <DollarSign className={`w-4 h-4 ${admissionFeeConfirmed ? 'text-emerald-600' : 'text-rose-600'}`} />
-                  <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                    1. Mandatory Admission Fee Confirmation
-                  </h4>
+              
+              {/* Header Bar with Global Fee Config Buttons */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3.5 border-b border-slate-150 dark:border-slate-750">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    admissionFeeConfirmed 
+                      ? 'bg-emerald-600 text-white shadow-xs' 
+                      : 'bg-indigo-150 text-indigo-750 dark:bg-indigo-950 dark:text-indigo-350'
+                  }`}>
+                    <Banknote className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      1. Admission Fee Verification
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                      System Rate: <strong className="text-indigo-600 dark:text-indigo-400">LKR {feeConfig.currentFee.toLocaleString()}</strong> (Updated by {feeConfig.lastUpdatedBy || 'Admin'})
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-rose-600 dark:text-rose-400">Required for Approval</span>
+
+                <div className="flex items-center gap-1.5 self-start sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditFeeModal(true)}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border border-indigo-200/70 dark:border-indigo-800"
+                    title="Change academy-wide standard admission fee"
+                  >
+                    <Settings2 className="w-3 h-3" /> Change Standard Fee
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFeeHistory(!showFeeHistory)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                    title="View admission fee update history and audit trail"
+                  >
+                    <History className="w-3 h-3 text-amber-500" />
+                    <span>Audit History ({feeConfig.history?.length || 0})</span>
+                    {showFeeHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-xs">
+              {/* Fee History Drawer (Collapsible) */}
+              {showFeeHistory && (
+                <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900/90 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800">
+                    <span className="font-bold text-[11px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-indigo-500" /> Admission Fee Change Audit Trail
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">Real-time System Logs</span>
+                  </div>
+
+                  {(!feeConfig.history || feeConfig.history.length === 0) ? (
+                    <p className="text-[10px] text-slate-400 italic py-2 text-center">No fee changes logged yet. Current default is LKR {feeConfig.currentFee.toLocaleString()}.</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {feeConfig.history.map((h, idx) => (
+                        <div key={h.id || idx} className="p-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-150 dark:border-slate-750 flex items-center justify-between gap-2 text-[10px]">
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                              <span>LKR {h.previousFee?.toLocaleString() || 2500}</span>
+                              <ArrowRight className="w-3 h-3 text-indigo-500" />
+                              <span className="text-emerald-600 font-extrabold">LKR {h.newFee?.toLocaleString()}</span>
+                            </div>
+                            <p className="text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                              By <strong className="text-slate-700 dark:text-slate-300">{h.adminName}</strong> ({h.adminUsername || 'Admin'})
+                            </p>
+                            {h.reason && <p className="text-slate-600 dark:text-slate-300 italic mt-0.5">"{h.reason}"</p>}
+                          </div>
+                          <span className="text-slate-400 font-mono text-[9px] shrink-0">
+                            {new Date(h.changedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Payment Details Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3.5 text-xs">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                     Admission Fee (LKR)
                   </label>
-                  <input
-                    type="number"
-                    value={admissionFeeAmount}
-                    onChange={(e) => setAdmissionFeeAmount(Math.max(0, Number(e.target.value)))}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={admissionFeeAmount}
+                      onChange={(e) => setAdmissionFeeAmount(Math.max(0, Number(e.target.value)))}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAdmissionFeeAmount(feeConfig.currentFee || 2500)}
+                      className="absolute right-2 top-2 text-[9px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 dark:bg-indigo-950 px-1.5 py-0.5 rounded cursor-pointer"
+                      title="Reset to current official academy rate"
+                    >
+                      Default
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -332,7 +487,7 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
                   <select
                     value={admissionPaymentMethod}
                     onChange={(e) => setAdmissionPaymentMethod(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 cursor-pointer"
                   >
                     <option value="Cash at Academy Counter">Cash at Academy Counter</option>
                     <option value="Bank Transfer Slip">Bank Transfer Slip</option>
@@ -345,36 +500,55 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
                     Receipt / Transaction Ref
                   </label>
-                  <input
-                    type="text"
-                    value={admissionReceiptRef}
-                    onChange={(e) => setAdmissionReceiptRef(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={admissionReceiptRef}
+                      onChange={(e) => setAdmissionReceiptRef(e.target.value)}
+                      className="w-full px-3 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAdmissionReceiptRef(`ADM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`)}
+                      className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                      title="Generate new receipt reference"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Checkbox Trigger */}
+              {/* Modern Payment Verification Checkbox */}
               <div 
                 onClick={() => setAdmissionFeeConfirmed(!admissionFeeConfirmed)}
-                className={`mt-3.5 p-3 rounded-xl border flex items-center gap-3 cursor-pointer select-none transition-all ${
+                className={`mt-4 p-3.5 rounded-2xl border flex items-center gap-3.5 cursor-pointer select-none transition-all ${
                   admissionFeeConfirmed 
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-slate-400 text-slate-800 dark:text-slate-200'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20' 
+                    : 'bg-slate-50 dark:bg-slate-900/90 border-slate-200 dark:border-slate-750 hover:border-indigo-400 text-slate-800 dark:text-slate-200'
                 }`}
                 id="checkbox_confirm_admission_fee"
               >
-                {admissionFeeConfirmed ? (
-                  <CheckSquare className="w-5 h-5 text-white shrink-0" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-400 shrink-0" />
-                )}
-                <div className="text-xs">
-                  <span className="font-black">
-                    I confirm that the Admission Fee of LKR {admissionFeeAmount.toLocaleString()} has been collected and verified.
-                  </span>
-                  <p className={`text-[10px] mt-0.5 ${admissionFeeConfirmed ? 'text-emerald-100' : 'text-slate-500'}`}>
-                    Approval cannot proceed without confirming physical or digital payment receipt.
+                <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                  admissionFeeConfirmed 
+                    ? 'bg-white text-emerald-600' 
+                    : 'border-2 border-slate-400 dark:border-slate-600 text-transparent'
+                }`}>
+                  <Check className="w-4 h-4 stroke-[3]" />
+                </div>
+                <div className="text-xs flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-xs">
+                      Verify & Confirm Admission Fee Collection (LKR {admissionFeeAmount.toLocaleString()})
+                    </span>
+                    <span className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold uppercase ${
+                      admissionFeeConfirmed ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                    }`}>
+                      {admissionFeeConfirmed ? 'Verified & Paid' : 'Pending Verification'}
+                    </span>
+                  </div>
+                  <p className={`text-[10.5px] mt-0.5 leading-tight ${admissionFeeConfirmed ? 'text-emerald-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                    Payment Method: <strong className={admissionFeeConfirmed ? 'text-white' : 'text-slate-700 dark:text-slate-300'}>{admissionPaymentMethod}</strong> • Ref: <span className="font-mono">{admissionReceiptRef}</span>
                   </p>
                 </div>
               </div>
@@ -491,7 +665,7 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
             </div>
 
             {/* Total Financial Summary Banner */}
-            <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow-lg">
               <div>
                 <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block">Total Financial Settlement</span>
                 <span className="text-xs text-slate-300 font-medium">
@@ -534,7 +708,100 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
             </button>
           </div>
         </motion.div>
+
+        {/* Modal: Adjust Global Academy Admission Fee */}
+        {showEditFeeModal && (
+          <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-5 space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Settings2 className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Adjust Global Admission Fee</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditFeeModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateGlobalFee} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Current Standard Fee (LKR)
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={`LKR ${feeConfig.currentFee.toLocaleString()}`}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl font-mono text-xs font-bold text-slate-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    New Standard Fee (LKR) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    required
+                    value={newFeeValue}
+                    onChange={(e) => setNewFeeValue(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs font-black text-indigo-650 outline-none focus:border-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Reason / Remarks for Change *
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={feeChangeReason}
+                    onChange={(e) => setFeeChangeReason(e.target.value)}
+                    placeholder="e.g. 2026 Academic intake rate adjustment approved by administration"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-600"
+                  />
+                </div>
+
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200/80 dark:border-amber-900 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                  <History className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <div>
+                    This change will be permanently logged in the audit history with your admin name (<strong>{currentUser?.name}</strong>), username (<strong>{currentUser?.username || 'GA00000000'}</strong>), and timestamp.
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditFeeModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingGlobalFee}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition-all shadow-sm"
+                  >
+                    {isUpdatingGlobalFee ? "Updating..." : "Save & Log Change"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
       </div>
     </AnimatePresence>
   );
 };
+

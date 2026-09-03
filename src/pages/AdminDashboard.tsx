@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
-import { firestoreService, formatNameAsUid } from '../lib/firestoreService';
+import { firestoreService, formatNameAsUid, INITIAL_ADMISSION_FEE_CONFIG } from '../lib/firestoreService';
 import { optimizeImage } from '../lib/imageOptimizer';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord } from '../types';
+import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord, AdmissionFeeConfig, AdmissionFeeHistoryItem } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
@@ -68,6 +68,7 @@ import {
   Bookmark,
   GraduationCap,
   Calculator,
+  History,
   Atom,
   FolderPlus,
   Tag,
@@ -532,6 +533,14 @@ export const AdminDashboard: React.FC = () => {
   const [selectedClassForRoster, setSelectedClassForRoster] = useState<ClassItem | null>(null);
   const [previewPaymentSlipStudent, setPreviewPaymentSlipStudent] = useState<UserProfile | null>(null);
 
+  // Admission Fee Global Config & Audit History
+  const [adminFeeConfig, setAdminFeeConfig] = useState<AdmissionFeeConfig>(INITIAL_ADMISSION_FEE_CONFIG);
+  const [showAdminFeeEditModal, setShowAdminFeeEditModal] = useState(false);
+  const [newAdminFeeAmount, setNewAdminFeeAmount] = useState<number>(2500);
+  const [adminFeeChangeReason, setAdminFeeChangeReason] = useState<string>('');
+  const [isUpdatingAdminFee, setIsUpdatingAdminFee] = useState(false);
+  const [showAdmissionAuditDrawer, setShowAdmissionAuditDrawer] = useState(false);
+
   // Tutor Validation & Visual Loading State
   interface TutorValidationError {
     field: string;
@@ -904,6 +913,14 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchAdminDatasets();
+    firestoreService.getAdmissionFeeConfig().then(cfg => {
+      setAdminFeeConfig(cfg);
+      setNewAdminFeeAmount(cfg.currentFee || 2500);
+    });
+    const unsubAdmissionFee = firestoreService.subscribeAdmissionFeeConfig((cfg) => {
+      setAdminFeeConfig(cfg);
+    });
+
     const unsubBanners = firestoreService.subscribeBanners((banners) => {
       setBannersList(banners);
     });
@@ -920,12 +937,43 @@ export const AdminDashboard: React.FC = () => {
     window.addEventListener('open-mobile-sections', handleOpenSectionsEvent);
 
     return () => {
+      unsubAdmissionFee();
       unsubBanners();
       unsubPathways();
       unsubSubjects();
       window.removeEventListener('open-mobile-sections', handleOpenSectionsEvent);
     };
   }, []);
+
+  const handleUpdateAdminAdmissionFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (newAdminFeeAmount < 0 || isNaN(newAdminFeeAmount)) {
+      showToast("Please provide a valid non-negative fee amount.", "error");
+      return;
+    }
+
+    setIsUpdatingAdminFee(true);
+    try {
+      const updated = await firestoreService.updateAdmissionFeeConfig(
+        newAdminFeeAmount,
+        {
+          name: currentUser.name || 'Administrator',
+          username: currentUser.username || 'GA00000000',
+          uid: currentUser.uid
+        },
+        adminFeeChangeReason.trim() || 'Official academy standard rate update'
+      );
+      setAdminFeeConfig(updated);
+      setShowAdminFeeEditModal(false);
+      setAdminFeeChangeReason('');
+      showToast(`Admission fee updated to LKR ${newAdminFeeAmount.toLocaleString()} with audit record logged.`, "success");
+    } catch (err: any) {
+      showToast("Failed to update admission fee: " + err.message, "error");
+    } finally {
+      setIsUpdatingAdminFee(false);
+    }
+  };
 
   const handleUpdatePaymentStatus = async (paymentId: string, status: 'paid' | 'failed' | 'pending') => {
     try {
@@ -2526,8 +2574,100 @@ export const AdminDashboard: React.FC = () => {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6 space-y-4"
+                className="space-y-5"
               >
+                {/* 1. Global Academy Standard Admission Fee & Audit Logs Card */}
+                <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 border border-indigo-800/60 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 -mt-8 -mr-8 w-44 h-44 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold font-mono uppercase tracking-wider">
+                          Official Academy Policy
+                        </span>
+                        <span className="text-[11px] text-slate-300 font-mono">
+                          Last changed by: <strong className="text-white">{adminFeeConfig.lastUpdatedBy || 'System Admin'}</strong>
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-white flex items-center gap-2 pt-0.5">
+                        <DollarSign className="w-5 h-5 text-amber-400" />
+                        Standard Admission Fee: <span className="font-mono text-amber-300 font-black">LKR {adminFeeConfig.currentFee?.toLocaleString() || 2500}</span>
+                      </h3>
+                      <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                        This fee is automatically applied during student intake approvals. All modifications are strictly audited with timestamp, admin details, and reasons.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewAdminFeeAmount(adminFeeConfig.currentFee || 2500);
+                          setShowAdminFeeEditModal(true);
+                        }}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                        id="admin_btn_change_admission_fee"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        <span>Change Admission Fee</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowAdmissionAuditDrawer(!showAdmissionAuditDrawer)}
+                        className="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-750 text-white text-xs font-bold rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+                        id="admin_btn_toggle_admission_history"
+                      >
+                        <History className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Audit Logs ({adminFeeConfig.history?.length || 0})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Audit History Dropdown Panel */}
+                  {showAdmissionAuditDrawer && (
+                    <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-2">
+                      <div className="flex items-center justify-between text-xs pb-1">
+                        <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                          <History className="w-4 h-4 text-indigo-400" /> Admission Fee Modification History
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">Immutable Audit Trail</span>
+                      </div>
+
+                      {(!adminFeeConfig.history || adminFeeConfig.history.length === 0) ? (
+                        <p className="text-xs text-slate-400 italic py-2">No historical adjustments recorded yet. Current rate: LKR {adminFeeConfig.currentFee.toLocaleString()}</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                          {adminFeeConfig.history.map((item, idx) => (
+                            <div key={item.id || idx} className="p-3 bg-slate-950/70 rounded-2xl border border-slate-800 text-xs space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono font-bold text-slate-400">
+                                  LKR {item.previousFee?.toLocaleString() || 2500}
+                                </span>
+                                <span className="text-slate-500">→</span>
+                                <span className="font-mono font-black text-amber-400">
+                                  LKR {item.newFee?.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="text-[10.5px] text-slate-300 font-mono">
+                                Admin: <strong className="text-white">{item.adminName}</strong> ({item.adminUsername || 'Admin'})
+                              </div>
+                              {item.reason && (
+                                <p className="text-[10px] text-slate-400 italic">"{item.reason}"</p>
+                              )}
+                              <div className="text-[9.5px] text-slate-400 font-mono pt-0.5 border-t border-slate-850">
+                                {new Date(item.changedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-6 space-y-4">
                 
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
                   <div>
@@ -2678,6 +2818,7 @@ export const AdminDashboard: React.FC = () => {
                       )}
                     </tbody>
                   </table>
+                </div>
                 </div>
 
               </motion.div>
@@ -3600,33 +3741,33 @@ export const AdminDashboard: React.FC = () => {
                         className="p-4 border border-gray-100 rounded-xl bg-gray-50/20 text-xs space-y-2.5 transition-all hover:border-blue-300 hover:shadow-xs flex justify-between gap-3 items-start cursor-pointer group relative"
                       >
                         <div className="flex-1 space-y-1.5">
-                          <div className="flex justify-between items-start gap-2">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase font-mono tracking-wider">{c.subject}</span>
-                            <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap sm:flex-nowrap justify-between items-start gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase font-mono tracking-wider shrink-0">{c.subject}</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedClassForAddStudent(c);
                                   setShowAddStudentModal(true);
                                 }}
-                                className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-emerald-400/30 flex items-center gap-1 text-[10px] font-bold"
+                                className="p-1.5 sm:px-2 sm:py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-emerald-400/30 flex items-center gap-1 text-[10px] font-bold"
                                 title="Add / Enroll student into this class"
                                 id={`admin_btn_add_student_to_class_${c.id}`}
                               >
-                                <UserPlus className="w-3.5 h-3.5" />
-                                <span>Add Student</span>
+                                <UserPlus className="w-3.5 h-3.5 shrink-0" />
+                                <span className="hidden sm:inline">Add Student</span>
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedClassForRoster(c);
                                 }}
-                                className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-slate-700/50 flex items-center gap-1 text-[10px] font-bold"
+                                className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-slate-700/50 flex items-center gap-1 text-[10px] font-bold"
                                 title="Manage Student Class Roster"
                                 id={`admin_btn_class_roster_${c.id}`}
                               >
-                                <Users className="w-3.5 h-3.5 text-indigo-400" />
-                                <span>Roster</span>
+                                <Users className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                <span className="hidden sm:inline">Roster</span>
                               </button>
                               <button
                                 onClick={(e) => {
@@ -3634,14 +3775,14 @@ export const AdminDashboard: React.FC = () => {
                                   setSelectedClassForScanner(c);
                                   setShowClassScannerModal(true);
                                 }}
-                                className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-indigo-400/30 flex items-center gap-1 text-[10px] font-bold"
+                                className="p-1.5 sm:px-2 sm:py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all cursor-pointer shadow-xs border border-indigo-400/30 flex items-center gap-1 text-[10px] font-bold"
                                 title="Open QR Attendance Scanner for this class"
                                 id={`btn_scan_qr_admin_item_${c.id}`}
                               >
-                                <QrCode className="w-3.5 h-3.5" />
-                                <span>Scan QR</span>
+                                <QrCode className="w-3.5 h-3.5 shrink-0" />
+                                <span className="hidden sm:inline">Scan QR</span>
                               </button>
-                              <span className="font-mono text-blue-700 font-extrabold text-sm">LKR {c.price}/Mo</span>
+                              <span className="font-mono text-blue-700 font-extrabold text-xs sm:text-sm shrink-0">LKR {c.price}/Mo</span>
                             </div>
                           </div>
 
@@ -6201,6 +6342,101 @@ export const AdminDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Global Academy Admission Fee Adjustment Modal */}
+      {showAdminFeeEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">Adjust Standard Admission Fee</h4>
+                  <p className="text-[10px] text-slate-400">Updates system-wide intake baseline rate</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdminFeeEditModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateAdminAdmissionFee} className="space-y-4">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Current Standard Fee:</span>
+                <span className="font-mono font-bold text-slate-800">LKR {adminFeeConfig.currentFee?.toLocaleString() || 2500}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  New Admission Fee Amount (LKR)
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-xs font-mono font-bold text-slate-400">LKR</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    required
+                    value={newAdminFeeAmount}
+                    onChange={(e) => setNewAdminFeeAmount(Number(e.target.value))}
+                    className="w-full pl-12 pr-4 py-2 text-sm font-mono font-black text-slate-900 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white"
+                    placeholder="2500"
+                    id="admin_input_new_admission_fee"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Reason for Revision (Mandatory Audit Log Note)
+                </label>
+                <textarea
+                  rows={2}
+                  required
+                  value={adminFeeChangeReason}
+                  onChange={(e) => setAdminFeeChangeReason(e.target.value)}
+                  className="w-full p-2.5 text-xs text-slate-900 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 focus:bg-white"
+                  placeholder="e.g., Annual curriculum policy update for upcoming intake term..."
+                  id="admin_input_admission_fee_reason"
+                />
+              </div>
+
+              <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 space-y-1">
+                <div className="font-bold flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                  Audit Compliance Logging
+                </div>
+                <p className="text-[10px] text-amber-700">
+                  This transaction will be immutably recorded with your administrator identity ({currentUser?.name || 'Admin'} - {currentUser?.username || 'GA00000000'}) and timestamp.
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminFeeEditModal(false)}
+                  className="w-1/2 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingAdminFee}
+                  className="w-1/2 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  id="admin_btn_save_admission_fee"
+                >
+                  {isUpdatingAdminFee ? 'Saving...' : 'Save & Publish'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
