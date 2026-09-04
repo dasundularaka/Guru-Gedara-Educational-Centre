@@ -463,3 +463,24 @@ export interface AdmissionFeeConfig {
   history: AdmissionFeeHistoryItem[];
 }
 
+export type AnnouncementPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type AnnouncementTargetType = 'all' | 'tutors_only' | 'all_students' | 'classes';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  targetType: AnnouncementTargetType;
+  targetClassIds?: string[];
+  targetClassTitles?: string[];
+  category?: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  isPinned?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  readByUserIds?: string[];
+}
+

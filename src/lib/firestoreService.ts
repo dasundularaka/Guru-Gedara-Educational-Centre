@@ -20,7 +20,7 @@ import { db, auth, storage, firebaseConfig } from './firebase';
 import { binaryStore } from './binaryStore';
 import { optimizeImage } from './imageOptimizer';
 import { emailNotificationService } from './emailNotificationService';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -28,7 +28,8 @@ import {
   INITIAL_PAYMENTS, 
   INITIAL_NOTIFICATIONS,
   INITIAL_MESSAGES,
-  INITIAL_REVIEWS
+  INITIAL_REVIEWS,
+  INITIAL_ANNOUNCEMENTS
 } from '../data/mockData';
 
 export const INITIAL_ADMISSION_FEE_CONFIG: AdmissionFeeConfig = {
@@ -3825,6 +3826,217 @@ const firestoreServiceRaw = {
     }
 
     this.getAdmissionFeeConfig().then(callback);
+    return () => {};
+  },
+
+  // -------------------------------------------------------------
+  // ACADEMY ANNOUNCEMENTS & BROADCAST BULLETINS
+  // -------------------------------------------------------------
+  async getAnnouncements(): Promise<Announcement[]> {
+    const SEED_ANNOUNCEMENTS: Announcement[] = [
+      {
+        id: "ann_midterm_schedule",
+        title: "Mid-Term Academic Recess & Holiday Class Schedule",
+        content: "Please note that standard in-person classes will remain suspended for the upcoming holiday weekend from Friday through Monday. Online revision seminars will proceed as scheduled via the virtual classroom portal. Check your subject dashboard for updated links.",
+        priority: "high",
+        targetType: "all",
+        category: "Academic Calendar",
+        authorId: "admin",
+        authorName: "Principal Academic Office",
+        authorRole: "admin",
+        isPinned: true,
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
+      },
+      {
+        id: "ann_faculty_assessment",
+        title: "Faculty Briefing: Term Assessment Submissions & Moderation",
+        content: "All tutors are requested to finalize and upload term assessment rubrics and student progress marks by Sunday 6:00 PM. Please ensure attendance logs for the current cycle are verified in the faculty portal.",
+        priority: "urgent",
+        targetType: "tutors_only",
+        category: "Faculty Operations",
+        authorId: "admin",
+        authorName: "Director of Studies",
+        authorRole: "admin",
+        isPinned: false,
+        createdAt: new Date(Date.now() - 86400000).toISOString()
+      },
+      {
+        id: "ann_exam_revision_portal",
+        title: "2026 Advanced Level Model Paper Series Released",
+        content: "Topical revision modules, model exam papers, and marked marking schemes have been published on the student portal. Registered students are encouraged to review these before the forthcoming mock evaluations.",
+        priority: "normal",
+        targetType: "all_students",
+        category: "Exams & Tests",
+        authorId: "admin",
+        authorName: "Academic Registrar",
+        authorRole: "admin",
+        isPinned: false,
+        createdAt: new Date(Date.now() - 86400000 * 3).toISOString()
+      }
+    ];
+
+    if (isUsingCloud) {
+      try {
+        const snap = await getDocs(collection(db, 'announcements'));
+        if (!snap.empty) {
+          const items: Announcement[] = [];
+          snap.forEach(docSnap => {
+            items.push({ id: docSnap.id, ...docSnap.data() } as Announcement);
+          });
+          // Sort pinned first, then newest
+          items.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+          saveFallback('local_announcements', items);
+          return items;
+        }
+      } catch (e) {
+        console.warn("Could not fetch cloud announcements, falling back to local storage:", e);
+      }
+    }
+
+    const local = handleFallback<Announcement>('local_announcements', SEED_ANNOUNCEMENTS);
+    local.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+    return local;
+  },
+
+  async createAnnouncement(data: Omit<Announcement, 'id' | 'createdAt'>): Promise<Announcement> {
+    const id = "ann_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+    const newAnnouncement: Announcement = {
+      ...data,
+      id,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'announcements', id), newAnnouncement);
+      } catch (e) {
+        console.warn("Failed saving announcement to cloud, saving locally:", e);
+      }
+    }
+
+    const currentList = handleFallback<Announcement>('local_announcements', []);
+    const updatedList = [newAnnouncement, ...currentList.filter(a => a.id !== id)];
+    saveFallback('local_announcements', updatedList);
+
+    // Explicit mandate: "Notifications and announcements are not same. If a user have a new announcement, send a notification informing as You have new announcement."
+    try {
+      const allUsers = await this.getAllUsers();
+      let recipientUids = new Set<string>();
+
+      if (newAnnouncement.targetType === 'all') {
+        allUsers.forEach(u => recipientUids.add(u.uid));
+      } else if (newAnnouncement.targetType === 'all_students') {
+        allUsers.filter(u => u.role === 'student').forEach(u => recipientUids.add(u.uid));
+      } else if (newAnnouncement.targetType === 'tutors_only') {
+        allUsers.filter(u => u.role === 'tutor').forEach(u => recipientUids.add(u.uid));
+      } else if (newAnnouncement.targetType === 'classes') {
+        const targetClassIds = newAnnouncement.targetClassIds || [];
+        // 1. Get students with active bookings for target classes
+        const allBookings = await this.getBookings();
+        allBookings.forEach(b => {
+          if (targetClassIds.includes(b.classId) && b.status === 'active') {
+            recipientUids.add(b.studentId);
+          }
+        });
+        // 2. Also check students who have selectedClasses in profile
+        allUsers.forEach(u => {
+          if (u.role === 'student' && u.selectedClasses?.some(cid => targetClassIds.includes(cid))) {
+            recipientUids.add(u.uid);
+          }
+        });
+        // 3. Include tutors assigned to those classes
+        const allClasses = await this.getClasses();
+        allClasses.forEach(c => {
+          if (targetClassIds.includes(c.id) && c.tutorId) {
+            recipientUids.add(c.tutorId);
+          }
+        });
+      }
+
+      // Dispatch "You have new announcement" notification to every recipient
+      const priorityLabel = newAnnouncement.priority.toUpperCase();
+      for (const targetUid of recipientUids) {
+        // Do not notify the author if they are admin, unless desired
+        await this.triggerNotification(
+          targetUid,
+          `You have new announcement`,
+          `"${newAnnouncement.title}" [${priorityLabel} Priority]. Open Announcements to read the notice.`,
+          'announcement'
+        );
+      }
+    } catch (notifErr) {
+      console.warn("Could not dispatch announcement notifications to recipients:", notifErr);
+    }
+
+    return newAnnouncement;
+  },
+
+  async updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<void> {
+    const timestampedUpdates = {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (isUsingCloud) {
+      try {
+        await updateDoc(doc(db, 'announcements', id), timestampedUpdates);
+      } catch (e) {
+        console.warn("Could not update cloud announcement:", e);
+      }
+    }
+
+    const currentList = handleFallback<Announcement>('local_announcements', []);
+    const updatedList = currentList.map(a => a.id === id ? { ...a, ...timestampedUpdates } : a);
+    saveFallback('local_announcements', updatedList);
+  },
+
+  async deleteAnnouncement(id: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'announcements', id));
+      } catch (e) {
+        console.warn("Could not delete cloud announcement:", e);
+      }
+    }
+
+    const currentList = handleFallback<Announcement>('local_announcements', []);
+    const updatedList = currentList.filter(a => a.id !== id);
+    saveFallback('local_announcements', updatedList);
+  },
+
+  subscribeAnnouncements(callback: (items: Announcement[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'announcements'), (snap) => {
+          const items: Announcement[] = [];
+          snap.forEach(docSnap => {
+            items.push({ id: docSnap.id, ...docSnap.data() } as Announcement);
+          });
+          items.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+          saveFallback('local_announcements', items);
+          callback(items);
+        }, (err) => {
+          console.warn("Announcements snapshot error:", err);
+          this.getAnnouncements().then(callback);
+        });
+      } catch (e) {
+        console.warn("Error setting up snapshot for announcements:", e);
+      }
+    }
+
+    this.getAnnouncements().then(callback);
     return () => {};
   }
 };

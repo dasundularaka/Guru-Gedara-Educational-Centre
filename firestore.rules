@@ -123,6 +123,12 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Academy Announcements & Official Notice Bulletins
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Direct Messaging & Conversations
     match /messages/{messageId} {
       allow read, write: if true;

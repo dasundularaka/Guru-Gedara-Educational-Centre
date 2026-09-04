@@ -5,6 +5,7 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { Home } from './pages/Home';
 import { Classes } from './pages/Classes';
 import { Tutors } from './pages/Tutors';
+import { Announcements } from './pages/Announcements';
 import { Auth } from './pages/Auth';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { TutorDashboard } from './pages/TutorDashboard';
@@ -281,6 +282,11 @@ function MainAppContent() {
             {currentTab === 'home' && (currentUser ? <DashboardRouter /> : <Home onNavigateTab={setCurrentTab} />)}
             {currentTab === 'classes' && <Classes onNavigateTab={setCurrentTab} />}
             {currentTab === 'tutors' && <Tutors />}
+            {currentTab === 'announcements' && (
+              currentUser 
+                ? <Announcements onNavigateTab={setCurrentTab} /> 
+                : <Auth onAuthSuccess={() => setCurrentTab('announcements')} />
+            )}
             {currentTab === 'auth' && <Auth onAuthSuccess={() => setCurrentTab('home')} />}
             {currentTab === 'dashboard' && <DashboardRouter />}
           </motion.div>

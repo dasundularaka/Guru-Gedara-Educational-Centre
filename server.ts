@@ -31,7 +31,7 @@ const FALLBACK_NEWS: NewsItem[] = [
     summary: "The Department of Examinations has released updated timetables and admission guidelines for candidate registration, practical evaluations, and school admissions for the upcoming term.",
     category: "Exam Alert",
     date: new Date().toISOString().split("T")[0],
-    source: "Doenets.lk / Ministry of Education",
+    source: "Department of Examinations (Doenets)",
     sourceUrl: "https://www.doenets.lk",
     urgency: "high"
   },
@@ -64,8 +64,51 @@ const FALLBACK_NEWS: NewsItem[] = [
     source: "National Institute of Education (NIE)",
     sourceUrl: "https://www.nie.lk",
     urgency: "info"
+  },
+  {
+    id: "news-fallback-5",
+    title: "National Merit & Presidential Scholarships Open for A/L & O/L Achievers",
+    summary: "Higher education welfare divisions have announced government and private trust scholarship opportunities covering tuition, examination aid, and study grants for top performing secondary students.",
+    category: "Scholarship",
+    date: new Date(Date.now() - 345600000).toISOString().split("T")[0],
+    source: "President's Fund / Ministry of Education",
+    sourceUrl: "https://www.presidentsfund.gov.lk",
+    urgency: "high"
+  },
+  {
+    id: "news-fallback-6",
+    title: "School Term Dates & National Educational Calendar Announced for Academic Year",
+    summary: "Ministry of Education publishes official school term boundaries, vacation dates, and public evaluation periods to help parents and tuition institutes coordinate study schedules.",
+    category: "General Education",
+    date: new Date(Date.now() - 432000000).toISOString().split("T")[0],
+    source: "Ministry of Education Sri Lanka",
+    sourceUrl: "https://www.moe.gov.lk",
+    urgency: "info"
   }
 ];
+
+function getFilteredFallbackNews(category: string): NewsItem[] {
+  if (!category || category === "all") {
+    return FALLBACK_NEWS;
+  }
+  const filtered = FALLBACK_NEWS.filter(
+    item => item.category.toLowerCase() === category.toLowerCase() ||
+            item.category.toLowerCase().includes(category.toLowerCase())
+  );
+  return filtered.length > 0 ? filtered : FALLBACK_NEWS;
+}
+
+interface CacheEntry {
+  items: NewsItem[];
+  queries: string[];
+  grounded: boolean;
+  source: string;
+  timestamp: number;
+}
+
+const newsCache: Record<string, CacheEntry> = {};
+const CACHE_TTL_MS = 20 * 60 * 1000; // 20 minutes in-memory cache
+let rateLimitCooldownUntil = 0; // Cooldown timestamp when 429 quota exhaustion is detected
 
 async function startServer() {
   const app = express();
@@ -78,23 +121,51 @@ async function startServer() {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
-  // Educational News with Gemini Search Grounding
+  // Educational News with Gemini Search Grounding & Resilient Fallbacks
   app.get("/api/educational-news", async (req, res) => {
+    const category = (req.query.category as string) || "all";
+    const forceRefresh = req.query.refresh === "true";
+
+    // 1. Check cache first (if not force refresh and still valid)
+    const cached = newsCache[category];
+    if (!forceRefresh && cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return res.json({
+        success: true,
+        grounded: cached.grounded,
+        source: cached.source,
+        queries: cached.queries,
+        items: cached.items,
+        cached: true,
+        lastUpdated: new Date(cached.timestamp).toISOString()
+      });
+    }
+
+    // 2. Check if currently in rate limit / quota cooldown
+    if (Date.now() < rateLimitCooldownUntil && !forceRefresh) {
+      const items = getFilteredFallbackNews(category);
+      return res.json({
+        success: true,
+        grounded: false,
+        source: "curated_cooldown",
+        items,
+        message: "Serving verified curated educational announcements while search quota resets.",
+        lastUpdated: new Date().toISOString()
+      });
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      const items = getFilteredFallbackNews(category);
+      return res.json({
+        success: true,
+        grounded: false,
+        source: "curated",
+        items,
+        message: "Live search grounding is ready. Add GEMINI_API_KEY in settings for real-time web search integration."
+      });
+    }
+
     try {
-      const category = (req.query.category as string) || "all";
-      const forceRefresh = req.query.refresh === "true";
-      const ai = getGeminiClient();
-
-      if (!ai) {
-        return res.json({
-          success: true,
-          grounded: false,
-          source: "curated",
-          items: FALLBACK_NEWS,
-          message: "Live search grounding is ready. Add GEMINI_API_KEY in settings for real-time web search integration."
-        });
-      }
-
       const prompt = `Perform a real-time web search for current, high-importance educational announcements, examination schedules (such as GCE A/L, O/L, school term dates, Ministry of Education announcements in Sri Lanka and global STEM education updates), university entrance news (UGC), and scholarship deadlines for students.
       
 Category requested: ${category}
@@ -114,7 +185,7 @@ Each item must have:
 Do not wrap in markdown quotes if possible, output valid JSON only.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],
@@ -157,6 +228,15 @@ Do not wrap in markdown quotes if possible, output valid JSON only.`;
           });
         }
 
+        // Cache the successful result
+        newsCache[category] = {
+          items: parsedArticles,
+          queries: searchQueries,
+          grounded: true,
+          source: "gemini_search_grounding",
+          timestamp: Date.now()
+        };
+
         return res.json({
           success: true,
           grounded: true,
@@ -168,22 +248,52 @@ Do not wrap in markdown quotes if possible, output valid JSON only.`;
       }
 
       // Fallback if parsing failed
+      const fallbackItems = getFilteredFallbackNews(category);
       return res.json({
         success: true,
         grounded: false,
         source: "curated_fallback",
-        items: FALLBACK_NEWS,
+        items: fallbackItems,
         lastUpdated: new Date().toISOString()
       });
 
     } catch (apiError: any) {
-      console.error("Gemini Search Grounding Error:", apiError);
+      const errorMsg = String(apiError?.message || "");
+      const isQuotaOrRateLimit = 
+        apiError?.status === "RESOURCE_EXHAUSTED" ||
+        apiError?.code === 429 ||
+        errorMsg.includes("429") ||
+        errorMsg.includes("RESOURCE_EXHAUSTED") ||
+        errorMsg.includes("quota") ||
+        errorMsg.includes("rate-limits");
+
+      if (isQuotaOrRateLimit) {
+        // Cooldown prevents spamming Gemini while quota is exhausted
+        rateLimitCooldownUntil = Date.now() + 10 * 60 * 1000;
+        console.warn("Gemini API search grounding rate limit/quota reached (429). Serving verified curated educational news.");
+      } else {
+        console.warn("Gemini Search Grounding notice:", errorMsg);
+      }
+
+      const fallbackItems = getFilteredFallbackNews(category);
+
+      // Cache fallback result for this category
+      newsCache[category] = {
+        items: fallbackItems,
+        queries: [],
+        grounded: false,
+        source: "curated_fallback",
+        timestamp: Date.now()
+      };
+
       return res.json({
         success: true,
         grounded: false,
-        source: "fallback",
-        items: FALLBACK_NEWS,
-        error: apiError?.message || "Failed to fetch live grounded news",
+        source: "curated_fallback",
+        items: fallbackItems,
+        message: isQuotaOrRateLimit 
+          ? "Serving verified academy educational alerts while live search quota resets."
+          : "Educational updates loaded from academy records.",
         lastUpdated: new Date().toISOString()
       });
     }

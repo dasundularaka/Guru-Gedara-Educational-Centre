@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Newspaper, 
   ExternalLink, 
@@ -49,6 +49,7 @@ export const EducationalNewsWidget: React.FC<{
   const [searchQueries, setSearchQueries] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [selectedArticle, setSelectedArticle] = useState<EducationalNewsArticle | null>(null);
+  const clientCacheRef = useRef<Record<string, { items: EducationalNewsArticle[]; isGrounded: boolean; queries: string[]; lastUpdated: string }>>({});
 
   const categories = [
     { id: 'all', label: 'All Updates' },
@@ -60,6 +61,17 @@ export const EducationalNewsWidget: React.FC<{
   ];
 
   const fetchNews = async (category = 'all', force = false) => {
+    // Check client-side cache first if not explicitly forcing a refresh
+    if (!force && clientCacheRef.current[category]) {
+      const cached = clientCacheRef.current[category];
+      setNews(cached.items);
+      setIsGrounded(cached.isGrounded);
+      setSearchQueries(cached.queries);
+      setLastUpdated(cached.lastUpdated);
+      setLoading(false);
+      return;
+    }
+
     try {
       if (force) {
         setIsRefreshing(true);
@@ -74,7 +86,16 @@ export const EducationalNewsWidget: React.FC<{
           setNews(data.items);
           setIsGrounded(!!data.grounded);
           setSearchQueries(data.queries || []);
-          setLastUpdated(data.lastUpdated || new Date().toISOString());
+          const updatedTime = data.lastUpdated || new Date().toISOString();
+          setLastUpdated(updatedTime);
+
+          // Store in client cache
+          clientCacheRef.current[category] = {
+            items: data.items,
+            isGrounded: !!data.grounded,
+            queries: data.queries || [],
+            lastUpdated: updatedTime
+          };
         }
       }
     } catch (err) {

@@ -203,6 +203,29 @@
         "createdAt": { "type": "string" }
       },
       "required": ["to", "message", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Represents official academy announcements and notice bulletins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "priority": { "type": "string", "enum": ["urgent", "high", "normal", "low"] },
+        "targetType": { "type": "string", "enum": ["all", "tutors_only", "all_students", "classes"] },
+        "targetClassIds": { "type": "array" },
+        "targetClassTitles": { "type": "array" },
+        "category": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "readByUserIds": { "type": "array" }
+      },
+      "required": ["id", "title", "content", "priority", "targetType", "authorId", "authorName", "createdAt"]
     }
   },
   "firestore": {
@@ -225,6 +248,10 @@
     "/notifications/{notificationId}": {
       "schema": "NotificationItem",
       "description": "System alerts and notifications"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Official institutional announcements with audience filtering and labelled priorities"
     },
     "/messages/{messageId}": {
       "schema": "DirectMessage",

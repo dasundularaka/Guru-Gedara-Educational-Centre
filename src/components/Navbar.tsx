@@ -22,7 +22,8 @@ import {
   ExternalLink,
   Calendar,
   Sparkles,
-  Info
+  Info,
+  Megaphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
@@ -43,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     logout, 
     cloudSync, 
     notifications, 
+    announcements,
     refreshNotifications,
     notificationSettings, 
     updateNotificationSettings,
@@ -342,6 +344,27 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                     Tutors
                   </button>
                 </>
+              )}
+
+              {/* Announcements Tab - Only for authenticated students and tutors (and admins). Never in guest mode */}
+              {currentUser && (currentUser.role === 'student' || currentUser.role === 'tutor' || currentUser.role === 'admin') && (
+                <button
+                  onClick={() => onChangeTab('announcements')}
+                  className={`relative px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    currentTab === 'announcements' 
+                      ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  }`}
+                  id="tab_announcements_btn"
+                >
+                  <Megaphone className="w-3.5 h-3.5" />
+                  <span>Announcements</span>
+                  {announcements && announcements.length > 0 && (
+                    <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-black bg-indigo-600 text-white rounded-full">
+                      {announcements.length}
+                    </span>
+                  )}
+                </button>
               )}
             </div>
           </div>
@@ -1178,15 +1201,27 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 </div>
 
                 <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    onClick={() => {
-                      setSelectedNotificationModal(null);
-                      onChangeTab('dashboard');
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                  >
-                    View in Dashboard <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
+                  {selectedNotificationModal.type === 'announcement' ? (
+                    <button
+                      onClick={() => {
+                        setSelectedNotificationModal(null);
+                        onChangeTab('announcements');
+                      }}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      Open Announcements Bulletin <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setSelectedNotificationModal(null);
+                        onChangeTab('dashboard');
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      View in Dashboard <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedNotificationModal(null)}
                     className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"

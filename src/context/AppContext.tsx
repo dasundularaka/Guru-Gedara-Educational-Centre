@@ -23,7 +23,8 @@ import {
   SyncLogEntry,
   ToastItem,
   ToastType,
-  ToastAction
+  ToastAction,
+  Announcement
 } from '../types';
 import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
@@ -32,6 +33,8 @@ interface AppContextType {
   loading: boolean;
   cloudSync: boolean;
   notifications: NotificationItem[];
+  announcements: Announcement[];
+  refreshAnnouncements: () => Promise<void>;
   notificationSettings: NotificationSettings;
   toast: ToastItem | null;
   toasts: ToastItem[];
@@ -159,6 +162,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return [];
   });
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
+    const cached = localStorage.getItem('local_announcements');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const refreshAnnouncements = async () => {
+    try {
+      const items = await firestoreService.getAnnouncements();
+      setAnnouncements(items);
+      localStorage.setItem('local_announcements', safeStringify(items));
+    } catch (e) {
+      console.warn("Failed refreshing announcements:", e);
+    }
+  };
   const [isPrefetched, setIsPrefetched] = useState(false);
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('darkMode') === 'true';
@@ -616,11 +638,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    const unsubAnnouncements = firestoreService.subscribeAnnouncements((updated) => {
+      if (Array.isArray(updated)) {
+        setAnnouncements(updated);
+        localStorage.setItem('local_announcements', safeStringify(updated));
+      }
+    });
+
     return () => {
       if (unsubClasses) unsubClasses();
       if (unsubBookings) unsubBookings();
       if (unsubPayments) unsubPayments();
       if (unsubReviews) unsubReviews();
+      if (unsubAnnouncements) unsubAnnouncements();
     };
   }, []);
 
@@ -1086,6 +1116,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loading,
       cloudSync,
       notifications,
+      announcements,
+      refreshAnnouncements,
       notificationSettings,
       toast,
       toasts,

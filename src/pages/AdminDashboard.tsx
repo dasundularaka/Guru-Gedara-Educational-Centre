@@ -14,6 +14,7 @@ import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRSc
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
+import { AdminAnnouncementPanel } from '../components/AdminAnnouncementPanel';
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { StudentIntakeApprovalModal } from '../components/StudentIntakeApprovalModal';
 import { AddStudentToClassModal } from '../components/AddStudentToClassModal';
@@ -3862,86 +3863,8 @@ export const AdminDashboard: React.FC = () => {
                 {/* 24-Hour Class Reminder Cron Control Panel */}
                 <ClassReminderCronPanel />
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                  {/* Notice Deployer */}
-                  <div className="lg:col-span-7 bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm font-sans">
-                  <h3 className="text-base font-bold text-blue-900 mb-4 pb-2 border-b border-gray-50 flex items-center gap-2">
-                    <Megaphone className="w-5.2 h-5.2 text-blue-600 animate-pulse" />
-                    Deploy Academy-wide Notice bulletin
-                  </h3>
-                  <p className="text-xs text-gray-400 mb-5 leading-relaxed">
-                    Announce holidays, curriculum adjustments, examination notices or global administrative alerts. The notification triggers instantly to target dashboards.
-                  </p>
-
-                  <form onSubmit={handleLaunchAnnouncement} className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Notice Heading:</label>
-                        <input
-                          required
-                          type="text"
-                          value={noticeTitle}
-                          onChange={(e) => setNoticeTitle(e.target.value)}
-                          placeholder="e.g. Academy Term End Holiday Guidelines"
-                          className="w-full text-xs px-3.5 py-2.5 border border-gray-200 bg-gray-50/40 rounded-xl outline-none focus:bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5">Target Account Position Audience:</label>
-                        <select
-                          value={noticeTarget}
-                          onChange={(e) => setNoticeTarget(e.target.value as any)}
-                          className="w-full text-xs px-3 py-2.5 border border-gray-205 bg-white rounded-xl outline-none"
-                        >
-                          <option value="all">Audience: All Accounts (Global)</option>
-                          <option value="students">Students Scholars Only</option>
-                          <option value="tutors">Registered Faculty Tutors Only</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5">Notice Message content body (Push bulletin):</label>
-                      <textarea
-                        required
-                        rows={4}
-                        value={noticeMessage}
-                        onChange={(e) => setNoticeMessage(e.target.value)}
-                        placeholder="Detail the announcement details clearly. Do NOT include mock database syntaxes..."
-                        className="w-full text-xs p-3.5 border border-gray-200 bg-gray-50/40 rounded-xl outline-none focus:bg-white leading-relaxed"
-                      ></textarea>
-                    </div>
-
-                    <button
-                      id="admin_btn_broadcast_notice"
-                      type="submit"
-                      disabled={sendingNotice || !noticeTitle.trim() || !noticeMessage.trim()}
-                      className="w-full py-2.5 bg-blue-650 hover:bg-blue-700 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40"
-                    >
-                      {sendingNotice ? 'Deploying system nodes...' : 'Broadcast Bulletin Campaign'} <Megaphone className="w-4.5 h-4.5" />
-                    </button>
-                  </form>
-                </div>
-
-                {/* Ledger verification tips right col */}
-                <div className="lg:col-span-5 bg-gradient-to-br from-indigo-950 to-slate-900 text-white p-6 rounded-2xl border border-blue-900 shadow-md">
-                  <h4 className="text-sm font-bold flex items-center gap-1.5 border-b pb-3 border-slate-800">
-                    <AlertCircle className="w-4.5 h-4.5 text-blue-300" />
-                    Administrative Guidelines
-                  </h4>
-
-                  <div className="mt-4 space-y-4 text-xs text-slate-300 leading-relaxed font-sans">
-                    <p>
-                      <strong>1. Ledger adjustments triggers:</strong> Payments set to " PAID" grant permanent seat reservation on matching student accounts. Failed statuses block class roster entry alerts.
-                    </p>
-                    <p>
-                      <strong>2. Database integrity checks:</strong> Admin actions write directly into Firebase Firestore modules. This dashboard handles global query filters dynamically.
-                    </p>
-                    <p>
-                      <strong>3. Communication bulletins:</strong> Bulletins trigger automatic notification nodes across matching client devices.
-                    </p>
-                  </div>
-                </div>
+                {/* Admin Announcement Panel with labelled priorities, recipient filtering, and live dispatch */}
+                <AdminAnnouncementPanel />
 
                 {/* Full Width: Real-Time System Alerts & Notification Ledger */}
                 <div className="lg:col-span-12 bg-white rounded-2xl p-6 border border-gray-150 shadow-xs mt-2 font-sans">
@@ -4118,7 +4041,6 @@ export const AdminDashboard: React.FC = () => {
                     })()}
                   </div>
                 </div>
-              </div>
 
             </motion.div>
             )}
