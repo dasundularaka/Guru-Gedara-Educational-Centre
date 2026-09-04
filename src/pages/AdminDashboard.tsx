@@ -917,6 +917,8 @@ export const AdminDashboard: React.FC = () => {
     firestoreService.getAdmissionFeeConfig().then(cfg => {
       setAdminFeeConfig(cfg);
       setNewAdminFeeAmount(cfg.currentFee || 2500);
+    }).catch(err => {
+      console.warn("Could not load admission fee config in admin:", err);
     });
     const unsubAdmissionFee = firestoreService.subscribeAdmissionFeeConfig((cfg) => {
       setAdminFeeConfig(cfg);

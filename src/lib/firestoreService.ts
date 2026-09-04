@@ -260,23 +260,36 @@ export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
 // Helper to wrap promises with a timeout to maintain responsiveness under unstable network/slow bandwidth conditions
 export function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs: number, fallbackValue: T): Promise<T> {
   let timeoutId: any;
+  let hasSettled = false;
+
   const timeoutPromise = new Promise<T>((resolve) => {
     timeoutId = setTimeout(() => {
+      hasSettled = true;
       console.warn(`[Timeout] Operation exceeded ${timeoutMs}ms limit. Returning local fallback value for this operation.`);
       resolve(fallbackValue);
     }, timeoutMs);
   });
 
-  return Promise.race([
-    promise.then((result) => {
-      clearTimeout(timeoutId);
+  const guardedPromise = promise
+    .then((result) => {
+      if (!hasSettled) {
+        clearTimeout(timeoutId);
+        hasSettled = true;
+      }
       return result;
-    }).catch((err) => {
-      clearTimeout(timeoutId);
-      throw err;
-    }),
-    timeoutPromise
-  ]);
+    })
+    .catch((err) => {
+      if (!hasSettled) {
+        clearTimeout(timeoutId);
+        hasSettled = true;
+        console.warn(`[PromiseWithTimeout] Operation failed, using fallback:`, err);
+      } else {
+        console.warn(`[PromiseWithTimeout] Late rejection absorbed after timeout:`, err);
+      }
+      return fallbackValue;
+    });
+
+  return Promise.race([guardedPromise, timeoutPromise]);
 }
 
 // Helper to check and fallback (scoped by active project ID to prevent overlap)
@@ -2743,7 +2756,7 @@ const firestoreServiceRaw = {
         console.warn("Error subscribing to banners", e);
       }
     }
-    this.getBanners().then(callback);
+    this.getBanners().then(callback).catch(err => console.warn("Failed fetching banners fallback:", err));
     return () => {};
   },
 
@@ -2850,7 +2863,7 @@ const firestoreServiceRaw = {
         console.warn("Error subscribing to subjects", e);
       }
     }
-    this.getSubjects().then(callback);
+    this.getSubjects().then(callback).catch(err => console.warn("Failed fetching subjects fallback:", err));
     return () => {};
   },
 
@@ -2975,7 +2988,7 @@ const firestoreServiceRaw = {
         console.warn("Error subscribing to pathways", e);
       }
     }
-    this.getPathways().then(callback);
+    this.getPathways().then(callback).catch(err => console.warn("Failed fetching pathways fallback:", err));
     return () => {};
   },
 
@@ -3607,7 +3620,7 @@ const firestoreServiceRaw = {
         console.warn("Error subscribing to users", e);
       }
     }
-    this.getAllUsers().then(callback);
+    this.getAllUsers().then(callback).catch(err => console.warn("Failed fetching users fallback:", err));
     return () => {};
   },
 
@@ -3691,7 +3704,7 @@ const firestoreServiceRaw = {
         console.warn("Error subscribing to study materials", e);
       }
     }
-    this.getStudyMaterials(classIdFilter).then(cb);
+    this.getStudyMaterials(classIdFilter).then(cb).catch(err => console.warn("Failed fetching materials fallback:", err));
     return () => {};
   },
 
@@ -3726,7 +3739,7 @@ const firestoreServiceRaw = {
       }
     }
     
-    this.getDirectMessages(userId1, userId2).then(callback);
+    this.getDirectMessages(userId1, userId2).then(callback).catch(err => console.warn("Failed fetching direct messages fallback:", err));
     return () => {};
   },
 
@@ -3818,14 +3831,14 @@ const firestoreServiceRaw = {
           }
         }, (err) => {
           console.warn("Snapshot error on admission fee config:", err);
-          this.getAdmissionFeeConfig().then(callback);
+          this.getAdmissionFeeConfig().then(callback).catch(err => console.warn("Failed fetching admission fee fallback:", err));
         });
       } catch (e) {
         console.warn("Error setting up snapshot for admission fee config", e);
       }
     }
 
-    this.getAdmissionFeeConfig().then(callback);
+    this.getAdmissionFeeConfig().then(callback).catch(err => console.warn("Failed fetching admission fee fallback:", err));
     return () => {};
   },
 
@@ -4029,14 +4042,14 @@ const firestoreServiceRaw = {
           callback(items);
         }, (err) => {
           console.warn("Announcements snapshot error:", err);
-          this.getAnnouncements().then(callback);
+          this.getAnnouncements().then(callback).catch(err => console.warn("Failed fetching announcements fallback:", err));
         });
       } catch (e) {
         console.warn("Error setting up snapshot for announcements:", e);
       }
     }
 
-    this.getAnnouncements().then(callback);
+    this.getAnnouncements().then(callback).catch(err => console.warn("Failed fetching announcements fallback:", err));
     return () => {};
   }
 };

@@ -82,6 +82,8 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
         setFeeConfig(cfg);
         setAdmissionFeeAmount(cfg.currentFee || 2500);
         setNewFeeValue(cfg.currentFee || 2500);
+      }).catch(err => {
+        console.warn("Could not fetch admission fee config:", err);
       });
       unsubscribe = firestoreService.subscribeAdmissionFeeConfig((cfg) => {
         setFeeConfig(cfg);

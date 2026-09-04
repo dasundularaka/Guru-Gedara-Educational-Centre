@@ -605,7 +605,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }, 1200);
       }
     };
-    initializeApp();
+    initializeApp().catch(err => {
+      console.warn("App initialization encountered an issue:", err);
+      setIsReconciling(false);
+    });
   }, []);
 
   // Set up real-time database subscriptions so all browser instances stay in live sync

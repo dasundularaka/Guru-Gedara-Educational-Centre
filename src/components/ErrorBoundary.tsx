@@ -22,24 +22,40 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handlePromiseRejection = (event: PromiseRejectionEvent) => {
-    const error = event.reason;
-    console.error("ErrorBoundary caught unhandled promise rejection:", error);
-    
-    // Check if it looks like a Firebase or database failure
-    const isDb = error && (
-      error.code?.includes('permission-denied') || 
-      error.message?.toLowerCase().includes('permission') ||
-      error.message?.toLowerCase().includes('firestore') ||
-      error.message?.toLowerCase().includes('database') ||
-      error.message?.toLowerCase().includes('network') ||
-      error.code?.includes('unavailable')
-    );
+    // Prevent unhandled rejection event from triggering uncaught runtime alerts
+    if (typeof event.preventDefault === 'function') {
+      event.preventDefault();
+    }
 
-    this.setState({
-      hasError: true,
-      error: error instanceof Error ? error : new Error(String(error)),
-      isDbError: !!isDb
-    });
+    const error = event.reason;
+    if (!error) {
+      console.warn("ErrorBoundary: Suppressed empty promise rejection.");
+      return;
+    }
+
+    const errorMsg = String(error?.message || error || '').toLowerCase();
+
+    // Check for non-fatal background promise rejections (e.g. aborted requests, network timeouts, offline fallback, extension events)
+    const isNonFatal = 
+      errorMsg.includes('abort') ||
+      errorMsg.includes('canceled') ||
+      errorMsg.includes('cancelled') ||
+      errorMsg.includes('resizeobserver') ||
+      errorMsg.includes('popup-closed-by-user') ||
+      errorMsg.includes('network error') ||
+      errorMsg.includes('failed to fetch') ||
+      errorMsg.includes('quota') ||
+      errorMsg.includes('429') ||
+      errorMsg.includes('timeout') ||
+      errorMsg.includes('load failed') ||
+      errorMsg.includes('offline');
+
+    if (isNonFatal) {
+      console.warn("ErrorBoundary handled non-fatal background promise rejection:", errorMsg);
+      return;
+    }
+
+    console.warn("ErrorBoundary caught unhandled background promise rejection:", error);
   };
 
   public componentDidMount() {
