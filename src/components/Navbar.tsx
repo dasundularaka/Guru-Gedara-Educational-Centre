@@ -32,6 +32,7 @@ import { EmailNotificationLogsModal } from './EmailNotificationLogsModal';
 import { Class15MinReminderBanner } from './Class15MinReminderBanner';
 import { genericFirestoreService } from '../lib/genericFirestore';
 import { canUserViewStudyResource } from '../utils/accessControl';
+import { getAudienceFilteredAnnouncements } from '../lib/announcementUtils';
 
 interface NavbarProps {
   currentTab: string;
@@ -66,6 +67,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
   const [showEmailLogsModal, setShowEmailLogsModal] = useState(false);
+
+  // Filter announcements strictly for current user audience
+  const userAudienceAnnouncements = React.useMemo(() => {
+    return getAudienceFilteredAnnouncements(announcements || [], currentUser, bookings || [], classes || []);
+  }, [announcements, currentUser, bookings, classes]);
 
   // Editable profile state hooks with default fallback values
   const [profileName, setProfileName] = useState("");
@@ -359,9 +365,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 >
                   <Megaphone className="w-3.5 h-3.5" />
                   <span>Announcements</span>
-                  {announcements && announcements.length > 0 && (
+                  {userAudienceAnnouncements.length > 0 && (
                     <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-black bg-indigo-600 text-white rounded-full">
-                      {announcements.length}
+                      {userAudienceAnnouncements.length}
                     </span>
                   )}
                 </button>

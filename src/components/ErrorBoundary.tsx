@@ -95,7 +95,17 @@ export class ErrorBoundary extends Component<Props, State> {
       errorInfo: null,
       isDbError: false
     });
-    // Try refreshing data or window
+    // Purge any potentially poisoned caches or service workers and reload
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        for (const r of regs) r.unregister();
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        for (const k of keys) caches.delete(k);
+      });
+    }
     window.location.reload();
   };
 

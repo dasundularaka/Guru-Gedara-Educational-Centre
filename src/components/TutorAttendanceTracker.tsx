@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ClassItem, Booking, AttendanceRecord, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
@@ -31,7 +31,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   FileText,
-  Mail
+  Mail,
+  Timer
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -75,6 +76,11 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
   const [isAbsentModalOpen, setIsAbsentModalOpen] = useState<boolean>(false);
   const [customAbsentListForModal, setCustomAbsentListForModal] = useState<AbsentStudentItem[] | null>(null);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    firestoreService.getUsers().then(setAllUsers).catch(() => {});
+  }, []);
 
   // Active bookings for this tutor
   const activeBookings = useMemo(() => {
@@ -660,8 +666,15 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
                       tutorClasses
                     );
 
+                    const studentUser = allUsers.find(u => 
+                      u.uid === b.studentId || 
+                      (b.studentName && u.name.toLowerCase() === b.studentName.toLowerCase())
+                    );
+                    const lateRecord = studentUser?.latePaymentRecords?.[b.classId];
+                    const isLatePaymentActive = !!(lateRecord?.active && new Date(lateRecord.expiresAt).getTime() > Date.now());
+
                     const handleOpenStudentProfile = () => {
-                      const studentObj: UserProfile = {
+                      const studentObj: UserProfile = studentUser || {
                         uid: b.studentId,
                         name: b.studentName,
                         email: '',
@@ -703,6 +716,18 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
                                   >
                                     <AlertTriangle className="w-2.5 h-2.5 fill-slate-950 text-amber-500" />
                                     Late Arrival ({punctuality.lateRate}%)
+                                  </span>
+                                )}
+
+                                {/* LATE PAYMENT ACTIVE BADGE */}
+                                {isLatePaymentActive && (
+                                  <span 
+                                    onClick={handleOpenStudentProfile}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-amber-950 shadow-xs border border-amber-500 cursor-pointer hover:bg-amber-300"
+                                    title={`Late payment permitted until ${new Date(lateRecord!.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                  >
+                                    <Timer className="w-2.5 h-2.5 text-amber-950" />
+                                    Late Payment Active
                                   </span>
                                 )}
                               </div>
@@ -882,6 +907,10 @@ export const TutorAttendanceTracker: React.FC<TutorAttendanceTrackerProps> = ({
           attendanceRecords={attendanceRecords}
           bookings={bookings}
           showToast={showToast}
+          onProfileUpdated={(updated) => {
+            setAllUsers(prev => prev.map(u => u.uid === updated.uid ? updated : u));
+            setSelectedStudentForProfile(updated);
+          }}
         />
       )}
 

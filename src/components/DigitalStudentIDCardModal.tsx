@@ -86,11 +86,20 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
     roleHeader = 'Official Executive Admin ID Card';
     roleBadge = 'Executive Administration';
   } else {
-    formattedId = rawId.startsWith('GB') || rawId.startsWith('STU') ? rawId : `STU-${rawId.toUpperCase()}`;
+    // For students: strictly display only their username (no STU / stu prefix)
+    let cleanUsername = currentUser.username || rawId;
+    // Strip any 'stu', 'stu-', 'stu_', 'STU', 'STU-', 'STU_' prefix
+    cleanUsername = cleanUsername.replace(/^stu[_-]?/i, '');
+    formattedId = cleanUsername || currentUser.username || rawId;
     roleTitle = 'Digital Student Identity Pass';
     roleHeader = 'Official Digital Student ID Card';
     roleBadge = currentUser.isFreeCard ? 'Free Card Scholar' : 'Active Scholar';
   }
+
+  // QR Code value rebuild: strictly encode clean username for students
+  const qrCodeValue = role === 'student' 
+    ? (currentUser.username ? currentUser.username.replace(/^stu[_-]?/i, '') : formattedId) 
+    : formattedId;
 
   const studentGrade = currentUser.studentDetails?.grade || 'Grade 11 - Advanced Level';
   const admissionDateStr = currentUser.createdAt 
@@ -564,7 +573,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
           <div className="p-1 sm:p-1.5 bg-white rounded-lg sm:rounded-xl shadow-md border border-white/30 flex items-center justify-center">
             <QRCodeCanvas
               id="digital_id_qr_canvas"
-              value={formattedId}
+              value={qrCodeValue}
               size={54}
               level="H"
               includeMargin={false}

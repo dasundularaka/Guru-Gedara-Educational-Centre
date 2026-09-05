@@ -27,10 +27,11 @@ import {
   Save,
   Link as LinkIcon
 } from 'lucide-react';
-import { UserProfile, ClassItem, AttendanceRecord, Booking } from '../types';
+import { UserProfile, ClassItem, AttendanceRecord, Booking, Payment } from '../types';
 import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { firestoreService } from '../lib/firestoreService';
 import { DigitalStudentIDCardModal } from './DigitalStudentIDCardModal';
+import { SwipeToPay } from './SwipeToPay';
 import { GraduationCap, Printer } from 'lucide-react';
 
 interface StudentProfileModalProps {
@@ -41,9 +42,11 @@ interface StudentProfileModalProps {
   classes: ClassItem[];
   attendanceRecords: AttendanceRecord[];
   bookings?: Booking[];
+  payments?: Payment[];
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   onSendMessage?: (studentUid: string, studentName: string) => void;
   onProfileUpdated?: (updated: UserProfile) => void;
+  onPaymentsUpdated?: () => void;
 }
 
 export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
@@ -54,9 +57,11 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   classes = [],
   attendanceRecords = [],
   bookings = [],
+  payments,
   showToast,
   onSendMessage,
-  onProfileUpdated
+  onProfileUpdated,
+  onPaymentsUpdated
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'attendance_history' | 'enrolled_classes'>('overview');
   const [reminderMessage, setReminderMessage] = useState<string>('');
@@ -72,6 +77,14 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   const [ccPayments, setCcPayments] = useState<boolean>(true);
   const [savingParentSettings, setSavingParentSettings] = useState<boolean>(false);
 
+  // Student Payment & Staging States
+  const [studentPayments, setStudentPayments] = useState<Payment[]>(payments || []);
+  const [stagedPaidClasses, setStagedPaidClasses] = useState<Set<string>>(new Set());
+  const [stagedLatePayments, setStagedLatePayments] = useState<Record<string, number>>({});
+  const [selectedLateHours, setSelectedLateHours] = useState<Record<string, number>>({});
+  const [showFinishConfirmModal, setShowFinishConfirmModal] = useState<boolean>(false);
+  const [isFinishing, setIsFinishing] = useState<boolean>(false);
+
   useEffect(() => {
     if (student) {
       setParentEmail(student.parentEmail || '');
@@ -82,6 +95,16 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
       setCcPayments(student.parentEmailCcPreferences?.payments ?? true);
     }
   }, [student]);
+
+  useEffect(() => {
+    if (payments && payments.length > 0) {
+      setStudentPayments(payments);
+    } else if (student) {
+      firestoreService.getPayments().then(all => {
+        setStudentPayments(all);
+      }).catch(() => {});
+    }
+  }, [payments, student]);
 
   if (!isOpen || !student) return null;
 
@@ -109,6 +132,183 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   activeBookingClassIds.forEach(cid => enrolledClassIds.add(cid));
 
   const enrolledClasses = classes.filter(c => enrolledClassIds.has(c.id));
+
+  // Current Month String
+  const currentMonthName = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+
+  // Check if class is paid for current month
+  const isClassPaidCurrentMonth = (clsId: string) => {
+    if (stagedPaidClasses.has(clsId)) return true;
+    if (student.isFreeCard || student.classEnrollmentStatus?.[clsId] === 'free_card') return true;
+    return studentPayments.some(p => 
+      p.status === 'paid' &&
+      p.classId === clsId &&
+      (p.studentId === student.uid || p.studentEmail === student.email || (student.username && p.studentName?.toLowerCase().includes(student.username.toLowerCase()))) &&
+      (p.date ? p.date.startsWith(currentMonthPrefix) : true)
+    );
+  };
+
+  // Get active or staged late payment status
+  const getLatePaymentStatus = (clsId: string) => {
+    if (stagedLatePayments[clsId] !== undefined) {
+      const hours = stagedLatePayments[clsId];
+      return {
+        isActive: true,
+        isStaged: true,
+        durationHours: hours,
+        expiresAt: new Date(Date.now() + hours * 3600000).toISOString()
+      };
+    }
+    const rec = student.latePaymentRecords?.[clsId];
+    if (rec && rec.active && new Date(rec.expiresAt).getTime() > Date.now()) {
+      return {
+        isActive: true,
+        isStaged: false,
+        durationHours: rec.durationHours || 24,
+        expiresAt: rec.expiresAt,
+        grantedBy: rec.grantedBy
+      };
+    }
+    return null;
+  };
+
+  // Stage class payment
+  const handleStagePayment = (clsId: string) => {
+    setStagedPaidClasses(prev => {
+      const next = new Set(prev);
+      next.add(clsId);
+      return next;
+    });
+    setStagedLatePayments(prev => {
+      const next = { ...prev };
+      delete next[clsId];
+      return next;
+    });
+    showToast('Class payment marked. Click "Finish" to apply changes.', 'info');
+  };
+
+  // Stage late payment
+  const handleStageLatePayment = (clsId: string, hours?: number) => {
+    const finalHours = hours || selectedLateHours[clsId] || 24;
+    setStagedLatePayments(prev => ({
+      ...prev,
+      [clsId]: finalHours
+    }));
+    setStagedPaidClasses(prev => {
+      const next = new Set(prev);
+      next.delete(clsId);
+      return next;
+    });
+    showToast(`Late payment (${finalHours}hrs) staged. Click "Finish" to confirm.`, 'info');
+  };
+
+  // Unstage / Revert staged change
+  const handleUnstage = (clsId: string) => {
+    setStagedPaidClasses(prev => {
+      const next = new Set(prev);
+      next.delete(clsId);
+      return next;
+    });
+    setStagedLatePayments(prev => {
+      const next = { ...prev };
+      delete next[clsId];
+      return next;
+    });
+  };
+
+  const totalStagedChanges = stagedPaidClasses.size + Object.keys(stagedLatePayments).length;
+
+  // Finalize all staged payments & late permissions
+  const handleConfirmFinish = async () => {
+    if (!student) return;
+    setIsFinishing(true);
+    try {
+      const updatedEnrollmentStatus = { ...(student.classEnrollmentStatus || {}) };
+      const updatedLateRecords = { ...(student.latePaymentRecords || {}) };
+      const newCreatedPayments: Payment[] = [];
+
+      // 1. Process Paid Classes
+      for (const clsId of stagedPaidClasses) {
+        const clsObj = classes.find(c => c.id === clsId);
+        const amount = clsObj?.price || 2500;
+        const pay = await firestoreService.createPayment(
+          student.uid,
+          student.name,
+          clsId,
+          clsObj?.title || 'Class Tuition Fee',
+          amount,
+          'cash_manual',
+          'paid',
+          {
+            transactionId: `TXN-${student.username || student.uid}-${clsId.slice(0, 4)}-${Date.now()}`,
+            paymentType: 'monthly',
+            payerEmail: student.email,
+            studentEmail: student.email
+          }
+        );
+        newCreatedPayments.push(pay);
+        updatedEnrollmentStatus[clsId] = 'active';
+        if (updatedLateRecords[clsId]) {
+          delete updatedLateRecords[clsId];
+        }
+      }
+
+      // 2. Process Late Payments
+      for (const [clsId, hours] of Object.entries(stagedLatePayments)) {
+        const expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
+        updatedLateRecords[clsId] = {
+          active: true,
+          grantedAt: new Date().toISOString(),
+          expiresAt,
+          durationHours: hours,
+          grantedBy: currentUser.name || currentUser.username || 'Admin'
+        };
+        updatedEnrollmentStatus[clsId] = 'late_payment';
+      }
+
+      // 3. Update User Profile in Firestore
+      const updatedUser: UserProfile = {
+        ...student,
+        classEnrollmentStatus: updatedEnrollmentStatus,
+        latePaymentRecords: updatedLateRecords
+      };
+      await firestoreService.updateUserProfile(student.uid, {
+        classEnrollmentStatus: updatedEnrollmentStatus,
+        latePaymentRecords: updatedLateRecords
+      });
+
+      // 4. Audit Log
+      await firestoreService.addAuditLog({
+        username: currentUser.name || currentUser.username || 'Admin',
+        action: 'STUDENT_PAYMENTS_AND_LATE_PERMISSIONS_APPLIED',
+        details: `Updated payments and late attendance permissions for ${student.name} (${student.username || student.uid}). Paid: ${stagedPaidClasses.size}, Late: ${Object.keys(stagedLatePayments).length}`
+      });
+
+      // 5. Send Notification
+      await firestoreService.triggerNotification(
+        student.uid,
+        `💳 Academic Enrollment & Payment Updated (${currentMonthName})`,
+        `Tuition payment and class access permissions have been updated in the Academy system.`,
+        'payment'
+      );
+
+      // 6. Update local state
+      setStudentPayments(prev => [...newCreatedPayments, ...prev]);
+      setStagedPaidClasses(new Set());
+      setStagedLatePayments({});
+      setShowFinishConfirmModal(false);
+
+      showToast(`Changes successfully finalized for ${student.name}!`, 'success');
+      if (onProfileUpdated) onProfileUpdated(updatedUser);
+      if (onPaymentsUpdated) onPaymentsUpdated();
+    } catch (err: any) {
+      console.error(err);
+      showToast('Failed to apply changes. Please try again.', 'error');
+    } finally {
+      setIsFinishing(false);
+    }
+  };
 
   // Quick reminder sender
   const handleSendPunctualityAdvisory = async (e: React.FormEvent) => {
@@ -581,6 +781,205 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
                   </div>
                 </div>
 
+                {/* Enrolled Classes & Current Month Payment Ledger Section */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                      <h3 className="text-xs font-black text-slate-900 uppercase font-mono tracking-wider flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4 text-indigo-600" />
+                        Enrolled Classes & Payment Status ({currentMonthName})
+                      </h3>
+                      <p className="text-[10px] text-slate-500">
+                        Tuition fees linked through student username: <span className="font-mono font-bold text-slate-700">{student.username || student.uid}</span>
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+                      {enrolledClasses.length} Enrolled {enrolledClasses.length === 1 ? 'Class' : 'Classes'}
+                    </span>
+                  </div>
+
+                  {enrolledClasses.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-400">
+                      Scholar is not currently enrolled in any active class syllabus.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {enrolledClasses.map(cls => {
+                        const isPaid = isClassPaidCurrentMonth(cls.id);
+                        const isStaged = stagedPaidClasses.has(cls.id);
+                        const lateStatus = getLatePaymentStatus(cls.id);
+                        const feeAmount = cls.price || 2500;
+                        const currentHours = selectedLateHours[cls.id] || 24;
+
+                        return (
+                          <div 
+                            key={cls.id}
+                            className={`p-3.5 rounded-2xl border transition-all ${
+                              isPaid
+                                ? 'bg-slate-50/90 border-slate-200'
+                                : lateStatus?.isActive
+                                ? 'bg-amber-50/60 border-amber-300'
+                                : 'bg-white border-slate-200 shadow-xs'
+                            }`}
+                          >
+                            {/* Class Info Header */}
+                            <div className="flex items-start justify-between gap-2 mb-2.5">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs font-black text-slate-900">{cls.title}</h4>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-150">
+                                    {cls.subject || 'General'}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  Tutor: <span className="font-medium text-slate-700">{cls.tutorName || 'Faculty'}</span> • Fee: <span className="font-mono font-bold text-slate-900">LKR {feeAmount.toLocaleString()}</span>
+                                </p>
+                              </div>
+
+                              {/* Status Pill */}
+                              {isPaid ? (
+                                <div className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
+                                  {isStaged ? 'Marked as Paid' : `Paid (${currentMonthName})`}
+                                </div>
+                              ) : lateStatus?.isActive ? (
+                                <div className="px-2.5 py-1 rounded-lg bg-amber-400 text-amber-950 border border-amber-500 text-[10px] font-black flex items-center gap-1 shadow-xs">
+                                  <Timer className="w-3.5 h-3.5" />
+                                  Late Payment ({lateStatus.durationHours}h)
+                                </div>
+                              ) : (
+                                <div className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                                  Unpaid
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Actions for Class Payment & Late Payment */}
+                            {isPaid ? (
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-[11px] text-slate-500 font-medium">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                  {student.isFreeCard ? 'Scholarship / Free Card Beneficiary' : `Account cleared for ${currentMonthName}`}
+                                </span>
+                                {isStaged && (
+                                  <button
+                                    onClick={() => handleUnstage(cls.id)}
+                                    className="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer"
+                                  >
+                                    Undo
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="space-y-2 pt-2 border-t border-slate-150">
+                                {/* 1. Pay Button: Desktop vs Mobile Swipe */}
+                                <div>
+                                  {/* Desktop view button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStagePayment(cls.id)}
+                                    className="hidden sm:flex w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition-all shadow-xs items-center justify-center gap-1.5 cursor-pointer"
+                                  >
+                                    <CreditCard className="w-4 h-4" />
+                                    Pay LKR {feeAmount.toLocaleString()} ({student.username || student.name})
+                                  </button>
+
+                                  {/* Mobile Swipe-To-Pay view */}
+                                  <div className="sm:hidden">
+                                    <SwipeToPay
+                                      amount={feeAmount}
+                                      label={`Swipe to Pay LKR ${feeAmount.toLocaleString()}`}
+                                      onConfirm={() => handleStagePayment(cls.id)}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* 2. Late Payment Option: placed below pay button, colour scale yellow */}
+                                <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-300 space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <Timer className="w-3.5 h-3.5 text-amber-800" />
+                                      <span className="text-[10px] font-black text-amber-950 uppercase font-mono">
+                                        Late Payment Option
+                                      </span>
+                                    </div>
+
+                                    {/* Admin duration changer (default 24h) */}
+                                    {currentUser.role === 'admin' ? (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[9px] text-amber-900 font-bold">Duration:</span>
+                                        <select
+                                          value={currentHours}
+                                          onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            setSelectedLateHours(prev => ({ ...prev, [cls.id]: val }));
+                                            if (lateStatus?.isStaged) {
+                                              handleStageLatePayment(cls.id, val);
+                                            }
+                                          }}
+                                          className="text-[10px] font-bold bg-white border border-amber-400 rounded px-1.5 py-0.5 text-amber-950 cursor-pointer"
+                                        >
+                                          <option value={12}>12 Hours</option>
+                                          <option value={24}>24 Hours (Default)</option>
+                                          <option value={48}>48 Hours</option>
+                                          <option value={72}>72 Hours</option>
+                                        </select>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-amber-900">
+                                        24 Hours Valid
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {lateStatus?.isActive ? (
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-amber-950 bg-amber-200/90 px-2.5 py-1.5 rounded-lg border border-amber-400">
+                                      <span>
+                                        ✓ Late Payment Active ({lateStatus.durationHours}h) • Valid until {new Date(lateStatus.expiresAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                      {lateStatus.isStaged && (
+                                        <button
+                                          onClick={() => handleUnstage(cls.id)}
+                                          className="text-[9px] underline text-amber-900 hover:text-amber-950 cursor-pointer ml-2"
+                                        >
+                                          Cancel
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStageLatePayment(cls.id, currentHours)}
+                                      className="w-full py-1.5 px-3 bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-amber-950 font-black text-xs rounded-lg transition-colors border border-amber-500 shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Timer className="w-3.5 h-3.5 text-amber-950" />
+                                      Grant Late Payment ({currentHours} hrs)
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Finish Button when changes have been staged */}
+                  {totalStagedChanges > 0 && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setShowFinishConfirmModal(true)}
+                        className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" />
+                        Finish & Save Changes ({totalStagedChanges} Pending)
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Recent Attendance Snapshot */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -841,6 +1240,95 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
           bookings={bookings.filter(b => b.studentId === student.uid || b.studentEmail === student.email)}
           showToast={showToast}
         />
+      )}
+
+      {/* Finish & Confirm Payment / Late Staging Modal */}
+      {showFinishConfirmModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden"
+          >
+            <div className="p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+              <h3 className="text-sm font-black tracking-tight text-white flex items-center gap-2">
+                <Check className="w-5 h-5 text-emerald-400" />
+                Confirm Tuition & Access Updates
+              </h3>
+              <p className="text-[11px] text-slate-300 mt-1">
+                Please review changes to apply to scholar <strong>{student.name}</strong> ({student.username || student.uid})
+              </p>
+            </div>
+
+            <div className="p-5 space-y-3.5">
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {Array.from(stagedPaidClasses).map(clsId => {
+                  const c = classes.find(item => item.id === clsId);
+                  return (
+                    <div key={clsId} className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-start gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <p className="font-bold text-emerald-950">{c?.title || 'Class'}</p>
+                        <p className="text-[11px] text-emerald-800">
+                          Marked as Paid: <strong className="font-mono">LKR {(c?.price || 2500).toLocaleString()}</strong>
+                        </p>
+                        <p className="text-[10px] text-emerald-700 font-mono mt-0.5">
+                          Username linked: {student.username || student.uid}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {Object.entries(stagedLatePayments).map(([clsId, hours]) => {
+                  const c = classes.find(item => item.id === clsId);
+                  return (
+                    <div key={clsId} className="p-3 bg-amber-50 rounded-xl border border-amber-300 flex items-start gap-2.5">
+                      <Timer className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <p className="font-bold text-amber-950">{c?.title || 'Class'}</p>
+                        <p className="text-[11px] text-amber-900">
+                          Late Payment Permission Granted: <strong>{hours} Hours</strong>
+                        </p>
+                        <p className="text-[10px] text-amber-800 font-mono mt-0.5">
+                          Allows scholar attendance check-in until expiry
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-600">
+                Are you sure you want to apply these payment ledger and attendance access changes to the system?
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowFinishConfirmModal(false)}
+                disabled={isFinishing}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmFinish}
+                disabled={isFinishing}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isFinishing ? (
+                  <>Saving...</>
+                ) : (
+                  <>Accept & Apply</>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

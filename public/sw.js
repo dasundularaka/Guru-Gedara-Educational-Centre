@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gurugedara-academy-cache-v2';
+const CACHE_NAME = 'gurugedara-academy-cache-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -14,12 +14,11 @@ const CACHE_DOMAINS = [
   'images.unsplash.com'
 ];
 
-// Install Service Worker and cache essential static assets shell
+// Install Service Worker and activate immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[Service Worker] Pre-caching critical UI assets shell');
         return cache.addAll(STATIC_ASSETS).catch((err) => {
           console.warn('[Service Worker] Non-blocking pre-cache warning:', err);
         });
@@ -28,7 +27,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate and clean up previous cache versions
+// Activate and purge all outdated cache versions immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -44,17 +43,33 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch assets with optimized Stale-While-Revalidate and Offline Fallback strategy
+// Fetch assets with safety checks for development and dynamic modules
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
+  // In development environments or Vite dev proxy, do NOT intercept or cache script requests
+  if (
+    self.location.hostname === 'localhost' ||
+    self.location.hostname.includes('ais-dev') ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/src/') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
+    url.searchParams.has('v') ||
+    url.searchParams.has('import')
+  ) {
+    return;
+  }
+
   // Exclude real-time auth endpoints, firestore websockets, or internal API proxies
   if (
     url.hostname.includes('firestore.googleapis.com') ||
     url.hostname.includes('identitytoolkit.googleapis.com') ||
-    url.pathname.includes('/api/auth')
+    url.pathname.startsWith('/api/')
   ) {
     return;
   }

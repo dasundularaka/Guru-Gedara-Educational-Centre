@@ -19,6 +19,8 @@ import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardMod
 import { StudentIntakeApprovalModal } from '../components/StudentIntakeApprovalModal';
 import { AddStudentToClassModal } from '../components/AddStudentToClassModal';
 import { ClassRosterModal } from '../components/ClassRosterModal';
+import { StudentProfileModal } from '../components/StudentProfileModal';
+import { AdminQRScannerModal } from '../components/AdminQRScannerModal';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -137,6 +139,8 @@ export const AdminDashboard: React.FC = () => {
   const [selectedClassForAddStudent, setSelectedClassForAddStudent] = useState<ClassItem | null>(null);
   const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
+  const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
+  const [isAdminQrScannerOpen, setIsAdminQrScannerOpen] = useState<boolean>(false);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
   const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
@@ -2842,13 +2846,24 @@ export const AdminDashboard: React.FC = () => {
                     </h3>
                     <p className="text-[10px] text-gray-400">Enroll new student scholar accounts, edit positions or remove profiles</p>
                   </div>
-                  <button 
-                    id="admin_btn_add_student"
-                    onClick={() => openAddModal('student')}
-                    className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Student Account
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      type="button"
+                      id="admin_btn_scan_student_qr"
+                      onClick={() => setIsAdminQrScannerOpen(true)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold hover:bg-indigo-100 transition-all flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs"
+                      title="Scan student QR code or search username to inspect profile and tuition"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-indigo-600" /> Scan / Lookup
+                    </button>
+                    <button 
+                      id="admin_btn_add_student"
+                      onClick={() => openAddModal('student')}
+                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer text-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Student Account
+                    </button>
+                  </div>
                 </div>
 
                 {/* Independent Filtering Controls */}
@@ -2896,15 +2911,31 @@ export const AdminDashboard: React.FC = () => {
                       >
                         <div className="flex gap-3.5 items-start">
                           {stud.photoURL ? (
-                            <img className="h-10 w-10 rounded-full object-cover border border-gray-250 flex-shrink-0" src={stud.photoURL} alt="" />
+                            <img 
+                              onClick={() => setSelectedStudentForProfile(stud)}
+                              className="h-10 w-10 rounded-full object-cover border border-gray-250 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                              src={stud.photoURL} 
+                              alt={stud.name} 
+                              title="Click to view student profile & tuition"
+                            />
                           ) : (
-                            <div className="h-10 w-10 bg-indigo-150 text-indigo-850 flex items-center justify-center font-bold text-sm rounded-full flex-shrink-0">
+                            <div 
+                              onClick={() => setSelectedStudentForProfile(stud)}
+                              className="h-10 w-10 bg-indigo-150 text-indigo-850 hover:bg-indigo-200 flex items-center justify-center font-bold text-sm rounded-full flex-shrink-0 cursor-pointer transition-colors"
+                              title="Click to view student profile & tuition"
+                            >
                               {stud.name.substring(0, 2).toUpperCase()}
                             </div>
                           )}
                           <div className="space-y-1 sm:space-y-1.5 flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-extrabold text-gray-950 leading-snug">{stud.name}</h4>
+                              <h4 
+                                onClick={() => setSelectedStudentForProfile(stud)}
+                                className="font-extrabold text-gray-950 leading-snug cursor-pointer hover:text-indigo-600 transition-colors"
+                                title="Click to view student profile & tuition"
+                              >
+                                {stud.name}
+                              </h4>
                               {isPending ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-wider">
                                   Pending Intake
@@ -3068,6 +3099,14 @@ export const AdminDashboard: React.FC = () => {
 
                         {/* Card Action Controls */}
                         <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
+                          <button
+                            id={`profile-student-btn-${stud.uid}`}
+                            onClick={() => setSelectedStudentForProfile(stud)}
+                            className="p-1 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all shadow-xs"
+                            title="Open scholar profile with enrolled classes, tuition & late payments"
+                          >
+                            <User className="w-3.5 h-3.5 text-white" /> Profile & Tuition
+                          </button>
                           <button
                             id={`idcard-student-btn-${stud.uid}`}
                             onClick={() => setSelectedUserForIdCard(stud)}
@@ -6364,6 +6403,40 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Student Profile Inspection Modal */}
+      {selectedStudentForProfile && (
+        <StudentProfileModal
+          isOpen={!!selectedStudentForProfile}
+          onClose={() => setSelectedStudentForProfile(null)}
+          student={selectedStudentForProfile}
+          currentUser={currentUser || { uid: 'admin', role: 'admin', name: 'Admin', email: 'admin@school.edu', createdAt: '' }}
+          classes={classesList}
+          attendanceRecords={attendanceRecords}
+          bookings={bookingsList}
+          payments={paymentsList}
+          showToast={showToast}
+          onProfileUpdated={(updated) => {
+            setUsers(prev => prev.map(u => u.uid === updated.uid ? updated : u));
+            setSelectedStudentForProfile(updated);
+          }}
+          onPaymentsUpdated={async () => {
+            await fetchAdminDatasets();
+            await fetchAttendanceRecords();
+          }}
+        />
+      )}
+
+      {/* Admin QR Scanner & Student Lookup Modal */}
+      <AdminQRScannerModal
+        isOpen={isAdminQrScannerOpen}
+        onClose={() => setIsAdminQrScannerOpen(false)}
+        allUsers={users}
+        onSelectStudent={(student) => {
+          setIsAdminQrScannerOpen(false);
+          setSelectedStudentForProfile(student);
+        }}
+        showToast={showToast}
+      />
     </motion.div>
   );
 };

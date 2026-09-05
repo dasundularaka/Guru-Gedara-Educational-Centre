@@ -51,6 +51,15 @@ export interface UserProfile {
   selectedClasses?: string[];
   preferredSubjects?: string[];
   classEnrollmentStatus?: { [classId: string]: 'active' | 'suspended' | 'late_payment' | 'free_card' };
+  latePaymentRecords?: { 
+    [classId: string]: { 
+      active: boolean; 
+      grantedAt: string; 
+      expiresAt: string; 
+      durationHours: number; 
+      grantedBy?: string; 
+    } 
+  };
   photoURL?: string;
   pendingPhotoURL?: string;
   phone?: string;

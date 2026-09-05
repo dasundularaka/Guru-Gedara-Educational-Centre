@@ -9,6 +9,7 @@ import {
   Megaphone 
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getAudienceFilteredAnnouncements } from '../lib/announcementUtils';
 
 interface MobileBottomNavProps {
   currentTab: string;
@@ -22,18 +23,21 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onChangeTab,
   onOpenProfile
 }) => {
-  const { currentUser, notifications, announcements } = useApp();
+  const { currentUser, notifications, announcements, classes, bookings } = useApp();
 
   const unreadCount = (notifications || []).filter(n => !n.isRead).length;
-  const announcementCount = (announcements || []).length;
 
-  const isTutor = currentUser?.role === 'tutor';
-  const isStudent = currentUser?.role === 'student';
-  const isAdmin = currentUser?.role === 'admin';
+  // Filter announcements strictly by current user recipient audience
+  const audienceAnnouncements = React.useMemo(() => {
+    return getAudienceFilteredAnnouncements(announcements || [], currentUser, bookings || [], classes || []);
+  }, [announcements, currentUser, bookings, classes]);
+
+  const announcementCount = audienceAnnouncements.length;
+
   const isGuest = !currentUser;
 
   // Build nav items dynamically based on login state
-  // Explicit rule: "Don't show announcement tab in guest mode. Only students and tutors logins."
+  // Explicit rule: "And also, do not replace tutors from announcements. Both are need."
   const navItems = React.useMemo(() => {
     if (isGuest) {
       // Guest mode: Home, Classes, Faculty, Sign In (NO announcements)
@@ -62,29 +66,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       ];
     }
 
-    if (isTutor) {
-      // Tutor login: Home, Announcements, Profile
-      return [
-        {
-          id: 'home',
-          label: 'Home',
-          icon: Home,
-          action: () => onChangeTab('home'),
-          isActive: currentTab === 'home'
-        },
-        {
-          id: 'announcements',
-          label: 'Notices',
-          icon: Megaphone,
-          badge: announcementCount > 0 ? announcementCount : undefined,
-          action: () => onChangeTab('announcements'),
-          isActive: currentTab === 'announcements'
-        }
-      ];
-    }
-
-    // Student or Admin login: Home, Classes, Announcements, etc.
-    const items = [
+    // Authenticated users (Student, Tutor, Admin):
+    // Both Faculty (Tutors) AND Notices (Announcements) are always included!
+    return [
       {
         id: 'home',
         label: 'Home',
@@ -100,6 +84,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         isActive: currentTab === 'classes'
       },
       {
+        id: 'tutors',
+        label: 'Faculty',
+        icon: GraduationCap,
+        action: () => onChangeTab('tutors'),
+        isActive: currentTab === 'tutors'
+      },
+      {
         id: 'announcements',
         label: 'Notices',
         icon: Megaphone,
@@ -108,9 +99,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         isActive: currentTab === 'announcements'
       }
     ];
-
-    return items;
-  }, [isGuest, isTutor, isStudent, isAdmin, currentTab, announcementCount, onChangeTab]);
+  }, [isGuest, currentTab, announcementCount, onChangeTab]);
 
   const totalCols = navItems.length + 1; // plus profile/login button
   const gridClass = totalCols === 3 ? 'grid-cols-3' : totalCols === 4 ? 'grid-cols-4' : 'grid-cols-5';

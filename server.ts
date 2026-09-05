@@ -302,6 +302,7 @@ Do not wrap in markdown quotes if possible, output valid JSON only.`;
   // Vite middleware in dev / static in production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
+      configFile: path.resolve(process.cwd(), "vite.config.ts"),
       server: { middlewareMode: true },
       appType: "spa",
     });

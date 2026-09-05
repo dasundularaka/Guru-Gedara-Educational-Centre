@@ -678,69 +678,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync Firebase authentication with custom Firestore profiles
   useEffect(() => {
+    let hasResolved = false;
+    const fallbackTimer = setTimeout(() => {
+      if (!hasResolved) {
+        setLoading(false);
+      }
+    }, 2000);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
-      if (firebaseUser) {
-        try {
-          const email = (firebaseUser.email || '').trim().toLowerCase();
-          let profile = await firestoreService.getUserProfile(firebaseUser.uid);
-          
-          if (!profile && email) {
-            const matchedProfile = await firestoreService.getUserProfileByEmail(email);
-            if (matchedProfile) {
-              profile = matchedProfile;
-              // Link authUid if needed without creating duplicate or changing uid/username
-              if (matchedProfile.authUid !== firebaseUser.uid) {
-                await firestoreService.updateUserProfile(matchedProfile.uid, { authUid: firebaseUser.uid });
+      try {
+        if (firebaseUser) {
+          try {
+            const email = (firebaseUser.email || '').trim().toLowerCase();
+            let profile = await firestoreService.getUserProfile(firebaseUser.uid);
+            
+            if (!profile && email) {
+              const matchedProfile = await firestoreService.getUserProfileByEmail(email);
+              if (matchedProfile) {
+                profile = matchedProfile;
+                // Link authUid if needed without creating duplicate or changing uid/username
+                if (matchedProfile.authUid !== firebaseUser.uid) {
+                  await firestoreService.updateUserProfile(matchedProfile.uid, { authUid: firebaseUser.uid });
+                }
               }
             }
-          }
-          
-          if (!profile) {
-            // ONLY create initial profile for brand-new Google OAuth accounts that have never been seen before
-            const isGoogleAuth = firebaseUser.providerData.some(p => p.providerId === 'google.com');
-            if (isGoogleAuth) {
-              const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
-              profile = await firestoreService.createUserProfile(firebaseUser.uid, {
-                email: firebaseUser.email || '',
-                name: firebaseUser.displayName || (isTutor ? 'Accredited Tutor' : 'Accredited Scholar'),
-                role: isTutor ? 'tutor' : 'student',
-                photoURL: firebaseUser.photoURL || undefined
-              });
-              showToast("Account profile synced from Google!", "success");
+            
+            if (!profile) {
+              // ONLY create initial profile for brand-new Google OAuth accounts that have never been seen before
+              const isGoogleAuth = firebaseUser.providerData.some(p => p.providerId === 'google.com');
+              if (isGoogleAuth) {
+                const isTutor = email.includes('tutor') || email.includes('teacher') || email.includes('prof') || email.includes('lecturer');
+                profile = await firestoreService.createUserProfile(firebaseUser.uid, {
+                  email: firebaseUser.email || '',
+                  name: firebaseUser.displayName || (isTutor ? 'Accredited Tutor' : 'Accredited Scholar'),
+                  role: isTutor ? 'tutor' : 'student',
+                  photoURL: firebaseUser.photoURL || undefined
+                });
+                showToast("Account profile synced from Google!", "success");
+              }
             }
-          }
 
-          if (profile) {
-            setCurrentUser(profile);
-            // Load notifications
-            const nots = await firestoreService.getNotifications(profile.uid);
-            setNotifications(nots);
-          }
-        } catch (e) {
-          console.error("Authentication mapping failed. Falling back.", e);
-        }
-      } else {
-        // Checking for local simulated guest session in localStorage
-        const cachedUser = localStorage.getItem('local_running_session');
-        if (cachedUser) {
-          try {
-            const profile = JSON.parse(cachedUser);
-            setCurrentUser(profile);
-            const nots = await firestoreService.getNotifications(profile.uid);
-            setNotifications(nots);
-          } catch {
-            setCurrentUser(null);
+            if (profile) {
+              setCurrentUser(profile);
+              // Load notifications
+              const nots = await firestoreService.getNotifications(profile.uid);
+              setNotifications(nots);
+            }
+          } catch (e) {
+            console.error("Authentication mapping failed. Falling back.", e);
           }
         } else {
-          setCurrentUser(null);
+          // Checking for local simulated guest session in localStorage
+          const cachedUser = localStorage.getItem('local_running_session');
+          if (cachedUser) {
+            try {
+              const profile = JSON.parse(cachedUser);
+              setCurrentUser(profile);
+              const nots = await firestoreService.getNotifications(profile.uid);
+              setNotifications(nots);
+            } catch {
+              setCurrentUser(null);
+            }
+          } else {
+            setCurrentUser(null);
+          }
         }
+      } finally {
+        hasResolved = true;
+        clearTimeout(fallbackTimer);
+        setCloudSync(firestoreService.isCloudConnected());
+        setLoading(false);
       }
-      setCloudSync(firestoreService.isCloudConnected());
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
   // Trigger prefetching of essential data immediately after successful authentication to hide latency

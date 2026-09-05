@@ -14,6 +14,10 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+      dedupe: ['react', 'react-dom'],
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime'],
     },
     server: {
       host: '0.0.0.0',
@@ -27,6 +31,9 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+                return 'vendor-react';
+              }
               if (id.includes('firebase')) {
                 return 'vendor-firebase';
               }
@@ -36,7 +43,7 @@ export default defineConfig(() => {
               if (id.includes('lucide-react')) {
                 return 'vendor-icons';
               }
-              if (id.includes('motion') || id.includes('framer-motion')) {
+              if (id.includes('motion')) {
                 return 'vendor-animation';
               }
               return 'vendor';

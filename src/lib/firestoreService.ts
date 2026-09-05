@@ -520,6 +520,11 @@ const firestoreServiceRaw = {
     let migratedCount = 0;
     let updatedRefs = 0;
     try {
+      const alreadyRun = localStorage.getItem('guru_name_uids_migrated_v2');
+      if (alreadyRun === 'true') {
+        return { migratedCount: 0, updatedRefs: 0 };
+      }
+
       const allUsers = await this.getAllUsers();
       for (const user of allUsers) {
         if (!user || !user.name) continue;
@@ -669,6 +674,9 @@ const firestoreServiceRaw = {
     } catch (err) {
       console.warn("Migration to name UIDs encountered an error:", err);
     }
+    try {
+      localStorage.setItem('guru_name_uids_migrated_v2', 'true');
+    } catch (_) {}
     return { migratedCount, updatedRefs };
   },
 

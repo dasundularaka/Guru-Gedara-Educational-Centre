@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   UserCheck,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  Timer
 } from 'lucide-react';
 import jsQR from 'jsqr';
 import { ClassItem, Booking, UserProfile, AttendanceRecord } from '../types';
@@ -654,6 +655,14 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
                             ({lastScannedStudent?.username || lastScannedRecord.studentId})
                           </span>
                         </h4>
+                        {targetClass && lastScannedStudent?.latePaymentRecords?.[targetClass.id]?.active && new Date(lastScannedStudent.latePaymentRecords[targetClass.id].expiresAt).getTime() > Date.now() && (
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-amber-950 border border-amber-500 shadow-xs">
+                              <Timer className="w-3 h-3" />
+                              Late Payment Active (Expires: {new Date(lastScannedStudent.latePaymentRecords[targetClass.id].expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                            </span>
+                          </div>
+                        )}
                         <p className="text-[11px] text-emerald-800 font-mono mt-0.5 flex items-center gap-1">
                           <Send className="w-3 h-3 text-emerald-600" /> Auto Email & Messaging dispatched
                         </p>
