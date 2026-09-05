@@ -161,6 +161,7 @@ export interface ClassItem {
   maxSlots: number;
   bookedSlots: number;
   tags?: string[];
+  level?: string;
   imageUrl?: string;
   isFeatured?: boolean;
   gracePeriod?: number; // Grace period in minutes before attendance is flagged as Late (e.g. 5, 10, 15)

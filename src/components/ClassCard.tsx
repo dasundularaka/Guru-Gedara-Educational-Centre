@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { ClassItem, UserProfile } from '../types';
-import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode, AlertCircle, CheckCircle, CheckCircle2, Clock, Send } from 'lucide-react';
+import { BookOpen, User, Calendar, CreditCard, Sparkles, ShieldCheck, X, Star, QrCode, AlertCircle, CheckCircle, CheckCircle2, Clock, Send, UserPlus } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ReviewsModal } from './ReviewsModal';
+import { ClassEnrollmentConfirmModal } from './ClassEnrollmentConfirmModal';
 import { checkClassAvailability, AvailabilityCheckResult } from '../utils/tutorAvailability';
 
 interface ClassCardProps {
@@ -25,8 +26,12 @@ export const ClassCard: React.FC<ClassCardProps> = ({
   onOpenTutorProfile,
   onOpenScanner
 }) => {
-  const { currentUser, showToast, refreshClasses, refreshBookings, bookings, reviews } = useApp();
+  const { currentUser, showToast, refreshClasses, refreshBookings, bookings, reviews, refreshUserProfile } = useApp();
   const [loading, setLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isFinalizingEnrollment, setIsFinalizingEnrollment] = useState(false);
+  const [isJustRegistered, setIsJustRegistered] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestNote, setRequestNote] = useState("");
@@ -171,6 +176,99 @@ export const ClassCard: React.FC<ClassCardProps> = ({
           });
         }
       }
+    }
+  };
+
+  const handleEnrollClick = () => {
+    if (!currentUser) {
+      showToast("Please log in as a student to enroll in this class.", "info");
+      if (onRedirectToLogin) onRedirectToLogin();
+      return;
+    }
+
+    if (currentUser.role !== 'student') {
+      showToast("Only accounts registered as Students can enroll in classes.", "error");
+      return;
+    }
+
+    if (isTutorUnavailable) {
+      showToast(availabilityResult.reason || "This tutor is currently unavailable for this class time.", "error");
+      return;
+    }
+
+    if (isFull) {
+      showToast("This class has reached maximum capacity.", "error");
+      return;
+    }
+
+    // Open confirmation modal to prevent accidental sign-ups
+    setShowConfirmModal(true);
+  };
+
+  const handleFinalizeEnrollment = async () => {
+    if (!currentUser) return;
+
+    setIsFinalizingEnrollment(true);
+    try {
+      // 1. Finalize class enrollment booking in database
+      await firestoreService.bookClass(currentUser.uid, currentUser.name, item);
+
+      // 2. Generate tuition payment record
+      await firestoreService.createPayment(
+        currentUser.uid, 
+        currentUser.name, 
+        item.id, 
+        item.title, 
+        item.price, 
+        'Direct Class Enrollment Confirmation',
+        'pending',
+        {
+          gateway: 'bank_transfer',
+          currency: 'LKR',
+          paymentType: 'class_fee'
+        }
+      );
+
+      // 3. Trigger student & tutor in-app notifications
+      await firestoreService.triggerNotification(
+        currentUser.uid,
+        "Class Enrollment Confirmed!",
+        `Congratulations! You have successfully enrolled in '${item.title}' scheduled for ${item.schedule}.`,
+        'payment'
+      );
+
+      if (item.tutorId) {
+        await firestoreService.triggerNotification(
+          item.tutorId,
+          "New Student Registration",
+          `Student '${currentUser.name}' has registered for your class: '${item.title}'.`,
+          'reminder'
+        );
+      }
+
+      // Close confirmation modal
+      setShowConfirmModal(false);
+
+      // Transition button with success animation into 'Registered' state
+      setIsJustRegistered(true);
+      setShowSuccessAnimation(true);
+
+      showToast(`🎉 Successfully enrolled in ${item.title}! Your seat is confirmed.`, "success");
+
+      // Stop pulsing burst after 3.2s, keep Registered state
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+      }, 3200);
+
+      // Update global context
+      if (refreshBookings) await refreshBookings();
+      if (refreshClasses) await refreshClasses();
+      if (refreshUserProfile) await refreshUserProfile();
+      if (onBookSuccess) onBookSuccess();
+    } catch (err: any) {
+      showToast("Enrollment failed. Please try again.", "error");
+    } finally {
+      setIsFinalizingEnrollment(false);
     }
   };
 
@@ -474,20 +572,51 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             <span className="text-[10px] text-slate-400 font-semibold">({classReviews.length})</span>
           </button>
 
-          {/* Student: Enrolled Button -> opens relevant class profile */}
-          {currentUser && isStudent && isEnrolled && (
-            <button
+          {/* Student: Registered / Enrolled State Button (with success animation on transition) */}
+          {currentUser && isStudent && (isEnrolled || isJustRegistered) && (
+            <motion.button
               onClick={() => onOpenClassProfile && onOpenClassProfile(item)}
-              className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-emerald-600/20 transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5"
-              id={`enrolled_btn_${item.id}`}
-              title="You are actively enrolled. Click to open class profile"
+              initial={showSuccessAnimation ? { scale: 0.94 } : false}
+              animate={showSuccessAnimation ? { 
+                scale: [1, 1.08, 0.98, 1],
+                backgroundColor: ['#0f172a', '#059669', '#059669'],
+                boxShadow: [
+                  "0 0 0 0 rgba(16, 185, 129, 0.7)",
+                  "0 0 0 12px rgba(16, 185, 129, 0)",
+                  "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                ]
+              } : false}
+              transition={{ duration: 0.65, ease: "easeOut" }}
+              className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-emerald-600/20 transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 ${
+                showSuccessAnimation ? 'ring-2 ring-emerald-400 ring-offset-1' : ''
+              }`}
+              id={`registered_btn_${item.id}`}
+              title="You are registered for this class. Click to open class profile"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Enrolled
-            </button>
+              {showSuccessAnimation ? (
+                <motion.div
+                  initial={{ scale: 0, rotate: -60 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 18 }}
+                  className="flex items-center justify-center"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
+                </motion.div>
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <motion.span
+                initial={showSuccessAnimation ? { opacity: 0, x: 4 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                Registered
+              </motion.span>
+            </motion.button>
           )}
 
           {/* Student: Pending Request Button */}
-          {currentUser && isStudent && !isEnrolled && isPendingRequest && (
+          {currentUser && isStudent && !isEnrolled && !isJustRegistered && isPendingRequest && (
             <button
               onClick={() => showToast(`Your enrollment request for '${item.title}' has been submitted and is currently pending review & approval by academy administrators.`, "info")}
               className="flex-1 text-center py-2.5 px-3 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-xs transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5"
@@ -499,23 +628,29 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             </button>
           )}
 
-          {/* Student: Unenrolled -> Request Button */}
-          {currentUser && isStudent && !isEnrolled && !isPendingRequest && (
+          {/* Student: Unenrolled -> Enrollment Button */}
+          {currentUser && isStudent && !isEnrolled && !isJustRegistered && !isPendingRequest && (
             <button
-              onClick={() => setShowRequestModal(true)}
+              onClick={handleEnrollClick}
               disabled={isFull || isTutorUnavailable}
-              className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-230 cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 ${
                 isFull 
                   ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
                   : isTutorUnavailable
                     ? 'bg-rose-50 text-rose-500 border border-rose-200 cursor-not-allowed'
-                    : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10'
+                    : 'bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg hover:shadow-slate-900/10 active:scale-[0.98]'
               }`}
-              id={`request_btn_${item.id}`}
+              id={`enroll_btn_${item.id}`}
+              title={isFull ? 'Class is full' : isTutorUnavailable ? availabilityResult.reason : `Enroll in ${item.title}`}
             >
-              {isFull ? 'Full' : isTutorUnavailable ? 'Unavailable' : (
+              {isFull ? (
+                'Full'
+              ) : isTutorUnavailable ? (
+                'Unavailable'
+              ) : (
                 <>
-                  <Send className="w-3.5 h-3.5" /> Request
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Enroll in Class</span>
                 </>
               )}
             </button>
@@ -532,21 +667,34 @@ export const ClassCard: React.FC<ClassCardProps> = ({
             </button>
           )}
 
-          {/* Guest / Not Logged In: Request to Enroll Button */}
+          {/* Guest / Not Logged In: Enroll Button */}
           {!currentUser && (
             <button
               onClick={() => {
-                showToast("Please log in as a student to request class enrollment.", "info");
+                showToast("Please log in as a student to enroll in this class.", "info");
                 if (onRedirectToLogin) onRedirectToLogin();
               }}
-              className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg transition-all cursor-pointer"
-              id={`login_req_btn_${item.id}`}
+              className="flex-1 text-center py-2.5 px-4 rounded-xl text-xs font-extrabold bg-slate-900 hover:bg-slate-950 text-white shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              id={`login_enroll_btn_${item.id}`}
             >
-              Request to Enroll
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Enroll Now</span>
             </button>
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal to Prevent Accidental Sign-ups */}
+      {currentUser && (
+        <ClassEnrollmentConfirmModal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={handleFinalizeEnrollment}
+          classItem={item}
+          currentUser={currentUser}
+          isProcessing={isFinalizingEnrollment}
+        />
+      )}
 
       {/* Student Class Enrollment Request Modal */}
       {showRequestModal && currentUser && (
