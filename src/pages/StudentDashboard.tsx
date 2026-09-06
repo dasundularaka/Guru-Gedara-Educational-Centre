@@ -345,55 +345,9 @@ export const StudentDashboard: React.FC = () => {
   const getMatchedStudentPayments = (matchedB: Booking[]): Payment[] => {
     if (!currentUser) return [];
     const matchedP = payments.filter(p => 
-      isStudentMatch(p.studentId, (p as any).studentEmail, p.studentName) ||
-      matchedB.some(b => b.classId === p.classId)
+      isStudentMatch(p.studentId, (p as any).studentEmail, p.studentName)
     );
-
-    const matchedClassIds = new Set(matchedP.map(p => p.classId));
-    const synthesizedP: Payment[] = [];
-
-    matchedB.forEach(b => {
-      if (!matchedClassIds.has(b.classId)) {
-        const cls = classes.find(c => c.id === b.classId);
-        synthesizedP.push({
-          id: `pay_b_${b.id}`,
-          studentId: currentUser.uid,
-          studentName: currentUser.name || currentUser.username || 'Scholar Student',
-          classId: b.classId,
-          classTitle: b.classTitle || cls?.title || 'Enrolled Tuition Course',
-          amount: cls?.price || 1500,
-          paymentMethod: 'Online Tuition Portal',
-          status: 'paid',
-          date: b.bookingDate || new Date().toISOString(),
-          dueDate: new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        });
-        matchedClassIds.add(b.classId);
-      }
-    });
-
-    (currentUser.selectedClasses || []).forEach(cId => {
-      if (!matchedClassIds.has(cId)) {
-        const cls = classes.find(c => c.id === cId);
-        if (cls) {
-          synthesizedP.push({
-            id: `pay_sel_${currentUser.uid}_${cls.id}`,
-            studentId: currentUser.uid,
-            studentName: currentUser.name || currentUser.username || 'Scholar Student',
-            classId: cls.id,
-            classTitle: cls.title,
-            amount: cls.price || 1500,
-            paymentMethod: 'Online Tuition Portal',
-            status: 'paid',
-            date: new Date().toISOString(),
-            dueDate: new Date(Date.now() + 86400000 * 7).toISOString()
-          });
-          matchedClassIds.add(cId);
-        }
-      }
-    });
-
-    let combined = [...matchedP, ...synthesizedP];
-    return combined;
+    return matchedP;
   };
 
   const fetchDashboardData = async () => {

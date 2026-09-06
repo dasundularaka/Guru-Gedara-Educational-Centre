@@ -79,6 +79,39 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [profilePhoto, setProfilePhoto] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  // Compute enrolled classes and pending requests for current user in profile modal
+  const studentEnrolledClasses = React.useMemo(() => {
+    if (!currentUser || currentUser.role !== 'student') return [];
+    const isMatch = (b: Booking) => (
+      b.studentId === currentUser.uid ||
+      (!!currentUser.email && !!b.studentEmail && b.studentEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+      (!!currentUser.username && b.studentId === currentUser.username) ||
+      (!!currentUser.name && !!b.studentName && b.studentName.toLowerCase() === currentUser.name.toLowerCase())
+    );
+    const cancelledIds = new Set(
+      (bookings || []).filter(b => isMatch(b) && (b.status === 'cancelled' || b.status === 'declined')).map(b => b.classId)
+    );
+    const activeIds = new Set(
+      (bookings || []).filter(b => isMatch(b) && (b.status === 'active' || b.status === 'approved')).map(b => b.classId)
+    );
+    const enrolledIds = new Set<string>();
+    (currentUser.selectedClasses || []).forEach(cid => {
+      if (!cancelledIds.has(cid) || activeIds.has(cid)) enrolledIds.add(cid);
+    });
+    activeIds.forEach(cid => enrolledIds.add(cid));
+    return (classes || []).filter(c => enrolledIds.has(c.id));
+  }, [currentUser, bookings, classes]);
+
+  const studentPendingRequests = React.useMemo(() => {
+    if (!currentUser || currentUser.role !== 'student') return [];
+    return (bookings || []).filter(b => 
+      (b.studentId === currentUser.uid ||
+       (!!currentUser.email && !!b.studentEmail && b.studentEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+       (!!currentUser.username && b.studentId === currentUser.username)) &&
+      b.status === 'pending_approval'
+    );
+  }, [currentUser, bookings]);
+
   // Synchronize internal form fields when profile is toggled
   useEffect(() => {
     if (currentUser) {
@@ -1006,6 +1039,83 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                         <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono">Guardian Mobile Contact</span>
                         <span className="block font-bold text-slate-800 mt-0.5 font-mono">{currentUser.guardianPhone || 'Not Provided'}</span>
                       </div>
+                    </div>
+
+                    {/* Enrolled Classes Section for Student */}
+                    <div className="pt-3 border-t border-slate-150 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono font-bold flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                          Enrolled Academic Classes ({studentEnrolledClasses.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowProfileDetails(false);
+                            onChangeTab('classes');
+                          }}
+                          className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer"
+                        >
+                          Explore Classes →
+                        </button>
+                      </div>
+
+                      {studentEnrolledClasses.length > 0 ? (
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                          {studentEnrolledClasses.map(cls => (
+                            <div
+                              key={cls.id}
+                              className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-1.5 py-0.5 text-[8.5px] font-black rounded bg-indigo-100 text-indigo-700 uppercase">
+                                    {cls.subject}
+                                  </span>
+                                  <span className="font-bold text-slate-800 truncate">
+                                    {cls.title}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                  Tutor: {cls.tutorName} • {cls.schedule}
+                                </p>
+                              </div>
+                              <span className="px-2 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded-md shrink-0">
+                                Active
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-slate-50 rounded-xl text-center border border-dashed border-slate-200">
+                          <p className="text-[11px] text-slate-400">
+                            You are not currently enrolled in any classes.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Pending Enrollment Requests (if any) */}
+                      {studentPendingRequests.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1">
+                          <span className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            Pending Enrollment Requests ({studentPendingRequests.length})
+                          </span>
+                          {studentPendingRequests.map(req => (
+                            <div
+                              key={req.id}
+                              className="p-2 bg-amber-50/80 border border-amber-200 rounded-lg flex items-center justify-between text-[11px]"
+                            >
+                              <span className="font-medium text-slate-800 truncate mr-2">
+                                {req.classTitle}
+                              </span>
+                              <span className="text-[9px] font-mono font-bold text-amber-700 shrink-0">
+                                Awaiting Admin
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

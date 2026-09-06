@@ -205,60 +205,28 @@ export const ClassCard: React.FC<ClassCardProps> = ({
     setShowConfirmModal(true);
   };
 
-  const handleFinalizeEnrollment = async () => {
+  const handleFinalizeEnrollment = async (note?: string) => {
     if (!currentUser) return;
 
     setIsFinalizingEnrollment(true);
     try {
-      // 1. Finalize class enrollment booking in database
-      await firestoreService.bookClass(currentUser.uid, currentUser.name, item);
-
-      // 2. Generate tuition payment record
-      await firestoreService.createPayment(
-        currentUser.uid, 
-        currentUser.name, 
-        item.id, 
-        item.title, 
-        item.price, 
-        'Direct Class Enrollment Confirmation',
-        'pending',
-        {
-          gateway: 'bank_transfer',
-          currency: 'LKR',
-          paymentType: 'class_fee'
-        }
-      );
-
-      // 3. Trigger student & tutor in-app notifications
-      await firestoreService.triggerNotification(
+      // Students can only request enrollment; self-enrolling is disabled
+      await firestoreService.requestClassEnrollment(
         currentUser.uid,
-        "Class Enrollment Confirmed!",
-        `Congratulations! You have successfully enrolled in '${item.title}' scheduled for ${item.schedule}.`,
-        'payment'
+        currentUser.name || currentUser.username || 'Student',
+        item,
+        note
       );
-
-      if (item.tutorId) {
-        await firestoreService.triggerNotification(
-          item.tutorId,
-          "New Student Registration",
-          `Student '${currentUser.name}' has registered for your class: '${item.title}'.`,
-          'reminder'
-        );
-      }
 
       // Close confirmation modal
       setShowConfirmModal(false);
-
-      // Transition button with success animation into 'Registered' state
       setIsJustRegistered(true);
       setShowSuccessAnimation(true);
-
-      showToast(`🎉 Successfully enrolled in ${item.title}! Your seat is confirmed.`, "success");
-
-      // Stop pulsing burst after 3.2s, keep Registered state
       setTimeout(() => {
         setShowSuccessAnimation(false);
-      }, 3200);
+      }, 4000);
+
+      showToast(`Enrollment request for '${item.title}' submitted to administrators for review and approval.`, "success");
 
       // Update global context
       if (refreshBookings) await refreshBookings();
@@ -266,7 +234,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({
       if (refreshUserProfile) await refreshUserProfile();
       if (onBookSuccess) onBookSuccess();
     } catch (err: any) {
-      showToast("Enrollment failed. Please try again.", "error");
+      showToast("Could not submit enrollment request. Please try again.", "error");
     } finally {
       setIsFinalizingEnrollment(false);
     }
@@ -649,8 +617,8 @@ export const ClassCard: React.FC<ClassCardProps> = ({
                 'Unavailable'
               ) : (
                 <>
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Enroll in Class</span>
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Request Enrollment</span>
                 </>
               )}
             </button>

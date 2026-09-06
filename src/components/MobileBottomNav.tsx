@@ -120,7 +120,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <button
               key={item.id}
               onClick={item.action}
-              className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[50px] ${
+              aria-label={item.label}
+              className={`relative flex items-center justify-center py-2.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[46px] ${
                 active 
                   ? 'text-indigo-600 dark:text-indigo-400 font-bold' 
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -136,20 +137,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 />
               )}
 
-              <div className="relative">
-                <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110 stroke-[2.4]' : 'stroke-[1.8]'}`} />
+              <div className="relative flex items-center justify-center">
+                <Icon className={`w-5.5 h-5.5 transition-transform ${active ? 'scale-110 stroke-[2.4]' : 'stroke-[1.8]'}`} />
                 {item.badge && item.badge > 0 && (
                   <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-indigo-600 ring-2 ring-white dark:ring-slate-900 text-[8.5px] font-black text-white">
                     {item.badge > 9 ? '9+' : item.badge}
                   </span>
                 )}
               </div>
-
-              <span className={`text-[10px] tracking-tight mt-1 leading-none transition-all ${
-                active ? 'font-black scale-105' : 'font-semibold'
-              }`}>
-                {item.label}
-              </span>
             </button>
           );
         })}
@@ -164,7 +159,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 onChangeTab('dashboard');
               }
             }}
-            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[50px] ${
+            aria-label="User Profile"
+            className={`relative flex items-center justify-center py-2.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[46px] ${
               currentTab === 'dashboard'
                 ? 'text-indigo-600 dark:text-indigo-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -180,17 +176,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               />
             )}
 
-            <div className="relative">
+            <div className="relative flex items-center justify-center">
               {currentUser.photoURL ? (
                 <img 
                   referrerPolicy="no-referrer"
                   src={currentUser.photoURL} 
                   alt={currentUser.name} 
-                  className="w-5.5 h-5.5 rounded-full object-cover ring-2 ring-indigo-500/40 shadow-xs"
+                  className="w-6 h-6 rounded-full object-cover ring-2 ring-indigo-500/40 shadow-xs"
                 />
               ) : (
-                <div className="w-5.5 h-5.5 rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[10px] font-black shadow-xs">
-                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
+                <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[10px] font-black shadow-xs">
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
                 </div>
               )}
               {unreadCount > 0 && (
@@ -199,16 +195,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 </span>
               )}
             </div>
-            <span className={`text-[10px] tracking-tight mt-1 leading-none transition-all truncate max-w-[50px] ${
-              currentTab === 'dashboard' ? 'font-black scale-105' : 'font-semibold'
-            }`}>
-              Profile
-            </span>
           </button>
         ) : (
           <button
             onClick={() => onChangeTab('auth')}
-            className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[50px] ${
+            aria-label="Sign In"
+            className={`relative flex items-center justify-center py-2.5 px-1 rounded-2xl transition-all cursor-pointer select-none min-h-[46px] ${
               currentTab === 'auth'
                 ? 'text-indigo-600 dark:text-indigo-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -224,14 +216,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               />
             )}
 
-            <div className="relative">
-              <LogIn className="w-5 h-5 stroke-[1.8]" />
+            <div className="relative flex items-center justify-center">
+              <LogIn className="w-5.5 h-5.5 stroke-[1.8]" />
             </div>
-            <span className={`text-[10px] tracking-tight mt-1 leading-none transition-all ${
-              currentTab === 'auth' ? 'font-black scale-105' : 'font-semibold'
-            }`}>
-              Sign In
-            </span>
           </button>
         )}
       </div>

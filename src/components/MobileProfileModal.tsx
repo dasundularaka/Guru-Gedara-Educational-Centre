@@ -15,10 +15,12 @@ import {
   Sun,
   Moon,
   School,
-  AlertCircle
+  AlertCircle,
+  BookOpen,
+  Clock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { UserProfile } from '../types';
+import { UserProfile, Booking, ClassItem } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 
 interface MobileProfileModalProps {
@@ -45,7 +47,7 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
   onOpenQrPass,
   onNavigateTab
 }) => {
-  const { currentUser, updateProfile, showToast, logout, darkMode, toggleDarkMode } = useApp();
+  const { currentUser, updateProfile, showToast, logout, darkMode, toggleDarkMode, classes, bookings } = useApp();
   
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [displayName, setDisplayName] = useState<string>(currentUser?.name || currentUser?.displayName || '');
@@ -55,6 +57,23 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
 
   if (!currentUser) return null;
+
+  // Resolve Student's Enrolled Classes and Pending Requests
+  const isStudent = currentUser.role === 'student';
+  const studentBookings = (bookings || []).filter(b => 
+    b.studentId === currentUser.uid || 
+    (currentUser.email && b.studentEmail && b.studentEmail.toLowerCase() === currentUser.email.toLowerCase()) || 
+    (currentUser.username && b.studentId === currentUser.username)
+  );
+
+  const activeBookings = studentBookings.filter(b => b.status === 'active' || b.status === 'approved');
+  const pendingRequests = studentBookings.filter(b => b.status === 'pending_approval');
+  
+  const enrolledClassIds = new Set<string>([
+    ...(currentUser.selectedClasses || []),
+    ...activeBookings.map(b => b.classId)
+  ]);
+  const enrolledClassesList = (classes || []).filter(c => enrolledClassIds.has(c.id));
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -281,6 +300,102 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Enrolled Classes & Academic Courses Section for Students */}
+              {isStudent && (
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3" id="student_enrolled_classes_section">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Enrolled Classes ({enrolledClassesList.length})
+                      </h4>
+                    </div>
+                    {onNavigateTab && (
+                      <button
+                        onClick={() => {
+                          onClose();
+                          onNavigateTab('classes');
+                        }}
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      >
+                        Explore More
+                      </button>
+                    )}
+                  </div>
+
+                  {enrolledClassesList.length > 0 ? (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {enrolledClassesList.map(cls => (
+                        <div
+                          key={cls.id}
+                          className="p-3 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs"
+                          id={`profile_enrolled_class_${cls.id}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 text-[9px] font-black rounded-md bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 uppercase">
+                                {cls.subject}
+                              </span>
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                              </span>
+                            </div>
+                            <h5 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                              {cls.title}
+                            </h5>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              Tutor: {cls.tutorName} • {cls.schedule || `${cls.dayOfWeek || ''} ${cls.timeSlot || ''}`}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-850/60 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        No enrolled classes yet.
+                      </p>
+                      {onNavigateTab && (
+                        <button
+                          onClick={() => {
+                            onClose();
+                            onNavigateTab('classes');
+                          }}
+                          className="mt-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        >
+                          Browse Classes & Request Enrollment →
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pending Enrollment Requests (if any) */}
+                  {pendingRequests.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Pending Enrollment Requests ({pendingRequests.length})</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {pendingRequests.map(req => (
+                          <div
+                            key={req.id}
+                            className="p-2.5 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-center justify-between text-xs"
+                          >
+                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate mr-2">
+                              {req.classTitle}
+                            </span>
+                            <span className="text-[10px] font-mono font-black text-amber-600 dark:text-amber-400 uppercase shrink-0">
+                              Awaiting Approval
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Edit Profile Form Toggle */}
               <div className="border-t border-slate-200 dark:border-slate-800 pt-4">

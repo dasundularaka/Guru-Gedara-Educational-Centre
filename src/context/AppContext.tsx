@@ -720,6 +720,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             if (profile) {
+              if (profile.status === 'suspended') {
+                try { await signOut(auth); } catch (_) {}
+                localStorage.removeItem('local_running_session');
+                setCurrentUser(null);
+                showToast("Your account has been suspended by administration. Access denied.", "error");
+                setLoading(false);
+                return;
+              }
               setCurrentUser(profile);
               // Load notifications
               const nots = await firestoreService.getNotifications(profile.uid);
@@ -734,6 +742,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (cachedUser) {
             try {
               const profile = JSON.parse(cachedUser);
+              if (profile.status === 'suspended') {
+                localStorage.removeItem('local_running_session');
+                setCurrentUser(null);
+                showToast("Your account has been suspended by administration. Access denied.", "error");
+                setLoading(false);
+                return;
+              }
               setCurrentUser(profile);
               const nots = await firestoreService.getNotifications(profile.uid);
               setNotifications(nots);
@@ -891,6 +906,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 3. If an existing profile was found:
       if (existingProfile) {
+        // Enforce suspended status
+        if (existingProfile.status === 'suspended') {
+          if (firebaseAuthSuccess) {
+            try { await signOut(auth); } catch (_) {}
+          }
+          throw new Error("Your account has been suspended by administration. Access denied.");
+        }
+
         // Enforce pending student approval
         if (existingProfile.role === 'student' && existingProfile.status === 'pending') {
           if (firebaseAuthSuccess) {

@@ -116,11 +116,20 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   );
 
   // Student's active bookings and accurate enrolled classes calculation
+  const isMatchBooking = (b: Booking) => {
+    return (
+      b.studentId === student.uid ||
+      (!!student.email && !!b.studentEmail && b.studentEmail.toLowerCase() === student.email.toLowerCase()) ||
+      (!!student.username && b.studentId === student.username) ||
+      (!!student.name && !!b.studentName && b.studentName.toLowerCase() === student.name.toLowerCase())
+    );
+  };
+
   const cancelledBookingClassIds = new Set(
-    bookings.filter(b => b.studentId === student.uid && b.status === 'cancelled').map(b => b.classId)
+    bookings.filter(b => isMatchBooking(b) && (b.status === 'cancelled' || b.status === 'declined')).map(b => b.classId)
   );
   const activeBookingClassIds = new Set(
-    bookings.filter(b => b.studentId === student.uid && b.status === 'active').map(b => b.classId)
+    bookings.filter(b => isMatchBooking(b) && (b.status === 'active' || b.status === 'approved')).map(b => b.classId)
   );
 
   const enrolledClassIds = new Set<string>();

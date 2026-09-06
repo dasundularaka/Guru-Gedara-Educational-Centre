@@ -21,6 +21,7 @@ import { AddStudentToClassModal } from '../components/AddStudentToClassModal';
 import { ClassRosterModal } from '../components/ClassRosterModal';
 import { StudentProfileModal } from '../components/StudentProfileModal';
 import { AdminQRScannerModal } from '../components/AdminQRScannerModal';
+import { AdminUsersAndApprovals } from '../components/AdminUsersAndApprovals';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -122,7 +123,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
   
@@ -1935,8 +1936,10 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Sub menu controls - Desktop Dropdown & Mobile Modern Sidebar Drawer */}
             {(() => {
+              const pendingApprovalsCount = (bookings.filter(b => b.status === 'pending_approval').length) + (users.filter(u => u.status === 'pending').length);
               const adminSectionItems: SectionSidebarItem[] = [
                 { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" />, description: 'Overview & metrics' },
+                { id: 'users_approvals', label: 'Users & Approvals', icon: <ShieldCheck className="w-4 h-4 text-indigo-500" />, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, description: 'QR scanner, profiles & approvals' },
                 { id: 'payments', label: 'Global Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" />, description: 'Financial transactions' },
                 { id: 'students', label: 'Scholars & Students', icon: <Users className="w-4 h-4 text-indigo-500" />, description: 'Enrolled students' },
                 { id: 'progress', label: 'Student Progress', icon: <GraduationCap className="w-4 h-4 text-purple-500" />, description: 'Grades & attendance' },
@@ -1978,6 +1981,7 @@ export const AdminDashboard: React.FC = () => {
                       <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
                         <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
                           {activeTab === 'analytics' && <BarChart3 className="w-4 h-4" />}
+                          {activeTab === 'users_approvals' && <ShieldCheck className="w-4 h-4 text-indigo-600" />}
                           {activeTab === 'payments' && <CreditCard className="w-4 h-4" />}
                           {activeTab === 'students' && <Users className="w-4 h-4" />}
                           {activeTab === 'progress' && <GraduationCap className="w-4 h-4" />}
@@ -1992,6 +1996,7 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         <span className="capitalize">
                           {activeTab === 'analytics' && 'Insights & Analytics'}
+                          {activeTab === 'users_approvals' && 'Users & Approvals'}
                           {activeTab === 'payments' && 'Global Ledger'}
                           {activeTab === 'students' && 'Scholars & Students'}
                           {activeTab === 'progress' && 'Student Progress & Attendance'}
@@ -2572,6 +2577,28 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
 
+              </motion.div>
+            )}
+
+            {/* Tab: Users & Approvals (QR Scanner, Profiles, Edit, Active/Suspended & Approvals Panel) */}
+            {activeTab === 'users_approvals' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <AdminUsersAndApprovals
+                  currentUser={currentUser!}
+                  users={users}
+                  classes={classesList}
+                  bookings={bookingsList}
+                  refreshUsers={fetchAdminDatasets}
+                  refreshBookings={refreshBookings}
+                  refreshClasses={refreshClasses}
+                  showToast={showToast}
+                  onOpenStudentProfile={(student) => setSelectedStudentForProfile(student)}
+                  onOpenClassProfile={(cls) => setSelectedClassForProfile(cls)}
+                />
               </motion.div>
             )}
 

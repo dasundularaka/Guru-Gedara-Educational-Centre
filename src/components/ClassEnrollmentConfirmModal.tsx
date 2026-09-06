@@ -1,12 +1,12 @@
-import React from 'react';
-import { X, ShieldCheck, AlertCircle, Calendar, CreditCard, Users, CheckCircle2, Loader2, User, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, ShieldCheck, AlertCircle, Calendar, CreditCard, Users, CheckCircle2, Loader2, User, Clock, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClassItem, UserProfile } from '../types';
 
 interface ClassEnrollmentConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void> | void;
+  onConfirm: (note?: string) => Promise<void> | void;
   classItem: ClassItem;
   currentUser: UserProfile;
   isProcessing?: boolean;
@@ -20,6 +20,7 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
   currentUser,
   isProcessing = false
 }) => {
+  const [requestNote, setRequestNote] = useState<string>('');
   if (!isOpen) return null;
 
   const spotsLeft = classItem.maxSlots - classItem.bookedSlots;
@@ -42,6 +43,11 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
       default:
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfirm(requestNote.trim() || undefined);
   };
 
   return (
@@ -75,28 +81,28 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
           {/* Modal Header */}
           <div className="flex items-center gap-3 mb-4">
             <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
-              <ShieldCheck className="w-6 h-6" />
+              <Clock className="w-6 h-6 text-indigo-600" />
             </div>
             <div>
               <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-indigo-600 block leading-none">
-                Enrollment Verification
+                Official Intake Policy
               </span>
               <h2 id="confirm_enrollment_title" className="text-lg font-extrabold text-slate-900 mt-1 leading-snug">
-                Confirm Class Enrollment
+                Request Class Enrollment
               </h2>
             </div>
           </div>
 
-          {/* Reassurance Notice Banner to prevent accidental sign-ups */}
+          {/* Reassurance Notice Banner regarding manual admin approval */}
           <div className="p-3.5 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-[11px] text-amber-900 flex items-start gap-2.5 mb-5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              <strong className="font-bold">Review your enrollment details:</strong> Confirming below will finalize your official registration and reserve your seat in this class.
+              <strong className="font-bold">Administrative Approval Required:</strong> Self-enrollment is disabled. Confirming below will submit your official enrollment request to academy administrators for verification and approval.
             </div>
           </div>
 
           {/* Class Summary Card */}
-          <div className="bg-slate-50/80 p-4.5 rounded-2xl border border-slate-200/70 space-y-3 mb-5 text-xs">
+          <div className="bg-slate-50/80 p-4.5 rounded-2xl border border-slate-200/70 space-y-3 mb-4 text-xs">
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-200/60">
               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getSubjectBadgeStyle(classItem.subject)}`}>
                 {classItem.subject}
@@ -159,11 +165,27 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
 
             {/* Enrolling Student Account Details */}
             <div className="pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-              <span className="text-slate-500">Enrolling Student:</span>
+              <span className="text-slate-500">Requesting Student:</span>
               <span className="font-bold text-slate-800">
-                {currentUser.name} <span className="text-slate-400 font-normal">({currentUser.email})</span>
+                {currentUser.name} <span className="text-slate-400 font-normal">(@{currentUser.username || currentUser.email})</span>
               </span>
             </div>
+          </div>
+
+          {/* Optional Student Note / Message */}
+          <div className="mb-5">
+            <label htmlFor="request_note_input" className="block text-xs font-bold text-slate-700 mb-1.5">
+              Message to Academy Administration <span className="text-slate-400 font-normal">(optional)</span>:
+            </label>
+            <input
+              id="request_note_input"
+              type="text"
+              value={requestNote}
+              onChange={(e) => setRequestNote(e.target.value)}
+              placeholder="e.g. Requesting admission for physical batch..."
+              className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+              maxLength={150}
+            />
           </div>
 
           {/* Action Footer Buttons */}
@@ -179,20 +201,20 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
             </button>
             <button
               type="button"
-              onClick={onConfirm}
+              onClick={handleFormSubmit}
               disabled={isProcessing || spotsLeft <= 0}
-              className="sm:w-2/3 py-2.5 px-4 bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="sm:w-2/3 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md hover:shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               id="btn_confirm_enroll_finalize"
             >
               {isProcessing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Finalizing Enrollment...</span>
+                  <span>Submitting Request...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Confirm & Finalize Enrollment</span>
+                  <Send className="w-4 h-4 text-indigo-100" />
+                  <span>Submit Enrollment Request</span>
                 </>
               )}
             </button>

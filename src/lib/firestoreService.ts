@@ -1626,7 +1626,8 @@ const firestoreServiceRaw = {
     bookingId: string,
     initialStatus: 'active' | 'suspended' = 'active',
     paymentCategory: 'Normal' | 'Free Card' | 'Half Card' = 'Normal',
-    performedBy?: string
+    performedBy?: string,
+    adminInfo?: { name: string; username: string; note?: string }
   ): Promise<{ booking: Booking; student: UserProfile }> {
     let booking: Booking | null = null;
 
@@ -1650,12 +1651,50 @@ const firestoreServiceRaw = {
       throw new Error(`Booking request '${bookingId}' not found.`);
     }
 
+    const decisionTimestamp = new Date().toISOString();
+    const decidedBy = adminInfo?.name || performedBy || 'Administrator';
+    const decidedByUsername = adminInfo?.username || 'admin';
+    const decisionNote = adminInfo?.note || 'Enrollment request approved';
+
+    // Update the booking with decision metadata
+    if (isUsingCloud) {
+      try {
+        await updateDoc(doc(db, 'bookings', bookingId), {
+          status: 'approved',
+          decision: 'approved',
+          decisionTimestamp,
+          decidedBy,
+          decidedByUsername,
+          decisionNote
+        });
+      } catch (e) {
+        console.warn("[firestoreService] Cloud update booking decision failed:", e);
+      }
+    }
+
+    const bookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
+    const updatedBookings = bookings.map(b => {
+      if (b.id === bookingId) {
+        return {
+          ...b,
+          status: 'approved' as const,
+          decision: 'approved' as const,
+          decisionTimestamp,
+          decidedBy,
+          decidedByUsername,
+          decisionNote
+        };
+      }
+      return b;
+    });
+    saveFallback('local_bookings', updatedBookings);
+
     return await this.enrollStudentInClass(
       booking.studentId,
       booking.classId,
       initialStatus,
       paymentCategory,
-      performedBy
+      decidedBy
     );
   },
 
@@ -1665,16 +1704,28 @@ const firestoreServiceRaw = {
   async rejectClassEnrollmentRequest(
     bookingId: string,
     reason?: string,
-    performedBy?: string
+    performedBy?: string,
+    adminInfo?: { name: string; username: string }
   ): Promise<void> {
     let booking: Booking | null = null;
+    const decisionTimestamp = new Date().toISOString();
+    const decidedBy = adminInfo?.name || performedBy || 'Administrator';
+    const decidedByUsername = adminInfo?.username || 'admin';
+    const decisionNote = reason || 'Enrollment request declined by administration';
 
     if (isUsingCloud) {
       try {
         const bDoc = await getDoc(doc(db, 'bookings', bookingId));
         if (bDoc.exists()) {
           booking = { id: bDoc.id, ...bDoc.data() } as Booking;
-          await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
+          await updateDoc(doc(db, 'bookings', bookingId), { 
+            status: 'declined',
+            decision: 'declined',
+            decisionTimestamp,
+            decidedBy,
+            decidedByUsername,
+            decisionNote
+          });
         }
       } catch (e) {
         console.warn("[firestoreService] Cloud reject enrollment request failed:", e);
@@ -1685,7 +1736,15 @@ const firestoreServiceRaw = {
     const updatedBookings = bookings.map(b => {
       if (b.id === bookingId) {
         booking = b;
-        return { ...b, status: 'cancelled' as const };
+        return { 
+          ...b, 
+          status: 'declined' as const,
+          decision: 'declined' as const,
+          decisionTimestamp,
+          decidedBy,
+          decidedByUsername,
+          decisionNote
+        };
       }
       return b;
     });
@@ -1696,16 +1755,16 @@ const firestoreServiceRaw = {
         await this.triggerNotification(
           (booking as Booking).studentId,
           `❌ Class Enrollment Request Update: ${(booking as Booking).classTitle}`,
-          `Your enrollment request for '${(booking as Booking).classTitle}' was declined. Reason: ${reason || 'Capacity or administrative review'}.`,
+          `Your enrollment request for '${(booking as Booking).classTitle}' was declined by ${decidedBy} (@${decidedByUsername}) on ${new Date(decisionTimestamp).toLocaleDateString()}. Reason: ${decisionNote}.`,
           'announcement'
         );
       } catch (_) {}
 
       try {
         await this.addAuditLog({
-          username: performedBy || 'Admin',
+          username: decidedByUsername,
           action: 'CLASS_ENROLLMENT_REQUEST_REJECTED',
-          details: `Declined enrollment request for student ${(booking as Booking).studentName} in class ${(booking as Booking).classTitle}. Reason: ${reason || 'N/A'}`
+          details: `Declined enrollment request for student ${(booking as Booking).studentName} in class ${(booking as Booking).classTitle} by ${decidedBy} (@${decidedByUsername}). Reason: ${decisionNote}`
         });
       } catch (_) {}
     }
@@ -2324,7 +2383,7 @@ const firestoreServiceRaw = {
     saveFallback('local_registered_users', updatedReg);
 
     // If status updated to approved, dispatch official approval email
-    if (data.status === 'approved') {
+    if (data.status === 'approved' || data.status === 'active') {
       try {
         const fullUser = await this.getUserProfile(uid);
         if (fullUser && fullUser.email && fullUser.email.includes('@')) {
@@ -2334,6 +2393,125 @@ const firestoreServiceRaw = {
         console.warn("Could not dispatch student approval email:", appErr);
       }
     }
+  },
+
+  /**
+   * Set user account status to active or suspended
+   */
+  async updateUserStatus(
+    uid: string, 
+    newStatus: 'active' | 'suspended', 
+    adminInfo?: { name: string; username: string; reason?: string }
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const adminName = adminInfo?.name || 'Administrator';
+    const adminUser = adminInfo?.username || 'admin';
+
+    await this.updateUserProfile(uid, {
+      status: newStatus
+    });
+
+    // Notify user
+    try {
+      await this.triggerNotification(
+        uid,
+        newStatus === 'active' ? '✅ Account Activated' : '⚠️ Account Suspended',
+        newStatus === 'active' 
+          ? `Your account status has been set to Active by ${adminName} (@${adminUser}). You now have full platform access.`
+          : `Your account has been suspended by ${adminName} (@${adminUser}). Reason: ${adminInfo?.reason || 'Administrative policy enforcement'}. You cannot log into the system while suspended.`,
+        'announcement'
+      );
+    } catch (_) {}
+
+    // Audit Log
+    try {
+      await this.addAuditLog({
+        username: adminUser,
+        action: newStatus === 'active' ? 'USER_ACCOUNT_ACTIVATED' : 'USER_ACCOUNT_SUSPENDED',
+        details: `Account ${uid} status changed to ${newStatus.toUpperCase()} by ${adminName} (@${adminUser}). Reason: ${adminInfo?.reason || 'N/A'}`
+      });
+    } catch (_) {}
+  },
+
+  /**
+   * Approve a pending student registration
+   */
+  async approveStudentAdmission(
+    uid: string,
+    adminInfo: { name: string; username: string; note?: string }
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const adminName = adminInfo.name || 'Administrator';
+    const adminUser = adminInfo.username || 'admin';
+    const note = adminInfo.note || 'Registration approved';
+
+    await this.updateUserProfile(uid, {
+      status: 'active',
+      admissionDecision: 'approved',
+      admissionDecisionTimestamp: timestamp,
+      admissionDecidedBy: adminName,
+      admissionDecidedByUsername: adminUser,
+      admissionDecisionNote: note,
+      approvedBy: adminName,
+      approvedAt: timestamp
+    });
+
+    try {
+      await this.triggerNotification(
+        uid,
+        '🎉 Student Registration Approved!',
+        `Welcome to Guru Gedara! Your registration has been approved by ${adminName} (@${adminUser}) on ${new Date(timestamp).toLocaleDateString()}. Note: ${note}.`,
+        'announcement'
+      );
+    } catch (_) {}
+
+    try {
+      await this.addAuditLog({
+        username: adminUser,
+        action: 'STUDENT_ADMISSION_APPROVED',
+        details: `Approved admission for student ${uid} by ${adminName} (@${adminUser}). Note: ${note}`
+      });
+    } catch (_) {}
+  },
+
+  /**
+   * Decline a pending student registration
+   */
+  async declineStudentAdmission(
+    uid: string,
+    reason: string,
+    adminInfo: { name: string; username: string }
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const adminName = adminInfo.name || 'Administrator';
+    const adminUser = adminInfo.username || 'admin';
+    const note = reason || 'Registration declined by administration';
+
+    await this.updateUserProfile(uid, {
+      status: 'suspended',
+      admissionDecision: 'declined',
+      admissionDecisionTimestamp: timestamp,
+      admissionDecidedBy: adminName,
+      admissionDecidedByUsername: adminUser,
+      admissionDecisionNote: note
+    });
+
+    try {
+      await this.triggerNotification(
+        uid,
+        '❌ Registration Decision Update',
+        `Your student registration application was declined by ${adminName} (@${adminUser}) on ${new Date(timestamp).toLocaleDateString()}. Reason: ${note}.`,
+        'announcement'
+      );
+    } catch (_) {}
+
+    try {
+      await this.addAuditLog({
+        username: adminUser,
+        action: 'STUDENT_ADMISSION_DECLINED',
+        details: `Declined student admission for ${uid} by ${adminName} (@${adminUser}). Reason: ${note}`
+      });
+    } catch (_) {}
   },
 
   async updateClass(classId: string, data: Partial<ClassItem>): Promise<void> {

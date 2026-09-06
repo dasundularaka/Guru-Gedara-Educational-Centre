@@ -42,6 +42,11 @@ export interface UserProfile {
   role: UserRole;
   username?: string;
   status?: 'pending' | 'approved' | 'active' | 'suspended';
+  admissionDecision?: 'approved' | 'declined';
+  admissionDecisionTimestamp?: string;
+  admissionDecidedBy?: string;
+  admissionDecidedByUsername?: string;
+  admissionDecisionNote?: string;
   gender?: 'male' | 'female';
   address?: string;
   guardianName?: string;
@@ -180,10 +185,16 @@ export interface Booking {
   dayOfWeek: string;
   timeSlot: string;
   bookingDate: string;
-  status: 'active' | 'cancelled' | 'pending_approval';
+  status: 'active' | 'cancelled' | 'pending_approval' | 'approved' | 'declined';
   approvalType?: 'payment_collected' | 'late_payment' | 'free_card';
   collectedAmount?: number;
   createdAt?: string;
+  decision?: 'approved' | 'declined';
+  decisionTimestamp?: string;
+  decidedBy?: string;
+  decidedByUsername?: string;
+  decisionNote?: string;
+  requestNote?: string;
 }
 
 export interface Payment {
