@@ -29,13 +29,15 @@ import {
   Eye,
   Info,
   Send,
-  Upload
+  Upload,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import { UserProfile, ClassItem, Booking } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 import { AdminQRScannerModal } from './AdminQRScannerModal';
+import { AdminDirectMessageModal } from './AdminDirectMessageModal';
 
 interface AdminUsersAndApprovalsProps {
   currentUser: UserProfile;
@@ -129,6 +131,15 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
 
   // Edit User Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Admin Direct Messaging Modal State
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [chatTargetUser, setChatTargetUser] = useState<UserProfile | null>(null);
+
+  const handleOpenChatWithUser = (targetUser?: UserProfile | null) => {
+    setChatTargetUser(targetUser || null);
+    setIsChatModalOpen(true);
+  };
   const [editForm, setEditForm] = useState<{
     name: string;
     email: string;
@@ -791,6 +802,16 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
 
               <div className="flex items-center gap-2 flex-wrap">
                 <button
+                  onClick={() => handleOpenChatWithUser(null)}
+                  className="py-2 px-3.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  id="btn_open_admin_messaging_hub"
+                  title="Open administrative direct messaging hub to message any user"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Message Users</span>
+                </button>
+
+                <button
                   onClick={() => setShowQRModal(true)}
                   className="py-2 px-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                   id="btn_open_dedicated_qr_scanner"
@@ -989,15 +1010,25 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                       </div>
                     </div>
 
-                    {/* Edit Profile Icon Button */}
-                    <button
-                      onClick={() => handleOpenEditModal(selectedUser)}
-                      className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded-xl transition-all cursor-pointer border border-transparent hover:border-indigo-200 dark:hover:border-indigo-800"
-                      title="Edit User Profile"
-                      id="btn_edit_inspected_user"
-                    >
-                      <Edit3 className="w-5 h-5" />
-                    </button>
+                    {/* Actions: Message & Edit Profile */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleOpenChatWithUser(selectedUser)}
+                        className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 rounded-xl transition-all cursor-pointer border border-emerald-200 dark:border-emerald-800"
+                        title={`Send Direct Message to ${selectedUser.name}`}
+                        id="btn_chat_inspected_user"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(selectedUser)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded-xl transition-all cursor-pointer border border-transparent hover:border-indigo-200 dark:hover:border-indigo-800"
+                        title="Edit User Profile"
+                        id="btn_edit_inspected_user"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Contact Info Table */}
@@ -1176,6 +1207,21 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                     </div>
                   )}
 
+                  {/* Direct Administrative Messaging Button */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      Direct Messaging
+                    </span>
+                    <button
+                      onClick={() => handleOpenChatWithUser(selectedUser)}
+                      className="w-full py-2.5 px-3.5 rounded-xl text-xs font-black bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                      id="btn_direct_message_inspected_user"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Message {selectedUser.name?.split(' ')[0] || 'User'} (@{selectedUser.username || selectedUser.uid.slice(0, 8)})</span>
+                    </button>
+                  </div>
+
                   {/* Account Status Control: Active vs Suspended */}
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
@@ -1293,6 +1339,18 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                         }`}>
                           {user.role}
                         </span>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenChatWithUser(user);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/60 cursor-pointer transition-colors"
+                          title={`Send Direct Message to ${user.name}`}
+                          id={`btn_message_user_${user.uid}`}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </button>
 
                         <button
                           onClick={(e) => {
@@ -1988,6 +2046,23 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
             showToast(`Loaded verified profile for ${user.name} (@${user.username || user.uid})`, 'success');
           }}
           showToast={showToast}
+        />
+      )}
+
+      {/* Admin Direct Message Modal */}
+      {isChatModalOpen && (
+        <AdminDirectMessageModal
+          isOpen={isChatModalOpen}
+          onClose={() => setIsChatModalOpen(false)}
+          currentUser={currentUser}
+          allUsers={liveUsers}
+          initialSelectedUser={chatTargetUser}
+          showToast={showToast}
+          onViewUserProfile={(user) => {
+            setSelectedUser(user);
+            setActiveTab('directory');
+            setIsChatModalOpen(false);
+          }}
         />
       )}
     </div>

@@ -22,6 +22,7 @@ import { ClassRosterModal } from '../components/ClassRosterModal';
 import { StudentProfileModal } from '../components/StudentProfileModal';
 import { AdminQRScannerModal } from '../components/AdminQRScannerModal';
 import { AdminUsersAndApprovals } from '../components/AdminUsersAndApprovals';
+import { AdminDirectMessageModal } from '../components/AdminDirectMessageModal';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -103,7 +104,8 @@ import {
   Info,
   RefreshCw,
   Activity,
-  UserPlus
+  UserPlus,
+  MessageSquare
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -143,6 +145,8 @@ export const AdminDashboard: React.FC = () => {
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
   const [isAdminQrScannerOpen, setIsAdminQrScannerOpen] = useState<boolean>(false);
+  const [isChatModalOpen, setIsChatModalOpen] = useState<boolean>(false);
+  const [chatTargetUser, setChatTargetUser] = useState<UserProfile | null>(null);
   const [selectedClassForScanner, setSelectedClassForScanner] = useState<ClassItem | null>(null);
   const [showClassScannerModal, setShowClassScannerModal] = useState<boolean>(false);
   const [progressSearchTerm, setProgressSearchTerm] = useState<string>('');
@@ -1931,6 +1935,20 @@ export const AdminDashboard: React.FC = () => {
               <span>Sections</span>
             </button>
 
+            {/* Direct Messaging Hub Button */}
+            <button
+              id="admin_btn_open_messages"
+              onClick={() => {
+                setChatTargetUser(null);
+                setIsChatModalOpen(true);
+              }}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              title="Open Universal Direct Messaging Hub to chat with any user"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Message Users</span>
+            </button>
+
             {/* Executive ID Pass Button */}
             <button
               id="admin_my_id_card_btn"
@@ -1972,6 +1990,7 @@ export const AdminDashboard: React.FC = () => {
               const pendingApprovalsCount = (bookings.filter(b => b.status === 'pending_approval').length) + (users.filter(u => u.status === 'pending').length);
               const adminSectionItems: SectionSidebarItem[] = [
                 { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" />, description: 'Overview & metrics' },
+                { id: 'messages', label: 'Direct Messages', icon: <MessageSquare className="w-4 h-4 text-emerald-500" />, description: 'Chat with any user' },
                 { id: 'users_approvals', label: 'Users & Approvals', icon: <ShieldCheck className="w-4 h-4 text-indigo-500" />, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, description: 'QR scanner, profiles & approvals' },
                 { id: 'payments', label: 'Global Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" />, description: 'Financial transactions' },
                 { id: 'students', label: 'Scholars & Students', icon: <Users className="w-4 h-4 text-indigo-500" />, description: 'Enrolled students' },
@@ -1996,6 +2015,11 @@ export const AdminDashboard: React.FC = () => {
                     items={adminSectionItems}
                     activeId={activeTab}
                     onSelect={(id) => {
+                      if (id === 'messages') {
+                        setChatTargetUser(null);
+                        setIsChatModalOpen(true);
+                        return;
+                      }
                       setActiveTab(id as any);
                       if (id === 'progress') fetchAttendanceRecords();
                     }}
@@ -2061,6 +2085,12 @@ export const AdminDashboard: React.FC = () => {
                               key={opt.id}
                               id={`admin_tab_${opt.id}`}
                               onClick={() => {
+                                if (opt.id === 'messages') {
+                                  setChatTargetUser(null);
+                                  setIsChatModalOpen(true);
+                                  setIsNavDropdownOpen(false);
+                                  return;
+                                }
                                 setActiveTab(opt.id as any);
                                 if (opt.id === 'progress') fetchAttendanceRecords();
                                 setIsNavDropdownOpen(false);
@@ -6218,6 +6248,10 @@ export const AdminDashboard: React.FC = () => {
           isOpen={!!selectedTutorForProfile}
           onClose={() => setSelectedTutorForProfile(null)}
           reviews={reviews || []}
+          onContactClick={() => {
+            setChatTargetUser(selectedTutorForProfile);
+            setIsChatModalOpen(true);
+          }}
         />
       )}
 
@@ -6483,6 +6517,11 @@ export const AdminDashboard: React.FC = () => {
             await fetchAdminDatasets();
             await fetchAttendanceRecords();
           }}
+          onSendMessage={(studentUid, studentName) => {
+            const target = users.find(u => u.uid === studentUid) || selectedStudentForProfile;
+            setChatTargetUser(target || { uid: studentUid, name: studentName, email: '', role: 'student', createdAt: '' });
+            setIsChatModalOpen(true);
+          }}
         />
       )}
 
@@ -6497,6 +6536,26 @@ export const AdminDashboard: React.FC = () => {
         }}
         showToast={showToast}
       />
+
+      {/* Universal Admin Direct Message Modal */}
+      {isChatModalOpen && (
+        <AdminDirectMessageModal
+          isOpen={isChatModalOpen}
+          onClose={() => setIsChatModalOpen(false)}
+          currentUser={currentUser || { uid: 'admin', role: 'admin', name: 'Admin', email: 'admin@school.edu', createdAt: '' }}
+          allUsers={users}
+          initialSelectedUser={chatTargetUser}
+          showToast={showToast}
+          onViewUserProfile={(user) => {
+            if (user.role === 'student') {
+              setSelectedStudentForProfile(user);
+            } else if (user.role === 'tutor') {
+              setSelectedTutorForProfile(user);
+            }
+            setIsChatModalOpen(false);
+          }}
+        />
+      )}
     </motion.div>
   );
 };

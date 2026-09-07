@@ -427,13 +427,27 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
         >
           {/* Header Profile Banner */}
           <div className="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shrink-0">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
-              id="btn_close_student_profile_modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              {onSendMessage && (
+                <button
+                  onClick={() => onSendMessage(student.uid, student.name)}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer border border-emerald-400/40"
+                  id="btn_student_profile_send_message"
+                  title={`Send Direct Message to ${student.name}`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Direct Message</span>
+                </button>
+              )}
+
+              <button
+                onClick={onClose}
+                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
+                id="btn_close_student_profile_modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               {student.photoURL ? (

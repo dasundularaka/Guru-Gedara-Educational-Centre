@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { DirectMessage, UserProfile } from '../types';
-import { Send, User, MessageSquare, AlertCircle } from 'lucide-react';
+import { Send, User, MessageSquare, AlertCircle, Search } from 'lucide-react';
 
 interface ChatWidgetProps {
   currentUserId: string;
@@ -15,6 +15,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -94,25 +95,48 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
     }
   };
 
+  const filteredUsers = users.filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      u.name?.toLowerCase().includes(q) ||
+      u.username?.toLowerCase().includes(q) ||
+      u.email?.toLowerCase().includes(q) ||
+      u.role?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="bg-white rounded-2xl border border-blue-50 shadow-md overflow-hidden grid grid-cols-1 md:grid-cols-3 h-[420px]" id="communication_hub">
       {/* Sidebar: Users directory */}
       <div className="border-r border-gray-100 flex flex-col bg-gray-50/50">
-        <div className="p-4 border-b border-gray-100 bg-white">
-          <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-blue-600" />
-            Active Conversations
-          </h4>
-          <p className="text-[10px] text-gray-400 mt-0.5">Select a participant to chat</p>
+        <div className="p-3 border-b border-gray-100 bg-white space-y-2">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-600" />
+              Active Conversations
+            </h4>
+            <p className="text-[10px] text-gray-400 mt-0.5">Select a participant to chat</p>
+          </div>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search user or username..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none"
+            />
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {users.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <div className="p-4 text-center text-gray-400 text-xs">
-              No participants available.
+              {searchQuery ? 'No matching users found.' : 'No participants available.'}
             </div>
           ) : (
-            users.map((u) => {
+            filteredUsers.map((u) => {
               const isSelected = selectedUser?.uid === u.uid;
               return (
                 <button
