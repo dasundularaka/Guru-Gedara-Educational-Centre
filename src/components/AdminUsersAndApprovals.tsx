@@ -35,6 +35,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import { UserProfile, ClassItem, Booking } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { AdminQRScannerModal } from './AdminQRScannerModal';
 
 interface AdminUsersAndApprovalsProps {
   currentUser: UserProfile;
@@ -61,6 +62,41 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
   onOpenStudentProfile,
   onOpenClassProfile
 }) => {
+  // Live Real-Time Synced Datasets for cross-browser live updates
+  const [liveUsers, setLiveUsers] = useState<UserProfile[]>(users);
+  const [liveBookings, setLiveBookings] = useState<Booking[]>(bookings);
+
+  useEffect(() => {
+    if (Array.isArray(users) && users.length > 0) {
+      setLiveUsers(users);
+    }
+  }, [users]);
+
+  useEffect(() => {
+    if (Array.isArray(bookings)) {
+      setLiveBookings(bookings);
+    }
+  }, [bookings]);
+
+  useEffect(() => {
+    const unsubUsers = firestoreService.subscribeUsers((updatedUsers) => {
+      if (Array.isArray(updatedUsers) && updatedUsers.length > 0) {
+        setLiveUsers(updatedUsers);
+      }
+    });
+
+    const unsubBookings = firestoreService.subscribeBookings((updatedBookings) => {
+      if (Array.isArray(updatedBookings)) {
+        setLiveBookings(updatedBookings);
+      }
+    });
+
+    return () => {
+      unsubUsers();
+      unsubBookings();
+    };
+  }, []);
+
   // Main view navigation tab
   const [activeTab, setActiveTab] = useState<'directory' | 'approvals'>('directory');
   
@@ -73,6 +109,7 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
   // QR Scanner State
+  const [showQRModal, setShowQRModal] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
@@ -80,6 +117,15 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Success Confirmation Notification Banner with animations
+  const [successNotice, setSuccessNotice] = useState<{
+    type: 'approve' | 'decline';
+    title: string;
+    subtitle: string;
+    targetName: string;
+    timestamp: string;
+  } | null>(null);
 
   // Edit User Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -122,13 +168,23 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
   const [dialogNote, setDialogNote] = useState('');
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  // Auto-dismiss success notification banner
+  useEffect(() => {
+    if (successNotice) {
+      const timer = setTimeout(() => {
+        setSuccessNotice(null);
+      }, 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [successNotice]);
+
   // Approvals Sub-Filter
   const [approvalCategory, setApprovalCategory] = useState<'classes' | 'admissions' | 'history'>('classes');
 
-  // Filtered Users
+  // Filtered Users using live synced users
   const filteredUsers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return users.filter(u => {
+    return liveUsers.filter(u => {
       // Role filter
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
       // Status filter
@@ -145,21 +201,21 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
       const matchUid = u.uid.toLowerCase().includes(q);
       return matchName || matchUsername || matchEmail || matchPhone || matchUid;
     });
-  }, [users, searchQuery, roleFilter, statusFilter]);
+  }, [liveUsers, searchQuery, roleFilter, statusFilter]);
 
-  // Pending Class Requests
+  // Pending Class Requests using live synced bookings
   const pendingClassRequests = useMemo(() => {
-    return bookings.filter(b => b.status === 'pending_approval');
-  }, [bookings]);
+    return liveBookings.filter(b => b.status === 'pending_approval');
+  }, [liveBookings]);
 
-  // Pending Student Admissions
+  // Pending Student Admissions using live synced users
   const pendingStudentAdmissions = useMemo(() => {
-    return users.filter(u => u.role === 'student' && u.status === 'pending');
-  }, [users]);
+    return liveUsers.filter(u => u.role === 'student' && u.status === 'pending');
+  }, [liveUsers]);
 
   // Decision Records (Previously decided class requests and student admissions)
   const decisionRecords = useMemo(() => {
-    const classDecisions = bookings
+    const classDecisions = liveBookings
       .filter(b => b.decision || b.status === 'approved' || b.status === 'declined')
       .map(b => ({
         id: b.id,
@@ -174,7 +230,7 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
         decisionNote: b.decisionNote || 'No administrative comments recorded'
       }));
 
-    const studentDecisions = users
+    const studentDecisions = liveUsers
       .filter(u => u.admissionDecision)
       .map(u => ({
         id: u.uid,
@@ -192,7 +248,7 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
     return [...classDecisions, ...studentDecisions].sort((a, b) => 
       new Date(b.decisionTimestamp).getTime() - new Date(a.decisionTimestamp).getTime()
     );
-  }, [bookings, users]);
+  }, [liveBookings, liveUsers]);
 
   // User details: Enrolled Classes for selected student
   const selectedUserEnrolledClasses = useMemo(() => {
@@ -207,10 +263,10 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
     };
 
     const cancelledIds = new Set(
-      bookings.filter(b => isMatchBooking(b) && (b.status === 'cancelled' || b.status === 'declined')).map(b => b.classId)
+      liveBookings.filter(b => isMatchBooking(b) && (b.status === 'cancelled' || b.status === 'declined')).map(b => b.classId)
     );
     const activeIds = new Set(
-      bookings.filter(b => isMatchBooking(b) && (b.status === 'active' || b.status === 'approved')).map(b => b.classId)
+      liveBookings.filter(b => isMatchBooking(b) && (b.status === 'active' || b.status === 'approved')).map(b => b.classId)
     );
 
     const enrolledIds = new Set<string>();
@@ -220,37 +276,18 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
     activeIds.forEach(cid => enrolledIds.add(cid));
 
     return classes.filter(c => enrolledIds.has(c.id));
-  }, [selectedUser, bookings, classes]);
+  }, [selectedUser, liveBookings, classes]);
 
-  // Camera cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
+  // Taught classes if inspected user is a tutor
+  const selectedTutorClasses = useMemo(() => {
+    if (!selectedUser || selectedUser.role !== 'tutor') return [];
+    return classes.filter(c => c.tutorId === selectedUser.uid || (selectedUser.name && c.tutorName?.toLowerCase() === selectedUser.name.toLowerCase()));
+  }, [selectedUser, classes]);
 
-  const startCamera = async () => {
+  // Robust Camera Lifecycle using useEffect
+  const startCamera = () => {
     setCameraError(null);
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Camera access is not supported by your browser.');
-        return;
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        await videoRef.current.play();
-        setIsCameraActive(true);
-        requestAnimationFrame(tickQRScan);
-      }
-    } catch (err: any) {
-      console.warn("Camera init failed:", err);
-      setCameraError('Unable to open camera stream. You can upload a QR image or search by username/ID instead.');
-    }
+    setIsCameraActive(true);
   };
 
   const stopCamera = () => {
@@ -265,24 +302,85 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
     setIsCameraActive(false);
   };
 
+  useEffect(() => {
+    if (!isCameraActive) return;
+
+    let isMounted = true;
+
+    const initCamera = async () => {
+      setCameraError(null);
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setCameraError('Camera access is not supported by your browser or container environment.');
+          return;
+        }
+
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' } }
+          });
+        } catch {
+          // Fallback to standard video camera (desktop webcam or selfie camera)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true
+          });
+        }
+
+        if (!isMounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          await videoRef.current.play();
+          scanLoopRef.current = requestAnimationFrame(tickQRScan);
+        }
+      } catch (err: any) {
+        console.warn("Camera init failed:", err);
+        setCameraError(err.message || 'Unable to open camera. You can upload a QR image, search manually, or use the Fullscreen Scanner modal.');
+      }
+    };
+
+    initCamera();
+
+    return () => {
+      isMounted = false;
+      if (scanLoopRef.current) {
+        cancelAnimationFrame(scanLoopRef.current);
+        scanLoopRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isCameraActive]);
+
   const processScannedPayload = (scannedText: string) => {
     if (!scannedText) return;
     const clean = scannedText.trim();
     setLastScannedCode(clean);
 
-    // Try finding user by username, email, or uid
-    const cleanNoPrefix = clean.replace(/^stu[_-]?/i, '');
-    const matched = users.find(u => 
+    // Universal search across ALL user roles: Students, Faculty Tutors, and Administrators
+    const cleanNoPrefix = clean.replace(/^(stu|tut|adm|usr|qr)[_-]?/i, '');
+    const matched = liveUsers.find(u => 
       (u.username && u.username.toLowerCase() === clean.toLowerCase()) ||
-      (u.username && u.username.replace(/^stu[_-]?/i, '').toLowerCase() === cleanNoPrefix.toLowerCase()) ||
+      (u.username && u.username.replace(/^(stu|tut|adm|usr)[_-]?/i, '').toLowerCase() === cleanNoPrefix.toLowerCase()) ||
       u.uid.toLowerCase() === clean.toLowerCase() ||
       (u.email && u.email.toLowerCase() === clean.toLowerCase()) ||
-      clean.toLowerCase().includes(u.username?.toLowerCase() || '___')
+      (u.phone && u.phone.includes(clean)) ||
+      clean.toLowerCase().includes(u.username?.toLowerCase() || '___') ||
+      clean.toLowerCase().includes(u.uid.toLowerCase())
     );
 
     if (matched) {
       setSelectedUser(matched);
-      showToast(`Scanned ID Card: Loaded profile for ${matched.name} (@${matched.username || matched.uid})`, 'success');
+      const roleLabel = matched.role === 'tutor' ? 'Faculty Tutor' : matched.role === 'admin' ? 'Administrator' : 'Student';
+      showToast(`Scanned ${roleLabel} Card: Loaded verified profile for ${matched.name} (@${matched.username || matched.uid})`, 'success');
       stopCamera();
     } else {
       showToast(`No user found in registry matching scanned QR code: "${clean}"`, 'error');
@@ -506,6 +604,10 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
     };
 
     try {
+      const isApprove = confirmDialog.type.includes('approve') || (confirmDialog.type === 'toggle_status' && confirmDialog.confirmButtonColor === 'emerald');
+      let outcomeTitle = '';
+      let outcomeSubtitle = '';
+
       if (confirmDialog.type === 'approve_class') {
         await firestoreService.approveClassEnrollmentRequest(
           confirmDialog.targetId,
@@ -514,6 +616,8 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
           adminInfo.name,
           adminInfo
         );
+        outcomeTitle = 'Class Enrollment Approved';
+        outcomeSubtitle = `Approved enrollment for ${confirmDialog.targetName}. Student admission badge and booking activated.`;
         showToast(`Enrollment request approved! Decision saved with timestamp and admin stamp.`, 'success');
       } else if (confirmDialog.type === 'decline_class') {
         await firestoreService.rejectClassEnrollmentRequest(
@@ -522,12 +626,16 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
           adminInfo.name,
           adminInfo
         );
+        outcomeTitle = 'Class Enrollment Declined';
+        outcomeSubtitle = `Declined request for ${confirmDialog.targetName}. Reason: "${dialogNote.trim() || 'Declined by administration'}".`;
         showToast(`Enrollment request declined. Reason and decision saved for the student.`, 'info');
       } else if (confirmDialog.type === 'approve_student') {
         await firestoreService.approveStudentAdmission(
           confirmDialog.targetId,
           adminInfo
         );
+        outcomeTitle = 'Student Admission Approved';
+        outcomeSubtitle = `Account for ${confirmDialog.targetName} has been activated. The student can now log in and enroll.`;
         showToast(`Student admission approved! Account activated for login.`, 'success');
       } else if (confirmDialog.type === 'decline_student') {
         await firestoreService.declineStudentAdmission(
@@ -535,9 +643,11 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
           dialogNote.trim() || 'Application declined by administration',
           adminInfo
         );
+        outcomeTitle = 'Student Registration Declined';
+        outcomeSubtitle = `Application for ${confirmDialog.targetName} declined. Account remains locked.`;
         showToast(`Student registration application declined.`, 'info');
       } else if (confirmDialog.type === 'toggle_status') {
-        const targetUser = users.find(u => u.uid === confirmDialog.targetId);
+        const targetUser = liveUsers.find(u => u.uid === confirmDialog.targetId);
         const newStatus = targetUser?.status === 'suspended' ? 'active' : 'suspended';
         await firestoreService.updateUserStatus(
           confirmDialog.targetId,
@@ -548,11 +658,22 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
             reason: dialogNote.trim() || undefined
           }
         );
+        outcomeTitle = `Account Status: ${newStatus.toUpperCase()}`;
+        outcomeSubtitle = `User ${confirmDialog.targetName} is now set to ${newStatus.toUpperCase()}.`;
         showToast(`User status updated to ${newStatus.toUpperCase()}.`, 'success');
         if (selectedUser && selectedUser.uid === confirmDialog.targetId) {
           setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
         }
       }
+
+      // Record success notice for animated celebration overlay & banner
+      setSuccessNotice({
+        type: isApprove ? 'approve' : 'decline',
+        title: outcomeTitle,
+        subtitle: outcomeSubtitle,
+        targetName: confirmDialog.targetName,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      });
 
       setConfirmDialog(null);
       setDialogNote('');
@@ -654,24 +775,38 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                   <QrCode className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white">
-                    Digital Student ID Card QR Scanner
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-white">
+                      Universal Academy ID & QR Scanner
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      All Roles Supported
+                    </span>
+                  </div>
                   <p className="text-xs text-slate-400">
-                    Scan student ID card QR codes instantly to fetch student record, class roster, and admission history.
+                    Scan digital ID cards for Students, Faculty Tutors, and Administrators to instantly inspect rosters, credentials, and records.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setShowQRModal(true)}
+                  className="py-2 px-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  id="btn_open_dedicated_qr_scanner"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>Dedicated Fullscreen Scanner</span>
+                </button>
+
                 {!isCameraActive ? (
                   <button
                     onClick={startCamera}
-                    className="py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    className="py-2 px-3.5 bg-slate-800 hover:bg-slate-750 text-slate-100 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-all cursor-pointer"
                     id="btn_start_qr_camera"
                   >
-                    <Camera className="w-4 h-4" />
-                    <span>Open Camera Scanner</span>
+                    <Camera className="w-4 h-4 text-indigo-400" />
+                    <span>In-Page Camera</span>
                   </button>
                 ) : (
                   <button
@@ -711,18 +846,21 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                   <video
                     ref={videoRef}
                     className="w-full h-full object-cover"
+                    autoPlay
+                    playsInline
+                    muted
                   />
                   {/* Targeting reticle overlay */}
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                     <div className="w-44 h-44 border-2 border-dashed border-emerald-400 rounded-2xl animate-pulse flex items-center justify-center">
                       <span className="text-[10px] text-emerald-300 font-mono font-bold bg-black/60 px-2 py-0.5 rounded">
-                        Align QR Code
+                        Align Any User QR Code
                       </span>
                     </div>
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-2 text-center">
-                  Position student ID card QR in front of the lens. Profile loads automatically once detected.
+                  Position any Student, Faculty Tutor, or Staff ID QR code in front of the lens. Profile loads automatically once detected.
                 </p>
               </div>
             )}
@@ -970,6 +1108,74 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                     </div>
                   )}
 
+                  {/* Tutor Academic & Instruction Details (If Tutor) */}
+                  {selectedUser.role === 'tutor' && (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span>Assigned Classes ({selectedTutorClasses.length})</span>
+                        </h4>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {selectedUser.tutorDetails?.experience || 3}+ Yrs Experience
+                        </span>
+                      </div>
+
+                      {selectedUser.tutorDetails?.qualification && (
+                        <div className="p-2.5 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-xl border border-indigo-100/60 dark:border-indigo-900/40 text-xs text-indigo-900 dark:text-indigo-200">
+                          <span className="text-[10px] font-bold uppercase text-indigo-500 block mb-0.5">Faculty Qualification</span>
+                          {selectedUser.tutorDetails.qualification}
+                        </div>
+                      )}
+
+                      {selectedTutorClasses.length > 0 ? (
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {selectedTutorClasses.map(c => (
+                            <div
+                              key={c.id}
+                              className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0">
+                                <span className="px-1.5 py-0.5 text-[9px] font-black rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 uppercase">
+                                  {c.subject}
+                                </span>
+                                <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate mt-1">
+                                  {c.title}
+                                </h5>
+                                <p className="text-[10px] text-slate-500 truncate">
+                                  LKR {c.price?.toLocaleString()} • {c.dayOfWeek || ''} {c.timeSlot || ''}
+                                </p>
+                              </div>
+                              {onOpenClassProfile && (
+                                <button
+                                  onClick={() => onOpenClassProfile(c)}
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 shrink-0 cursor-pointer"
+                                  title="View Class Profile"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-850 rounded-xl text-center border border-dashed border-slate-200 dark:border-slate-800">
+                          <p className="text-xs text-slate-400">No active classes assigned yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Admin Role Privileges (If Admin) */}
+                  {selectedUser.role === 'admin' && (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 rounded-xl border border-amber-200/60 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>System Administrator Privileges: Full enrollment approvals, financial ledger access, and member roster management.</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Account Status Control: Active vs Suspended */}
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
@@ -1118,6 +1324,61 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
       {/* TAB 2: APPROVALS CENTER */}
       {activeTab === 'approvals' && (
         <div className="space-y-6">
+          {/* Animated Success Banner for Approvals / Declines */}
+          <AnimatePresence>
+            {successNotice && (
+              <motion.div
+                initial={{ opacity: 0, y: -16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -16, scale: 0.96 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className={`p-4 rounded-2xl border flex items-center justify-between gap-4 shadow-sm relative overflow-hidden ${
+                  successNotice.type === 'approve'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-200'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-950 dark:text-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    initial={{ scale: 0.6, rotate: -25 }}
+                    animate={{ scale: [0.6, 1.25, 1], rotate: [-25, 10, 0] }}
+                    transition={{ duration: 0.45 }}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-md ${
+                      successNotice.type === 'approve'
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                        : 'bg-rose-500 text-white shadow-rose-500/30'
+                    }`}
+                  >
+                    {successNotice.type === 'approve' ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : (
+                      <XCircle className="w-5 h-5" />
+                    )}
+                  </motion.div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider">
+                        {successNotice.title}
+                      </span>
+                      <span className="text-[10px] opacity-60 font-mono">
+                        • {successNotice.timestamp}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium opacity-90 mt-0.5">
+                      {successNotice.subtitle}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSuccessNotice(null)}
+                  className="p-1.5 rounded-lg opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Sub-Tabs: Classes vs Admissions vs History */}
           <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
             <button
@@ -1186,67 +1447,74 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
 
               {pendingClassRequests.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pendingClassRequests.map(req => (
-                    <div
-                      key={req.id}
-                      className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 relative"
-                      id={`class_request_card_${req.id}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-                            Pending Admin Approval
-                          </span>
-                          <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1.5">
-                            {req.classTitle}
-                          </h4>
-                          <p className="text-xs text-slate-500">
-                            Instructor: {req.tutorName} • {req.dayOfWeek || ''} {req.timeSlot || ''}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Requesting Student:</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            {req.studentName} <span className="text-slate-400 font-mono">(@{req.studentId})</span>
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Date Submitted:</span>
-                          <span className="font-mono text-slate-600 dark:text-slate-300">
-                            {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'Recent'}
-                          </span>
-                        </div>
-                        {req.requestNote && (
-                          <div className="pt-1 text-[11px] text-slate-600 dark:text-slate-300 italic border-t border-slate-200/60 dark:border-slate-800 mt-1">
-                            "{req.requestNote}"
+                  <AnimatePresence mode="popLayout">
+                    {pendingClassRequests.map(req => (
+                      <motion.div
+                        layout
+                        key={req.id}
+                        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.85, y: -20, transition: { duration: 0.28, ease: "easeInOut" } }}
+                        transition={{ layout: { duration: 0.35, ease: "easeOut" } }}
+                        className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 relative"
+                        id={`class_request_card_${req.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                              Pending Admin Approval
+                            </span>
+                            <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1.5">
+                              {req.classTitle}
+                            </h4>
+                            <p className="text-xs text-slate-500">
+                              Instructor: {req.tutorName} • {req.dayOfWeek || ''} {req.timeSlot || ''}
+                            </p>
                           </div>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* Approve & Decline Confirmation Buttons */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          onClick={() => handlePromptClassApprove(req)}
-                          className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                          id={`btn_approve_class_${req.id}`}
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Approve</span>
-                        </button>
-                        <button
-                          onClick={() => handlePromptClassDecline(req)}
-                          className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                          id={`btn_decline_class_${req.id}`}
-                        >
-                          <XCircle className="w-4 h-4" />
-                          <span>Decline</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Requesting Student:</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                              {req.studentName} <span className="text-slate-400 font-mono">(@{req.studentId})</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">Date Submitted:</span>
+                            <span className="font-mono text-slate-600 dark:text-slate-300">
+                              {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : 'Recent'}
+                            </span>
+                          </div>
+                          {req.requestNote && (
+                            <div className="pt-1 text-[11px] text-slate-600 dark:text-slate-300 italic border-t border-slate-200/60 dark:border-slate-800 mt-1">
+                              "{req.requestNote}"
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Approve & Decline Confirmation Buttons */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => handlePromptClassApprove(req)}
+                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            id={`btn_approve_class_${req.id}`}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            onClick={() => handlePromptClassDecline(req)}
+                            className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            id={`btn_decline_class_${req.id}`}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Decline</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               ) : (
                 <div className="p-10 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
@@ -1278,76 +1546,83 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
 
               {pendingStudentAdmissions.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pendingStudentAdmissions.map(student => (
-                    <div
-                      key={student.uid}
-                      className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 relative"
-                      id={`student_admission_card_${student.uid}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 font-black text-base flex items-center justify-center">
-                            {student.name?.charAt(0) || 'S'}
+                  <AnimatePresence mode="popLayout">
+                    {pendingStudentAdmissions.map(student => (
+                      <motion.div
+                        layout
+                        key={student.uid}
+                        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.85, y: -20, transition: { duration: 0.28, ease: "easeInOut" } }}
+                        transition={{ layout: { duration: 0.35, ease: "easeOut" } }}
+                        className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 relative"
+                        id={`student_admission_card_${student.uid}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 font-black text-base flex items-center justify-center">
+                              {student.name?.charAt(0) || 'S'}
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                {student.name}
+                              </h4>
+                              <p className="text-xs text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                @{student.username || student.uid.slice(0, 8)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                              {student.name}
-                            </h4>
-                            <p className="text-xs text-indigo-600 dark:text-indigo-400 font-mono font-bold">
-                              @{student.username || student.uid.slice(0, 8)}
-                            </p>
-                          </div>
+
+                          <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-100 text-amber-700 uppercase">
+                            Awaiting Admission
+                          </span>
                         </div>
 
-                        <span className="px-2 py-0.5 text-[9px] font-black rounded bg-amber-100 text-amber-700 uppercase">
-                          Awaiting Admission
-                        </span>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Email:</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{student.email}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">Phone:</span>
-                          <span className="font-mono text-slate-700 dark:text-slate-200">{student.phone || 'None'}</span>
-                        </div>
-                        {student.studentDetails?.grade && (
+                        <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1.5 text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-400">Academic Grade:</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">Grade {student.studentDetails.grade}</span>
+                            <span className="text-slate-400">Email:</span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{student.email}</span>
                           </div>
-                        )}
-                        {student.studentDetails?.school && (
                           <div className="flex items-center justify-between">
-                            <span className="text-slate-400">School:</span>
-                            <span className="text-slate-700 dark:text-slate-300 truncate">{student.studentDetails.school}</span>
+                            <span className="text-slate-400">Phone:</span>
+                            <span className="font-mono text-slate-700 dark:text-slate-200">{student.phone || 'None'}</span>
                           </div>
-                        )}
-                      </div>
+                          {student.studentDetails?.grade && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400">Academic Grade:</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">Grade {student.studentDetails.grade}</span>
+                            </div>
+                          )}
+                          {student.studentDetails?.school && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400">School:</span>
+                              <span className="text-slate-700 dark:text-slate-300 truncate">{student.studentDetails.school}</span>
+                            </div>
+                          )}
+                        </div>
 
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          onClick={() => handlePromptStudentApprove(student)}
-                          className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                          id={`btn_approve_student_${student.uid}`}
-                        >
-                          <UserCheck className="w-4 h-4" />
-                          <span>Approve Admission</span>
-                        </button>
-                        <button
-                          onClick={() => handlePromptStudentDecline(student)}
-                          className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                          id={`btn_decline_student_${student.uid}`}
-                        >
-                          <UserX className="w-4 h-4" />
-                          <span>Decline</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={() => handlePromptStudentApprove(student)}
+                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            id={`btn_approve_student_${student.uid}`}
+                          >
+                            <UserCheck className="w-4 h-4" />
+                            <span>Approve Admission</span>
+                          </button>
+                          <button
+                            onClick={() => handlePromptStudentDecline(student)}
+                            className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            id={`btn_decline_student_${student.uid}`}
+                          >
+                            <UserX className="w-4 h-4" />
+                            <span>Decline</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               ) : (
                 <div className="p-10 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
@@ -1700,6 +1975,21 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Dedicated Universal Academy QR Scanner Modal */}
+      {showQRModal && (
+        <AdminQRScannerModal
+          isOpen={showQRModal}
+          onClose={() => setShowQRModal(false)}
+          users={liveUsers}
+          onSelectUser={(user) => {
+            setSelectedUser(user);
+            setActiveTab('directory');
+            showToast(`Loaded verified profile for ${user.name} (@${user.username || user.uid})`, 'success');
+          }}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, Review } from '../types';
 import { X, Star, Calendar, GraduationCap, Award, BookOpen, Clock, Heart, MessageSquare } from 'lucide-react';
 
@@ -17,6 +18,16 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
   reviews = [],
   onContactClick
 }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !tutor) return null;
 
   const tutorName = tutor.name || tutor.displayName || tutor.username || 'Faculty Tutor';
@@ -63,9 +74,9 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
   const experienceYears = details.experience ?? details.experienceYears ?? 3;
   const bio = details.bio || `${tutorName} is committed to delivering comprehensive, high-standard curriculum guidance.`;
 
-  return (
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4" 
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" 
       id={`tutor_profile_modal_${tutor.uid}`}
       onClick={(e) => {
         e.stopPropagation();
@@ -75,7 +86,7 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
       }}
     >
       <div 
-        className="bg-white rounded-3xl max-w-2xl w-full border border-slate-150 shadow-2xl relative font-sans max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl relative font-sans max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         
@@ -316,15 +327,15 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
 
         {/* Action Button Footer */}
         {onContactClick && (
-          <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+          <div className="p-4 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 flex justify-end">
             <button 
               onClick={() => {
                 onClose();
                 onContactClick();
               }}
-              className="py-2.5 px-6 bg-slate-900 hover:bg-slate-950 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+              className="py-2.5 px-6 bg-slate-900 hover:bg-slate-950 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
             >
-              <MessageSquare className="w-4 h-4" /> Start Discussion
+              <MessageSquare className="w-4 h-4" /> Live Chat with Faculty
             </button>
           </div>
         )}
@@ -332,4 +343,6 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

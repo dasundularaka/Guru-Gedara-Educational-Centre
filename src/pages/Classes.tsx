@@ -5,6 +5,7 @@ import { firestoreService } from '../lib/firestoreService';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { TutorProfileModal } from '../components/TutorProfileModal';
+import { LiveChatModal } from '../components/LiveChatModal';
 import { 
   Search, 
   SlidersHorizontal, 
@@ -54,6 +55,7 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
   // Modals for Class Profile and Tutor Profile
   const [selectedClassForProfile, setSelectedClassForProfile] = useState<ClassItem | null>(null);
   const [selectedTutorForProfile, setSelectedTutorForProfile] = useState<UserProfile | null>(null);
+  const [selectedTutorForChat, setSelectedTutorForChat] = useState<UserProfile | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
@@ -634,6 +636,22 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
           isOpen={!!selectedTutorForProfile}
           onClose={() => setSelectedTutorForProfile(null)}
           reviews={reviews || []}
+          onContactClick={() => {
+            const t = selectedTutorForProfile;
+            setSelectedTutorForProfile(null);
+            setSelectedTutorForChat(t);
+          }}
+        />
+      )}
+
+      {/* Live Chat Modal */}
+      {selectedTutorForChat && (
+        <LiveChatModal
+          isOpen={!!selectedTutorForChat}
+          onClose={() => setSelectedTutorForChat(null)}
+          tutor={selectedTutorForChat}
+          currentUser={currentUser}
+          showToast={showToast}
         />
       )}
     </div>

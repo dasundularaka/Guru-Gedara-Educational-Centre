@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { firestoreService, formatNameAsUid, INITIAL_ADMISSION_FEE_CONFIG } from '../lib/firestoreService';
 import { optimizeImage } from '../lib/imageOptimizer';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord, AdmissionFeeConfig, AdmissionFeeHistoryItem } from '../types';
+import { UserProfile, ClassItem, Booking, Payment, PathwayItem, SubjectItem, BannerImage, AttendanceRecord, AdmissionFeeConfig, AdmissionFeeHistoryItem, Review } from '../types';
 import { SubjectSelector } from '../components/SubjectSelector';
 import { SystemActivityFeed } from '../components/SystemActivityFeed';
 import { StudentProgressTracker } from '../components/StudentProgressTracker';
@@ -131,6 +131,7 @@ export const AdminDashboard: React.FC = () => {
   const [classesList, setClassesList] = useState<ClassItem[]>(classes || []);
   const [paymentsList, setPaymentsList] = useState<Payment[]>(payments || []);
   const [bookingsList, setBookingsList] = useState<Booking[]>(bookings || []);
+  const [reviewsList, setReviewsList] = useState<Review[]>(reviews || []);
   const [pathwaysList, setPathwaysList] = useState<PathwayItem[]>([]);
   const [subjectsList, setSubjectsList] = useState<SubjectItem[]>([]);
   const [bannersList, setBannersList] = useState<BannerImage[]>([]);
@@ -176,7 +177,7 @@ export const AdminDashboard: React.FC = () => {
   // Review status filters
   const [reviewFilterStatus, setReviewFilterStatus] = useState<string>("all");
 
-  const filteredReviews = (reviews || []).filter(r => {
+  const filteredReviews = (reviewsList || reviews || []).filter(r => {
     if (reviewFilterStatus === "all") return true;
     return r.status === reviewFilterStatus;
   });
@@ -939,6 +940,33 @@ export const AdminDashboard: React.FC = () => {
       setSubjectsList(subjects);
     });
 
+    // Real-time subscriptions for cross-browser live admin updates
+    const unsubUsers = firestoreService.subscribeUsers((liveUsers) => {
+      if (Array.isArray(liveUsers) && liveUsers.length > 0) {
+        setUsers(liveUsers);
+      }
+    });
+    const unsubClasses = firestoreService.subscribeClasses((liveClasses) => {
+      if (Array.isArray(liveClasses) && liveClasses.length > 0) {
+        setClassesList(liveClasses);
+      }
+    });
+    const unsubBookings = firestoreService.subscribeBookings((liveBookings) => {
+      if (Array.isArray(liveBookings)) {
+        setBookingsList(liveBookings);
+      }
+    });
+    const unsubPayments = firestoreService.subscribePayments((livePayments) => {
+      if (Array.isArray(livePayments)) {
+        setPaymentsList(livePayments);
+      }
+    });
+    const unsubReviews = firestoreService.subscribeReviews((liveReviews) => {
+      if (Array.isArray(liveReviews)) {
+        setReviewsList(liveReviews);
+      }
+    });
+
     const handleOpenSectionsEvent = () => {
       setIsMobileSidebarOpen(true);
     };
@@ -949,6 +977,11 @@ export const AdminDashboard: React.FC = () => {
       unsubBanners();
       unsubPathways();
       unsubSubjects();
+      unsubUsers();
+      unsubClasses();
+      unsubBookings();
+      unsubPayments();
+      unsubReviews();
       window.removeEventListener('open-mobile-sections', handleOpenSectionsEvent);
     };
   }, []);
