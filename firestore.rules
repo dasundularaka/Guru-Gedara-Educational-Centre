@@ -134,6 +134,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Active Chat Presence & Typing Indicators
+    match /chat_presence/{conversationId} {
+      allow read, write: if true;
+    }
+
     // Reviews & Student Feedback
     match /reviews/{reviewId} {
       allow read, write: if true;

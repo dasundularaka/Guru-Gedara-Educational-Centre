@@ -124,7 +124,7 @@
     },
     "DirectMessage": {
       "title": "DirectMessage",
-      "description": "A direct message between two platform participants.",
+      "description": "A direct message between two platform participants with attachments and read receipts.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -132,9 +132,23 @@
         "senderName": { "type": "string" },
         "receiverId": { "type": "string" },
         "message": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" },
+        "readAt": { "type": "string" },
+        "attachments": { "type": "array" }
       },
       "required": ["id", "senderId", "senderName", "receiverId", "message", "createdAt"]
+    },
+    "ChatPresence": {
+      "title": "ChatPresence",
+      "description": "Real-time active presence and typing status tracker for direct chat conversations.",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string" },
+        "typing": { "type": "object" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["conversationId"]
     },
     "Review": {
       "title": "Review",
@@ -255,7 +269,11 @@
     },
     "/messages/{messageId}": {
       "schema": "DirectMessage",
-      "description": "Interactive multi-user chats and history"
+      "description": "Interactive multi-user chats, attachments and read receipts"
+    },
+    "/chat_presence/{conversationId}": {
+      "schema": "ChatPresence",
+      "description": "Active real-time typing indicators and presence synchronization"
     },
     "/reviews/{reviewId}": {
       "schema": "Review",

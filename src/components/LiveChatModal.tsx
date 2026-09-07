@@ -11,10 +11,15 @@ import {
   Sparkles, 
   Clock, 
   ShieldCheck,
-  CheckCheck
+  CheckCheck,
+  Loader2
 } from 'lucide-react';
-import { UserProfile, DirectMessage } from '../types';
+import { UserProfile, DirectMessage, ChatAttachment } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { ChatAttachmentViewer } from './ChatAttachmentViewer';
+import { ChatTypingIndicator } from './ChatTypingIndicator';
+import { ChatReadReceipt } from './ChatReadReceipt';
+import { ChatAttachmentInput } from './ChatAttachmentInput';
 
 interface LiveChatModalProps {
   isOpen: boolean;
@@ -42,8 +47,12 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
 }) => {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isRecipientTyping, setIsRecipientTyping] = useState(false);
+  const [typingUserName, setTypingUserName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<any>(null);
 
   // Close on Escape key
   useEffect(() => {
@@ -73,12 +82,31 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
     };
   }, [isOpen, currentUser?.uid, tutor?.uid]);
 
+  // Subscribe to typing presence
+  useEffect(() => {
+    if (!isOpen || !currentUser?.uid || !tutor?.uid) {
+      setIsRecipientTyping(false);
+      return;
+    }
+
+    const unsubTyping = firestoreService.subscribeTypingPresence(
+      currentUser.uid,
+      tutor.uid,
+      (typing, user) => {
+        setIsRecipientTyping(typing);
+        setTypingUserName(user || tutor.name || 'Instructor');
+      }
+    );
+
+    return () => unsubTyping();
+  }, [isOpen, currentUser?.uid, tutor?.uid, tutor?.name]);
+
   // Auto-scroll to bottom on new message
   useEffect(() => {
-    if (isOpen && messages.length > 0) {
+    if (isOpen && (messages.length > 0 || isRecipientTyping)) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isOpen]);
+  }, [messages, isRecipientTyping, isOpen]);
 
   if (!isOpen || !tutor) return null;
 
@@ -86,18 +114,43 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
   const subjects = tutor.tutorDetails?.subjects || tutor.preferredSubjects || ['Academic Tutoring'];
   const qualification = tutor.tutorDetails?.qualification || 'Academic Faculty Specialist';
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    if (currentUser?.uid && tutor?.uid) {
+      const myName = currentUser.name || currentUser.username || 'Student';
+      firestoreService.setTypingPresence(currentUser.uid, tutor.uid, myName, true);
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        if (currentUser?.uid && tutor?.uid) {
+          firestoreService.setTypingPresence(currentUser.uid, tutor.uid, myName, false);
+        }
+      }, 2500);
+    }
+  };
+
   const handleSendMessage = async (textToSend: string) => {
     const text = textToSend.trim();
-    if (!text || !currentUser) return;
+    if ((!text && pendingAttachments.length === 0) || !currentUser || isSending) return;
 
     setIsSending(true);
+    const attachmentsToSend = [...pendingAttachments];
+    setPendingAttachments([]);
+
+    // Clear typing state
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    firestoreService.setTypingPresence(currentUser.uid, tutor.uid, currentUser.name || 'Student', false).catch(() => {});
+
     try {
       const senderName = currentUser.name || currentUser.displayName || currentUser.username || 'Student';
       const newMsg = await firestoreService.sendDirectMessage(
         currentUser.uid,
         senderName,
         tutor.uid,
-        text
+        text,
+        attachmentsToSend
       );
       setMessages(prev => {
         if (prev.some(m => m.id === newMsg.id)) return prev;
@@ -113,70 +166,69 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 font-sans"
-      id={`live_chat_modal_${tutor.uid}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200"
+      id="modal_tutor_live_chat"
+      onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 15 }}
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 15 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[600px] max-h-[92vh] relative"
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[600px] max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 border-b border-indigo-950/50">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="p-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 text-white flex items-center justify-between shrink-0 shadow-sm">
+          <div className="flex items-center gap-3">
             <div className="relative">
               {tutor.photoURL ? (
                 <img 
-                  referrerPolicy="no-referrer"
-                  className="w-11 h-11 rounded-2xl object-cover ring-2 ring-indigo-400/40 shrink-0" 
                   src={tutor.photoURL} 
-                  alt={tutorName} 
+                  alt={tutorName}
+                  className="w-10 h-10 rounded-full object-cover ring-2 ring-white/30"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm ring-2 ring-indigo-400/40 shrink-0">
-                  {tutorName.slice(0, 2).toUpperCase()}
+                <div className="w-10 h-10 rounded-full bg-white/20 text-white font-black flex items-center justify-center text-sm ring-2 ring-white/30">
+                  {tutorName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900 animate-pulse"></span>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-indigo-700 rounded-full"></span>
             </div>
-
-            <div className="min-w-0">
+            <div>
               <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-black text-white truncate">{tutorName}</h3>
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-md text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  <Award className="w-2.5 h-2.5" /> Faculty
+                <h3 className="text-sm font-bold leading-tight">{tutorName}</h3>
+                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-medium">
+                  Verified Tutor
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 truncate">
-                {subjects.slice(0, 2).join(', ')} • {qualification}
+              <p className="text-[11px] text-indigo-100/90 truncate max-w-[240px] flex items-center gap-1">
+                <Award className="w-3 h-3 text-amber-300 inline" />
+                {qualification}
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer shrink-0 ml-2"
-            title="Close chat window"
+            className="p-1.5 rounded-xl hover:bg-white/15 text-white/80 hover:text-white transition-colors cursor-pointer"
+            title="Close chat"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Auth Gate: If user is not logged in */}
+        {/* Auth Guard Check */}
         {!currentUser ? (
-          <div className="flex-1 p-6 sm:p-8 flex flex-col items-center justify-center text-center space-y-4 overflow-y-auto">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 bg-slate-50/50 dark:bg-slate-900/50">
             <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-inner">
               <MessageSquare className="w-8 h-8" />
             </div>
 
             <div className="space-y-1.5 max-w-sm">
-              <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+              <h4 className="text-base font-bold text-slate-800 dark:text-white">
                 Direct Faculty Messaging
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -259,23 +311,50 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
                           </div>
                         )}
                         <div 
-                          className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                          className={`p-3 rounded-2xl text-xs leading-relaxed space-y-1 ${
                             isMe 
                               ? 'bg-indigo-600 text-white rounded-br-xs shadow-sm' 
                               : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-xs shadow-xs'
                           }`}
                         >
-                          <p className="whitespace-pre-wrap break-words">{msg.message}</p>
+                          {/* Attachments if any */}
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="space-y-1.5 my-1">
+                              {msg.attachments.map((att, attIdx) => (
+                                <ChatAttachmentViewer
+                                  key={attIdx}
+                                  attachment={att}
+                                  isOwnMessage={isMe}
+                                />
+                              ))}
+                            </div>
+                          )}
+
+                          {msg.message && <p className="whitespace-pre-wrap break-words">{msg.message}</p>}
                         </div>
                       </div>
                       <span className="text-[9px] text-slate-400 font-mono mt-1 px-1 flex items-center gap-1">
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        {isMe && <CheckCheck className="w-3 h-3 text-indigo-500" />}
+                        <ChatReadReceipt
+                          isRead={msg.read}
+                          readAt={msg.readAt}
+                          isOwnMessage={isMe}
+                        />
                       </span>
                     </div>
                   );
                 })
               )}
+
+              {/* Typing indicator */}
+              <AnimatePresence>
+                {isRecipientTyping && (
+                  <div className="flex justify-start">
+                    <ChatTypingIndicator userName={typingUserName || tutorName} />
+                  </div>
+                )}
+              </AnimatePresence>
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -293,29 +372,43 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
               ))}
             </div>
 
-            {/* Message Input Bar */}
+            {/* Message Input Bar with Attachments */}
             <form 
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSendMessage(inputText);
               }}
-              className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 shrink-0"
+              className="p-2.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-1.5 shrink-0"
             >
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Message Dr. ${tutorName}...`}
-                className="flex-1 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent font-sans"
-              />
-              <button
-                type="submit"
-                disabled={isSending || !inputText.trim()}
-                className="p-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0 shadow-xs cursor-pointer flex items-center justify-center"
-                title="Send message"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <ChatAttachmentInput
+                  currentUserId={currentUser.uid}
+                  attachments={pendingAttachments}
+                  onAttachmentsChange={setPendingAttachments}
+                  disabled={isSending}
+                />
+
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={handleInputChange}
+                  placeholder={`Message Dr. ${tutorName}...`}
+                  className="flex-1 px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent font-sans"
+                />
+
+                <button
+                  type="submit"
+                  disabled={isSending || (!inputText.trim() && pendingAttachments.length === 0)}
+                  className="p-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl transition-colors shrink-0 shadow-xs cursor-pointer flex items-center justify-center"
+                  title="Send message"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </form>
           </>
         )}

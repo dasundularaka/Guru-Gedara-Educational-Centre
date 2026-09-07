@@ -20,7 +20,7 @@ import { db, auth, storage, firebaseConfig } from './firebase';
 import { binaryStore } from './binaryStore';
 import { optimizeImage } from './imageOptimizer';
 import { emailNotificationService } from './emailNotificationService';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, ChatAttachment, ChatTypingStatus, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -2302,16 +2302,150 @@ const firestoreServiceRaw = {
     saveFallback('local_messages', filtered);
   },
 
-  async sendDirectMessage(senderId: string, senderName: string, receiverId: string, messageText: string): Promise<DirectMessage> {
+  // -------------------------------------------------------------
+  // CHAT ATTACHMENT UPLOAD VIA FIREBASE STORAGE
+  // -------------------------------------------------------------
+  async uploadChatAttachment(
+    file: File,
+    senderId: string,
+    onProgress?: (progress: number) => void
+  ): Promise<ChatAttachment> {
+    const isImage = file.type.startsWith('image/');
+    const fileType: 'image' | 'document' = isImage ? 'image' : 'document';
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const timestamp = Date.now();
+    const storagePath = `chat_attachments/${senderId || 'anonymous'}/${timestamp}_${sanitizedName}`;
+
+    let processedFile: File | Blob = file;
+    if (isImage) {
+      try {
+        const optimized = await optimizeImage(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.88 });
+        if (optimized && !optimized.startsWith('http')) {
+          const res = await fetch(optimized);
+          processedFile = await res.blob();
+        }
+      } catch (err) {
+        console.warn("Image pre-optimization skipped for chat attachment:", err);
+      }
+    }
+
+    // 1. Try Firebase Storage directly
+    if (isUsingCloud && storage) {
+      try {
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, processedFile, {
+          contentType: file.type || 'application/octet-stream',
+          customMetadata: {
+            senderId: senderId || 'user',
+            originalName: file.name
+          }
+        });
+
+        const cloudResult = await new Promise<ChatAttachment>((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              if (onProgress) onProgress(Math.min(98, Math.round(progress)));
+            },
+            (error) => {
+              reject(error);
+            },
+            async () => {
+              try {
+                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                if (onProgress) onProgress(100);
+                resolve({
+                  url: downloadUrl,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type || 'application/octet-stream',
+                  fileType,
+                  storagePath
+                });
+              } catch (err) {
+                reject(err);
+              }
+            }
+          );
+        });
+
+        return cloudResult;
+      } catch (err) {
+        console.warn("Firebase Storage upload failed, falling back to high-resilience local store:", err);
+      }
+    }
+
+    // 2. High-resilience Binary Store (IndexedDB) + Compact URL fallback
+    try {
+      const fileId = `chat_${timestamp}_${Math.random().toString(36).substr(2, 6)}`;
+      await binaryStore.saveFile(fileId, processedFile, file.name);
+      if (onProgress) onProgress(75);
+
+      let fallbackUrl = '';
+      if (isImage) {
+        fallbackUrl = await optimizeImage(file, { maxWidth: 1000, maxHeight: 1000, quality: 0.82 });
+      } else if (file.size < 500 * 1024) {
+        fallbackUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
+      } else {
+        fallbackUrl = URL.createObjectURL(processedFile);
+      }
+
+      if (onProgress) onProgress(100);
+      return {
+        url: fallbackUrl || URL.createObjectURL(processedFile),
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        fileType,
+        storagePath: `local://${fileId}`
+      };
+    } catch (err) {
+      console.warn("Fallback chat attachment storage failed:", err);
+      return {
+        url: URL.createObjectURL(file),
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        fileType
+      };
+    }
+  },
+
+  async sendDirectMessage(
+    senderId: string, 
+    senderName: string, 
+    receiverId: string, 
+    messageText: string,
+    attachments?: ChatAttachment[]
+  ): Promise<DirectMessage> {
     const id = "msg_" + Math.random().toString(36).substr(2, 9);
     const newMsg: DirectMessage = {
       id,
       senderId,
       senderName,
       receiverId,
-      message: messageText,
-      createdAt: new Date().toISOString()
+      message: messageText || '',
+      createdAt: new Date().toISOString(),
+      read: false,
+      readAt: undefined,
+      attachments: attachments && attachments.length > 0 ? attachments : undefined
     };
+
+    // Construct preview snippet for notifications
+    let notifSnippet = messageText || '';
+    if (!notifSnippet && attachments && attachments.length > 0) {
+      notifSnippet = attachments[0].fileType === 'image' 
+        ? '📷 [Photo Attachment]' 
+        : `📎 [Document: ${attachments[0].name}]`;
+    } else if (attachments && attachments.length > 0) {
+      notifSnippet = `${messageText} (📎 ${attachments.length} attachment${attachments.length > 1 ? 's' : ''})`;
+    }
 
     if (isUsingCloud) {
       try {
@@ -2319,7 +2453,7 @@ const firestoreServiceRaw = {
         await this.triggerNotification(
           receiverId, 
           `New message from ${senderName}`, 
-          messageText.length > 50 ? `${messageText.substr(0, 50)}...` : messageText, 
+          notifSnippet.length > 60 ? `${notifSnippet.substr(0, 60)}...` : notifSnippet, 
           'message'
         );
       } catch (e) {
@@ -2334,13 +2468,176 @@ const firestoreServiceRaw = {
       saveFallback('local_messages', list);
     }
 
+    // Reset typing status upon message delivery
+    this.setTypingPresence(senderId, receiverId, senderName, false).catch(() => {});
+
     await this.triggerNotification(
       receiverId, 
       `New message from ${senderName}`, 
-      messageText.length > 50 ? `${messageText.substr(0, 50)}...` : messageText, 
+      notifSnippet.length > 60 ? `${notifSnippet.substr(0, 60)}...` : notifSnippet, 
       'message'
     );
     return newMsg;
+  },
+
+  // -------------------------------------------------------------
+  // READ RECEIPTS
+  // -------------------------------------------------------------
+  async markConversationAsRead(currentUserId: string, otherUserId: string): Promise<void> {
+    if (!currentUserId || !otherUserId) return;
+    const now = new Date().toISOString();
+    let updatedAny = false;
+
+    // 1. Update local storage messages immediately
+    const list = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
+    const unreadIds: string[] = [];
+
+    const updatedList = list.map(m => {
+      if (m && m.senderId === otherUserId && m.receiverId === currentUserId && !m.read) {
+        unreadIds.push(m.id);
+        updatedAny = true;
+        return { ...m, read: true, readAt: now };
+      }
+      return m;
+    });
+
+    if (updatedAny) {
+      saveFallback('local_messages', updatedList);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('chat_read_receipt_updated', {
+          detail: { currentUserId, otherUserId, readAt: now }
+        }));
+      }
+    }
+
+    // 2. Update Firestore documents
+    if (isUsingCloud && unreadIds.length > 0) {
+      try {
+        await Promise.all(
+          unreadIds.map(id => 
+            updateDoc(doc(db, 'messages', id), {
+              read: true,
+              readAt: now
+            }).catch(e => console.warn(`Failed marking msg ${id} read:`, e))
+          )
+        );
+      } catch (e) {
+        console.warn("Failed marking conversation read in Firestore:", e);
+      }
+    }
+  },
+
+  // -------------------------------------------------------------
+  // ACTIVE PRESENCE & REAL-TIME TYPING INDICATORS
+  // -------------------------------------------------------------
+  async setTypingPresence(
+    senderId: string, 
+    receiverId: string, 
+    userName: string, 
+    isTyping: boolean
+  ): Promise<void> {
+    if (!senderId || !receiverId) return;
+    const convId = [senderId, receiverId].sort().join('_');
+    const updatedAt = Date.now();
+
+    // Broadcast local event for immediate multi-window/same-page feedback
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('chat_presence_local', {
+        detail: { convId, senderId, receiverId, userName, isTyping, updatedAt }
+      }));
+    }
+
+    if (isUsingCloud) {
+      try {
+        const presenceDocRef = doc(db, 'chat_presence', convId);
+        await setDoc(presenceDocRef, {
+          conversationId: convId,
+          typing: {
+            [senderId]: {
+              isTyping,
+              userName,
+              updatedAt
+            }
+          }
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Failed updating typing presence in Firestore:", e);
+      }
+    }
+  },
+
+  subscribeTypingPresence(
+    userId1: string, 
+    userId2: string, 
+    callback: (isTyping: boolean, typingUserName: string) => void
+  ): () => void {
+    if (!userId1 || !userId2) return () => {};
+    const convId = [userId1, userId2].sort().join('_');
+    const otherUserId = userId2;
+
+    let lastTypingTime = 0;
+
+    const evaluateTyping = (isTyping: boolean, userName: string, updatedAt: number) => {
+      const now = Date.now();
+      if (isTyping && now - updatedAt < 6000) {
+        lastTypingTime = updatedAt;
+        callback(true, userName);
+      } else {
+        lastTypingTime = 0;
+        callback(false, '');
+      }
+    };
+
+    // Heartbeat check every 1.5s to clear expired typing indicators
+    const intervalId = setInterval(() => {
+      if (lastTypingTime > 0 && Date.now() - lastTypingTime >= 6000) {
+        lastTypingTime = 0;
+        callback(false, '');
+      }
+    }, 1500);
+
+    // Local custom event listener for immediate feedback
+    const localHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.convId === convId && detail.senderId === otherUserId) {
+        evaluateTyping(detail.isTyping, detail.userName, detail.updatedAt);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('chat_presence_local', localHandler);
+    }
+
+    let unsubFirestore = () => {};
+    if (isUsingCloud) {
+      try {
+        const presenceDocRef = doc(db, 'chat_presence', convId);
+        unsubFirestore = onSnapshot(presenceDocRef, (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const otherTyping = data?.typing?.[otherUserId];
+            if (otherTyping) {
+              evaluateTyping(!!otherTyping.isTyping, otherTyping.userName || '', otherTyping.updatedAt || 0);
+            } else {
+              callback(false, '');
+            }
+          } else {
+            callback(false, '');
+          }
+        }, (err) => {
+          console.warn("Error in typing presence snapshot:", err);
+        });
+      } catch (e) {
+        console.warn("Failed subscribing to typing presence:", e);
+      }
+    }
+
+    return () => {
+      clearInterval(intervalId);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('chat_presence_local', localHandler);
+      }
+      unsubFirestore();
+    };
   },
 
   async deleteUserProfile(uid: string): Promise<void> {
@@ -3898,25 +4195,50 @@ const firestoreServiceRaw = {
   // REAL-TIME DIRECT MESSAGES SUBSCRIPTION
   // -------------------------------------------------------------
   subscribeDirectMessages(userId1: string, userId2: string, callback: (messages: DirectMessage[]) => void): () => void {
+    const handleFiltered = (cloudMessages: DirectMessage[]) => {
+      const filtered = cloudMessages
+        .filter(m => 
+          m && (
+            (m.senderId === userId1 && m.receiverId === userId2) || 
+            (m.senderId === userId2 && m.receiverId === userId1)
+          )
+        )
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      // If there are unread messages addressed to the current active viewer (userId1), auto mark them as read
+      const hasUnreadFromPeer = filtered.some(m => m.senderId === userId2 && m.receiverId === userId1 && !m.read);
+      if (hasUnreadFromPeer) {
+        this.markConversationAsRead(userId1, userId2).catch(() => {});
+      }
+
+      callback(filtered);
+    };
+
+    // Listen for local read receipt events
+    const readReceiptHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && (
+        (detail.currentUserId === userId1 && detail.otherUserId === userId2) ||
+        (detail.currentUserId === userId2 && detail.otherUserId === userId1)
+      )) {
+        const localList = handleFallback<DirectMessage>('local_messages', INITIAL_MESSAGES);
+        handleFiltered(localList);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('chat_read_receipt_updated', readReceiptHandler);
+    }
+
+    let unsubFirestore = () => {};
     if (isUsingCloud) {
       try {
         const q = query(
           collection(db, 'messages')
         );
-        return onSnapshot(q, (snap) => {
+        unsubFirestore = onSnapshot(q, (snap) => {
           const cloudMessages = snap.docs.map(doc => doc.data() as DirectMessage);
           saveFallback('local_messages', cloudMessages);
-          
-          const filtered = cloudMessages
-            .filter(m => 
-              m && (
-                (m.senderId === userId1 && m.receiverId === userId2) || 
-                (m.senderId === userId2 && m.receiverId === userId1)
-              )
-            )
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-          
-          callback(filtered);
+          handleFiltered(cloudMessages);
         }, (error) => {
           console.error('Error on messages snapshot: ', error);
         });
@@ -3925,8 +4247,16 @@ const firestoreServiceRaw = {
       }
     }
     
-    this.getDirectMessages(userId1, userId2).then(callback).catch(err => console.warn("Failed fetching direct messages fallback:", err));
-    return () => {};
+    this.getDirectMessages(userId1, userId2).then(msgs => {
+      handleFiltered(msgs);
+    }).catch(err => console.warn("Failed fetching direct messages fallback:", err));
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('chat_read_receipt_updated', readReceiptHandler);
+      }
+      unsubFirestore();
+    };
   },
 
   // -------------------------------------------------------------

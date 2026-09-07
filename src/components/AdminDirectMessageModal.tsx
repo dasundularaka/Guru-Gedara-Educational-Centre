@@ -21,8 +21,12 @@ import {
   RefreshCw,
   Users
 } from 'lucide-react';
-import { UserProfile, DirectMessage } from '../types';
+import { UserProfile, DirectMessage, ChatAttachment } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { ChatAttachmentViewer } from './ChatAttachmentViewer';
+import { ChatTypingIndicator } from './ChatTypingIndicator';
+import { ChatReadReceipt } from './ChatReadReceipt';
+import { ChatAttachmentInput } from './ChatAttachmentInput';
 
 interface AdminDirectMessageModalProps {
   isOpen: boolean;
@@ -56,10 +60,14 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
   const [activeUser, setActiveUser] = useState<UserProfile | null>(initialSelectedUser);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isRecipientTyping, setIsRecipientTyping] = useState(false);
+  const [typingUserName, setTypingUserName] = useState('');
   const [showMobileList, setShowMobileList] = useState(!initialSelectedUser);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const typingTimeoutRef = useRef<any>(null);
 
   // Sync initialSelectedUser when prop changes
   useEffect(() => {
@@ -68,6 +76,13 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
       setShowMobileList(false);
     }
   }, [initialSelectedUser]);
+
+  // Reset attachments and typing state when switching users
+  useEffect(() => {
+    setPendingAttachments([]);
+    setIsRecipientTyping(false);
+    setTypingUserName('');
+  }, [activeUser?.uid]);
 
   // Close on Escape
   useEffect(() => {
@@ -100,12 +115,33 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
     };
   }, [isOpen, currentUser?.uid, activeUser?.uid]);
 
+  // Real-time subscription to typing presence
+  useEffect(() => {
+    if (!isOpen || !currentUser?.uid || !activeUser?.uid) {
+      setIsRecipientTyping(false);
+      return;
+    }
+
+    const unsubTyping = firestoreService.subscribeTypingPresence(
+      currentUser.uid,
+      activeUser.uid,
+      (typing, user) => {
+        setIsRecipientTyping(typing);
+        setTypingUserName(user || activeUser.name || 'Participant');
+      }
+    );
+
+    return () => {
+      unsubTyping();
+    };
+  }, [isOpen, currentUser?.uid, activeUser?.uid, activeUser?.name]);
+
   // Auto-scroll messages
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 || isRecipientTyping) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, isRecipientTyping]);
 
   // Focus input when active user changes
   useEffect(() => {
@@ -147,18 +183,42 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
     setShowMobileList(false);
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    // Broadcast active presence
+    if (currentUser?.uid && activeUser?.uid) {
+      const myName = currentUser.name || currentUser.username || 'System Administrator';
+      firestoreService.setTypingPresence(currentUser.uid, activeUser.uid, myName, true);
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        if (currentUser?.uid && activeUser?.uid) {
+          firestoreService.setTypingPresence(currentUser.uid, activeUser.uid, myName, false);
+        }
+      }, 2500);
+    }
+  };
+
   const handleSendMessage = async (textToSend: string) => {
     const text = textToSend.trim();
-    if (!text || !activeUser || !currentUser || isSending) return;
+    if ((!text && pendingAttachments.length === 0) || !activeUser || !currentUser || isSending) return;
 
     setIsSending(true);
+
+    // Stop typing state immediately
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    firestoreService.setTypingPresence(currentUser.uid, activeUser.uid, currentUser.name || 'Admin', false).catch(() => {});
+
     try {
       const senderName = currentUser.name || currentUser.username || 'System Administrator';
       const newMsg = await firestoreService.sendDirectMessage(
         currentUser.uid,
         senderName,
         activeUser.uid,
-        text
+        text,
+        pendingAttachments
       );
 
       setMessages(prev => {
@@ -166,6 +226,7 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
         return [...prev, newMsg];
       });
       setInputText('');
+      setPendingAttachments([]);
       showToast(`Delivered message to ${activeUser.name}`, 'success');
     } catch (err: any) {
       showToast(err.message || 'Failed to deliver message. Please retry.', 'error');
@@ -522,7 +583,7 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
                             </div>
                           )}
 
-                          <div className={`max-w-[75%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-xs space-y-1 ${
+                          <div className={`max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-xs space-y-1 ${
                             isMe 
                               ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-br-xs' 
                               : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-750 rounded-bl-xs'
@@ -533,31 +594,74 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
                               }`}>
                                 {isMe ? 'You (Admin)' : (msg.senderName || activeUser.name)}
                               </span>
-                              <span className={`font-mono text-[9px] ${
-                                isMe ? 'text-indigo-200/80' : 'text-slate-400'
-                              }`}>
-                                {timeStr}
-                              </span>
+                              <div className="flex items-center gap-0.5">
+                                <span className={`font-mono text-[9px] ${
+                                  isMe ? 'text-indigo-200/80' : 'text-slate-400'
+                                }`}>
+                                  {timeStr}
+                                </span>
+                                <ChatReadReceipt 
+                                  isRead={msg.read} 
+                                  readAt={msg.readAt} 
+                                  isOwnMessage={isMe} 
+                                />
+                              </div>
                             </div>
 
-                            <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
-                              {msg.message}
-                            </p>
+                            {/* Render attachments if any */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="space-y-1.5 pt-1">
+                                {msg.attachments.map((att, attIdx) => (
+                                  <ChatAttachmentViewer
+                                    key={attIdx}
+                                    attachment={att}
+                                    isOwnMessage={isMe}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Render text message */}
+                            {msg.message && (
+                              <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
+                                {msg.message}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
                     })
                   )}
+
+                  {/* Real-time typing indicator */}
+                  <AnimatePresence>
+                    {isRecipientTyping && (
+                      <div className="flex items-end gap-2.5 justify-start">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center shrink-0 mb-1">
+                          {activeUser.name?.charAt(0) || 'U'}
+                        </div>
+                        <ChatTypingIndicator userName={typingUserName || activeUser.name} />
+                      </div>
+                    )}
+                  </AnimatePresence>
+
                   <div ref={messagesEndRef} />
                 </div>
 
                 {/* Chat Input Field */}
                 <div className="p-3.5 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 space-y-2">
                   <div className="flex items-end gap-2">
+                    <ChatAttachmentInput
+                      currentUserId={currentUser.uid}
+                      attachments={pendingAttachments}
+                      onAttachmentsChange={setPendingAttachments}
+                      disabled={isSending}
+                    />
+
                     <textarea
                       ref={inputRef}
                       value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
+                      onChange={handleInputChange}
                       onKeyDown={handleKeyDownInput}
                       placeholder={`Message @${activeUser.username || activeUser.name}... (Press Enter to send)`}
                       rows={2}
@@ -568,7 +672,7 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
                     <button
                       type="button"
                       onClick={() => handleSendMessage(inputText)}
-                      disabled={!inputText.trim() || isSending}
+                      disabled={(!inputText.trim() && pendingAttachments.length === 0) || isSending}
                       className="p-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:opacity-50 text-white rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer shrink-0 disabled:cursor-not-allowed"
                       title="Send message"
                       id="btn_admin_send_chat_message"
@@ -583,7 +687,10 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
 
                   <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
                     <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">Enter</kbd> to send, <kbd className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono">Shift+Enter</kbd> for new line</span>
-                    <span>Delivered via Academy Realtime Network</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                      Direct Sync & Storage Enabled
+                    </span>
                   </div>
                 </div>
               </>

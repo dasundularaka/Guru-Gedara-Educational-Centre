@@ -229,6 +229,15 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  size: number;
+  type: string; // mime-type e.g. "image/png", "application/pdf"
+  fileType: 'image' | 'document';
+  storagePath?: string;
+}
+
 export interface DirectMessage {
   id: string;
   senderId: string;
@@ -236,6 +245,15 @@ export interface DirectMessage {
   receiverId: string;
   message: string;
   createdAt: string;
+  read?: boolean;
+  readAt?: string;
+  attachments?: ChatAttachment[];
+}
+
+export interface ChatTypingStatus {
+  isTyping: boolean;
+  userName: string;
+  updatedAt: number;
 }
 
 export interface NotificationSettings {
