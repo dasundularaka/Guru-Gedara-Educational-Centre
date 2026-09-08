@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import jsQR from 'jsqr';
+import { ModalWrapper } from './ModalWrapper';
 
 interface AdminQRScannerModalProps {
   isOpen: boolean;
@@ -174,16 +175,16 @@ export const AdminQRScannerModal: React.FC<AdminQRScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
-        >
-          {/* Header */}
-          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+    <ModalWrapper
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="md"
+      zIndex="z-[9999]"
+      ariaLabel="Universal User QR Scanner"
+      dialogClassName="overflow-hidden"
+    >
+      {/* Header */}
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-white/10 rounded-2xl border border-white/15">
                 <QrCode className="w-5 h-5 text-amber-400" />
@@ -305,17 +306,15 @@ export const AdminQRScannerModal: React.FC<AdminQRScannerModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+          <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors min-h-[44px] flex items-center justify-center"
             >
               Cancel
             </button>
           </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+    </ModalWrapper>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, AlertCircle, Calendar, CreditCard, Users, CheckCircle2, Loader2, User, Clock, Send } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { ClassItem, UserProfile } from '../types';
+import { ModalWrapper } from './ModalWrapper';
 
 interface ClassEnrollmentConfirmModalProps {
   isOpen: boolean;
@@ -51,32 +51,29 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
   };
 
   return (
-    <AnimatePresence>
-      <div 
-        className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans"
-        id="class_enrollment_confirm_modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm_enrollment_title"
+    <ModalWrapper
+      isOpen={isOpen}
+      onClose={() => {
+        if (!isProcessing) onClose();
+      }}
+      maxWidth="lg"
+      id="class_enrollment_confirm_modal"
+      ariaLabel="Request Class Enrollment"
+      closeOnBackdropClick={!isProcessing}
+      closeOnEsc={!isProcessing}
+      dialogClassName="p-5 sm:p-7 overflow-y-auto overscroll-contain relative font-sans"
+    >
+      {/* Top Close Button */}
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={isProcessing}
+        className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-40 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+        aria-label="Close dialog"
+        id="btn_close_enroll_confirm"
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 12 }}
-          transition={{ duration: 0.22, ease: "easeOut" }}
-          className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 border border-slate-200/80 shadow-2xl relative"
-        >
-          {/* Top Close Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isProcessing}
-            className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-40 cursor-pointer"
-            aria-label="Close dialog"
-            id="btn_close_enroll_confirm"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <X className="w-5 h-5" />
+      </button>
 
           {/* Modal Header */}
           <div className="flex items-center gap-3 mb-4">
@@ -219,8 +216,6 @@ export const ClassEnrollmentConfirmModal: React.FC<ClassEnrollmentConfirmModalPr
               )}
             </button>
           </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+    </ModalWrapper>
   );
 };

@@ -517,9 +517,39 @@ select::placeholder {
   opacity: 0.75;
 }
 
-/* Smooth Tap Highlight for Mobile */
+/* Smooth Tap Highlight for Mobile & Safe Area Normalization */
 button, a, input, select, textarea, [role="button"] {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* TV & Remote D-Pad accessibility focus styles */
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* Modal cross-device screen-fit & overscroll control */
+.modal-screen-fit {
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 1.5rem);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .modal-screen-fit {
+    max-height: calc(100dvh - 1rem);
+    border-radius: 1.25rem;
+  }
+}
+
+/* Safe area padding for notch & home-indicator screens (smartphones & tablets) */
+.safe-p-b {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+}
+
+.safe-p-t {
+  padding-top: max(1rem, env(safe-area-inset-top, 1rem));
 }
 
 /* Print Optimization for Digital Student ID Card & Receipts */

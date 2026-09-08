@@ -267,17 +267,17 @@ export const ClassRosterModal: React.FC<ClassRosterModalProps> = ({
   return (
     <AnimatePresence>
       <div 
-        className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 font-sans"
+        className="fixed inset-0 z-55 overflow-y-auto overscroll-contain bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 md:p-6 font-sans safe-p-b safe-p-t"
         id={`class_roster_modal_${classItem.id}`}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-4xl max-h-[90vh] flex flex-col relative"
+          className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-4xl max-h-[92dvh] sm:max-h-[90vh] flex flex-col relative my-auto"
         >
           {/* Modal Header */}
-          <div className="bg-slate-900 text-white p-5 sm:p-6 shrink-0 relative flex justify-between items-start">
+          <div className="bg-slate-900 text-white p-4 sm:p-6 shrink-0 relative flex flex-col sm:flex-row justify-between items-start gap-3">
             <div className="space-y-1.5 max-w-2xl">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/80 text-white font-mono">
@@ -285,11 +285,11 @@ export const ClassRosterModal: React.FC<ClassRosterModalProps> = ({
                 </span>
                 <span className="text-xs font-mono text-slate-300">ID: {classItem.id}</span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
-                <Users className="w-6 h-6 text-indigo-400" />
+              <h2 className="text-lg sm:text-2xl font-black tracking-tight flex items-center gap-2">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400" />
                 Class Roster: {classItem.title}
               </h2>
-              <p className="text-xs text-slate-300 flex items-center gap-3 font-medium">
+              <p className="text-xs text-slate-300 flex items-center gap-2 sm:gap-3 font-medium flex-wrap">
                 <span>Tutor: <strong className="text-white">{classItem.tutorName}</strong></span>
                 <span>•</span>
                 <span>{classItem.schedule}</span>
@@ -298,10 +298,10 @@ export const ClassRosterModal: React.FC<ClassRosterModalProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
               <button
                 onClick={() => setShowAddStudentSection(!showAddStudentSection)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm ${
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm min-h-[44px] ${
                   showAddStudentSection 
                     ? 'bg-indigo-600 text-white' 
                     : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
@@ -313,8 +313,9 @@ export const ClassRosterModal: React.FC<ClassRosterModalProps> = ({
               </button>
               <button
                 onClick={onClose}
-                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all cursor-pointer"
+                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
                 id="btn_close_roster_modal"
+                aria-label="Close roster modal"
               >
                 <X className="w-5 h-5" />
               </button>

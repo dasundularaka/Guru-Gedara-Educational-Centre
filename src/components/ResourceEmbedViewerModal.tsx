@@ -136,19 +136,19 @@ export const ResourceEmbedViewerModal: React.FC<ResourceEmbedViewerModalProps> =
 
   return (
     <div 
-      className="fixed inset-0 z-[120] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 transition-all duration-300"
+      className="fixed inset-0 z-[120] overflow-hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 transition-all duration-300 safe-p-b safe-p-t"
       id={`resource_embed_viewer_modal_${material.id}`}
     >
       <div 
-        className={`bg-slate-900 border border-slate-700/80 shadow-2xl rounded-3xl flex flex-col transition-all duration-300 overflow-hidden ${
+        className={`bg-slate-900 border border-slate-700/80 shadow-2xl rounded-2xl sm:rounded-3xl flex flex-col transition-all duration-300 overflow-hidden ${
           isFullscreen 
             ? 'w-full h-full rounded-none fixed inset-0 z-[130]' 
-            : 'w-full max-w-5xl h-[88vh] max-h-[900px]'
+            : 'w-full max-w-5xl h-[92dvh] sm:h-[88vh] max-h-[900px] my-auto'
         }`}
       >
         {/* Header Bar */}
-        <div className="px-5 py-3.5 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between gap-2.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className={`p-2 rounded-xl text-white font-bold shrink-0 ${
               material.type === 'video' ? 'bg-purple-600' :
               material.type === 'file' ? 'bg-emerald-600' : 'bg-indigo-600'
@@ -158,27 +158,28 @@ export const ResourceEmbedViewerModal: React.FC<ResourceEmbedViewerModalProps> =
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-black text-white truncate max-w-xs sm:max-w-md md:max-w-lg" title={material.title}>
+                <h3 className="text-xs sm:text-sm font-black text-white truncate max-w-[160px] xs:max-w-xs sm:max-w-md md:max-w-lg" title={material.title}>
                   {material.title}
                 </h3>
-                <span className="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold bg-slate-800 text-indigo-300 border border-slate-700 shrink-0">
+                <span className="hidden xs:inline-block px-2 py-0.5 rounded-md text-[8px] sm:text-[9px] font-mono font-bold bg-slate-800 text-indigo-300 border border-slate-700 shrink-0">
                   {embedInfo.provider}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 truncate max-w-sm sm:max-w-md">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 truncate max-w-sm sm:max-w-md">
                 {material.description || material.referenceUrl}
               </p>
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {material.referenceUrl && !material.referenceUrl.startsWith('indexeddb://') && (
               <button
                 onClick={handleCopyLink}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Copy direct resource link"
                 id="btn_copy_resource_link"
+                aria-label="Copy direct resource link"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -187,7 +188,7 @@ export const ResourceEmbedViewerModal: React.FC<ResourceEmbedViewerModalProps> =
             {material.storagePath || material.fileName || material.referenceUrl?.startsWith('indexeddb://') ? (
               <button
                 onClick={handleDownload}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                className="px-2.5 sm:px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer min-h-[44px]"
                 title="Download file"
                 id="btn_download_resource_file"
               >
@@ -201,7 +202,7 @@ export const ResourceEmbedViewerModal: React.FC<ResourceEmbedViewerModalProps> =
                 href={material.referenceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                className="px-2.5 sm:px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer min-h-[44px]"
                 title="Open resource in new tab"
                 id="btn_open_external_resource"
               >
@@ -212,18 +213,20 @@ export const ResourceEmbedViewerModal: React.FC<ResourceEmbedViewerModalProps> =
 
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
               id="btn_fullscreen_toggle_resource"
+              aria-label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
 
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer ml-1"
+              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center ml-0.5 sm:ml-1"
               title="Close viewer"
               id="btn_close_resource_viewer"
+              aria-label="Close viewer"
             >
               <X className="w-5 h-5" />
             </button>

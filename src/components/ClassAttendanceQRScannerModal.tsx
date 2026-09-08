@@ -463,28 +463,28 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs font-sans animate-fade-in">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs font-sans animate-fade-in overflow-y-auto overscroll-contain">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="bg-white rounded-3xl shadow-2xl border border-slate-150 overflow-hidden w-full max-w-2xl relative flex flex-col"
+          className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-150 overflow-hidden w-full max-w-2xl max-h-[92dvh] sm:max-h-[88vh] relative flex flex-col my-auto"
           id="tutor_qr_scanner_modal"
         >
           {/* Header */}
-          <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-600/30 rounded-xl text-indigo-400 border border-indigo-500/20">
+          <div className="bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="p-2 sm:p-2.5 bg-indigo-600/30 rounded-xl text-indigo-400 border border-indigo-500/20 shrink-0">
                 <QrCode className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-extrabold tracking-tight flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-extrabold tracking-tight flex items-center gap-2">
                   Live Attendance QR Scanner
-                  <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 font-mono text-[9px] rounded-full uppercase border border-indigo-400/30">
+                  <span className="px-1.5 sm:px-2 py-0.5 bg-indigo-500/20 text-indigo-300 font-mono text-[8px] sm:text-[9px] rounded-full uppercase border border-indigo-400/30">
                     Real-time Scan
                   </span>
                 </h3>
-                <p className="text-[10px] text-slate-400 font-mono">
+                <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono line-clamp-1">
                   Scan student identity QR code to mark attendance & send instant notification
                 </p>
               </div>
@@ -495,15 +495,16 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
                 stopCamera();
                 onClose();
               }}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               id="btn_close_tutor_qr_scanner"
+              aria-label="Close QR scanner"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Body */}
-          <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
+          <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 flex-1 overflow-y-auto overscroll-contain touch-pan-y">
 
             {/* Locked Fixed Class & Date Banner */}
             {targetClass && (
@@ -923,12 +924,12 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
 
       {/* TEMPORARY EXTRA CLASS TIME SLOT CONFIGURATOR MODAL */}
       {showTimeSlotConfigurator && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs font-sans animate-fade-in">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs font-sans animate-fade-in overflow-y-auto overscroll-contain">
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md p-6 space-y-5"
+            className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-md max-h-[92dvh] sm:max-h-[88vh] overflow-y-auto p-5 sm:p-6 space-y-4 sm:space-y-5 my-auto"
             id="modal_extra_class_time_configurator"
           >
             <div className="flex items-center justify-between border-b border-slate-150 pb-4">

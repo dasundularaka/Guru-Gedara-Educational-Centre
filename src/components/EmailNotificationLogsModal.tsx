@@ -242,43 +242,43 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto overscroll-contain safe-p-b safe-p-t">
+      <div className="bg-white w-full max-w-5xl h-[94dvh] sm:h-[90vh] max-h-[920px] rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden my-auto">
         
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/90 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-slate-50/90 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
               <Mail className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900">Automated Email Notification System</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">Automated Email Notification System</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Cloud Queue Active
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-1">
                 Automated email triggers for bookings, payment receipts, attendance check-ins, study materials, and account approvals.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-between lg:justify-end overflow-x-auto">
             {/* Tab switchers */}
-            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-semibold mr-2">
+            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl text-xs font-semibold shrink-0">
               <button
                 onClick={() => setActiveTab('logs')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all text-xs ${
                   activeTab === 'logs' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Email Queue ({emailLogs.length})
+                Queue ({emailLogs.length})
               </button>
               <button
                 onClick={() => setActiveTab('templates')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 text-xs ${
                   activeTab === 'templates' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -286,7 +286,7 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
               </button>
               <button
                 onClick={() => setActiveTab('compose')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 text-xs ${
                   activeTab === 'compose' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -294,7 +294,7 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
               </button>
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 text-xs ${
                   activeTab === 'settings' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -306,13 +306,15 @@ export const EmailNotificationLogsModal: React.FC<EmailNotificationLogsModalProp
               onClick={() => refreshLogs()}
               disabled={isLoading}
               title="Refresh queue"
-              className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+              aria-label="Refresh queue"
+              className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              aria-label="Close email notifications modal"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
             >
               <X className="w-5 h-5" />
             </button>

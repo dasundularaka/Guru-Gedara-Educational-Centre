@@ -283,25 +283,25 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+      <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 md:p-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
-          className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]"
+          className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] sm:max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="px-4 sm:px-5 py-3.5 sm:py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-black text-white leading-tight">
+                <h3 className="text-xs sm:text-base font-black text-white leading-tight">
                   Student Admission & Intake Review
                 </h3>
-                <p className="text-xs text-slate-400 font-sans">
+                <p className="text-[10px] sm:text-xs text-slate-400 font-sans line-clamp-1">
                   Confirm Admission Fee & Assign Classes for {student.name}
                 </p>
               </div>
@@ -309,13 +309,14 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Body Content */}
-          <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5 bg-slate-50/50 dark:bg-slate-950/40 text-slate-800 dark:text-slate-200">
+          <div className="p-3.5 sm:p-6 overflow-y-auto overscroll-contain touch-pan-y flex-1 space-y-4 sm:space-y-5 bg-slate-50/50 dark:bg-slate-950/40 text-slate-800 dark:text-slate-200">
             {/* 1. Student Summary Banner */}
             <div className="bg-white dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-750 shadow-xs flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-3.5">
@@ -713,11 +714,11 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
 
         {/* Modal: Adjust Global Academy Admission Fee */}
         {showEditFeeModal && (
-          <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-5 space-y-4"
+              className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-5 space-y-4 max-h-[92dvh] sm:max-h-[88vh] overflow-y-auto my-auto"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
                 <div className="flex items-center gap-2">
@@ -727,7 +728,8 @@ export const StudentIntakeApprovalModal: React.FC<StudentIntakeApprovalModalProp
                 <button
                   type="button"
                   onClick={() => setShowEditFeeModal(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Close fee editor modal"
                 >
                   <X className="w-4 h-4" />
                 </button>

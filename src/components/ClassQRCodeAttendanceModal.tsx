@@ -394,27 +394,27 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-900/70 backdrop-blur-xs font-sans overflow-y-auto overscroll-contain">
         
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className={`bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden w-full transition-all ${
-            isFullscreen ? 'max-w-4xl min-h-[85vh]' : 'max-w-2xl'
+          className={`bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-150 overflow-hidden w-full transition-all relative flex flex-col my-auto ${
+            isFullscreen ? 'max-w-4xl max-h-[96dvh] sm:max-h-[92vh]' : 'max-w-2xl max-h-[92dvh] sm:max-h-[88vh]'
           }`}
         >
           {/* Header */}
-          <div className="bg-slate-900 text-white px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-600/30 rounded-xl text-indigo-400">
+          <div className="bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="p-2 bg-indigo-600/30 rounded-xl text-indigo-400 shrink-0">
                 <QrCode className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-extrabold tracking-tight">
+                <h3 className="text-xs sm:text-sm font-extrabold tracking-tight">
                   {isTutor ? 'Dynamic Class Session QR Pass' : 'Class Attendance & Scanner'}
                 </h3>
-                <p className="text-[10px] text-slate-400 font-mono">
+                <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono line-clamp-1">
                   {isTutor ? 'Auto-refreshing security pass for classroom check-ins' : 'Log presence via scanner or view check-in history'}
                 </p>
               </div>
@@ -425,7 +425,7 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
               <div className="flex bg-slate-800 p-1 rounded-xl text-xs font-bold">
                 <button
                   onClick={() => setActiveTab('qr')}
-                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px] sm:text-xs ${
                     activeTab === 'qr' ? 'bg-indigo-650 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -433,7 +433,7 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
                 </button>
                 <button
                   onClick={() => setActiveTab('history')}
-                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-2.5 sm:px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px] sm:text-xs ${
                     activeTab === 'history' ? 'bg-indigo-650 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -445,8 +445,9 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
                 {isTutor && (
                   <button
                     onClick={() => setIsFullscreen(!isFullscreen)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
                     title="Toggle Fullscreen Classroom View"
+                    aria-label="Toggle Fullscreen Classroom View"
                   >
                     <Maximize2 className="w-4 h-4" />
                   </button>
@@ -456,7 +457,8 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
                     stopScannerCamera();
                     onClose();
                   }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Close QR attendance dialog"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -465,7 +467,7 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
           </div>
 
           {/* Modal Content */}
-          <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+          <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 flex-1 overflow-y-auto overscroll-contain touch-pan-y">
             
             {activeTab === 'history' ? (
               /* SCAN HISTORY TAB VIEW */

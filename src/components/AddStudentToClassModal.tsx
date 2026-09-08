@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ClassItem, UserProfile, Booking } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { ModalWrapper } from './ModalWrapper';
 
 interface AddStudentToClassModalProps {
   isOpen: boolean;
@@ -143,29 +144,33 @@ export const AddStudentToClassModal: React.FC<AddStudentToClassModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
-        className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalWrapper
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="2xl"
+      ariaLabel="Add Student to Class"
+      dialogClassName="overflow-hidden flex flex-col"
+    >
+      <div className="flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
-              <UserPlus className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0">
+              <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-extrabold flex items-center gap-2">
                 Add Student to Class
               </h3>
-              <p className="text-xs text-indigo-200/80">
+              <p className="text-[10px] sm:text-xs text-indigo-200/80 line-clamp-1">
                 Enroll a registered student directly into class roster & academic records
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Close modal"
           >
             <X className="w-5 h-5" />
           </button>
@@ -437,6 +442,6 @@ export const AddStudentToClassModal: React.FC<AddStudentToClassModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </ModalWrapper>
   );
 };

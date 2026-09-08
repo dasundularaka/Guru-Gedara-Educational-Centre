@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { ModalWrapper } from './ModalWrapper';
 
 export interface WidgetDefinition {
   id: string;
@@ -238,30 +239,35 @@ export const DashboardWidgetCustomizer: React.FC<DashboardWidgetCustomizerProps>
       </div>
 
       {/* Widget Customizer Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                  <SlidersHorizontal className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 leading-tight">
-                    Customize Dashboard Widgets
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Choose which quick-access cards appear at the top of your dashboard.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      <ModalWrapper
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        maxWidth="lg"
+        ariaLabel="Customize Dashboard Widgets"
+        dialogClassName="p-5 sm:p-6 space-y-4 sm:space-y-5 overflow-hidden"
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
+              <SlidersHorizontal className="w-5 h-5" />
             </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900 leading-tight">
+                Customize Dashboard Widgets
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Choose which quick-access cards appear at the top of your dashboard.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(false)}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label="Close customizer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
             <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
               {availableWidgets.map((w) => {
@@ -310,18 +316,16 @@ export const DashboardWidgetCustomizer: React.FC<DashboardWidgetCustomizerProps>
               })}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-100">
+            <div className="flex justify-end pt-3 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-sm"
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-sm min-h-[44px] flex items-center justify-center"
               >
                 Done
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </ModalWrapper>
     </div>
   );
 };

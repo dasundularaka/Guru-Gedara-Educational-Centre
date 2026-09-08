@@ -148,17 +148,17 @@ export const AbsentStudentsReminderModal: React.FC<AbsentStudentsReminderModalPr
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2.5 sm:p-4 md:p-6 bg-slate-950/70 backdrop-blur-xs overflow-y-auto overscroll-contain safe-p-b safe-p-t">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+          className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh] my-auto"
         >
           {/* Modal Header */}
           <div className="p-4 sm:p-5 bg-gradient-to-r from-rose-600 via-red-600 to-indigo-700 text-white flex justify-between items-start shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="p-2 sm:p-2.5 bg-white/10 rounded-xl backdrop-blur-md shrink-0">
                 <Mail className="w-5 h-5 text-rose-200" />
               </div>
               <div>
@@ -170,14 +170,15 @@ export const AbsentStudentsReminderModal: React.FC<AbsentStudentsReminderModalPr
                     Automated Dispatcher
                   </span>
                 </div>
-                <h3 className="text-base sm:text-lg font-extrabold text-white leading-tight mt-0.5">
+                <h3 className="text-sm sm:text-lg font-extrabold text-white leading-tight mt-0.5">
                   Send Absence Catch-Up Reminder Emails
                 </h3>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-xl hover:bg-white/10 text-white/80 hover:text-white transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>

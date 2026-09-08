@@ -1,6 +1,7 @@
 import React from 'react';
 import { Review } from '../types';
 import { X, Star, Calendar, Smile } from 'lucide-react';
+import { ModalWrapper } from './ModalWrapper';
 
 interface ReviewsModalProps {
   isOpen: boolean;
@@ -33,23 +34,30 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-55 overflow-y-auto bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-150 shadow-2xl relative font-sans max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <button 
-          onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 p-1.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <ModalWrapper
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="lg"
+      zIndex="z-55"
+      ariaLabel={title}
+      dialogClassName="p-5 sm:p-7 relative font-sans overflow-hidden"
+    >
+      {/* Header */}
+      <button 
+        onClick={onClose}
+        className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 p-2 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+        aria-label="Close dialog"
+      >
+        <X className="w-5 h-5" />
+      </button>
 
-        <div className="mb-4 pr-8">
-          <span className="text-[9px] uppercase font-mono text-indigo-600 font-bold tracking-wider block">Reviews & Feedback</span>
-          <h3 className="text-base font-extrabold text-slate-900 mt-1 leading-snug">{title}</h3>
-        </div>
+      <div className="mb-4 pr-10">
+        <span className="text-[9px] uppercase font-mono text-indigo-600 font-bold tracking-wider block">Reviews & Feedback</span>
+        <h3 className="text-base font-extrabold text-slate-900 mt-1 leading-snug">{title}</h3>
+      </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="overflow-y-auto flex-1 pr-1 space-y-6">
+      {/* Modal Scrollable Body */}
+      <div className="overflow-y-auto flex-1 pr-1 space-y-6 overscroll-contain touch-pan-y">
           {totalReviews === 0 ? (
             <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100">
               <Smile className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -176,10 +184,9 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
         </div>
 
         {/* Footer info */}
-        <div className="border-t border-slate-100 pt-4 mt-4 flex justify-between items-center text-[10px] text-slate-400 font-semibold">
+        <div className="border-t border-slate-100 pt-3.5 mt-3.5 flex justify-between items-center text-[10px] text-slate-400 font-semibold shrink-0">
           <span>All reviews are moderated for respect and compliance.</span>
         </div>
-      </div>
-    </div>
+    </ModalWrapper>
   );
 };
