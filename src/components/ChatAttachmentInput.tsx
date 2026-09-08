@@ -94,7 +94,7 @@ export const ChatAttachmentInput: React.FC<ChatAttachmentInputProps> = ({
   const isUploading = uploadingFiles.length > 0;
 
   return (
-    <div className="w-full">
+    <div className="relative shrink-0 flex items-center">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -109,7 +109,7 @@ export const ChatAttachmentInput: React.FC<ChatAttachmentInputProps> = ({
 
       {/* Attachments & Uploading Preview Tray */}
       {(attachments.length > 0 || uploadingFiles.length > 0) && (
-        <div className="flex items-center gap-2 p-2 bg-slate-100/90 dark:bg-slate-800/90 rounded-2xl mb-2 overflow-x-auto border border-slate-200 dark:border-slate-700">
+        <div className="absolute bottom-full left-0 mb-2 flex items-center gap-2 p-2 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl overflow-x-auto border border-slate-200 dark:border-slate-700 shadow-xl max-w-[85vw] sm:max-w-md z-30 no-scrollbar">
           {/* Successfully uploaded attachments ready to send */}
           {attachments.map((att, idx) => (
             <div 

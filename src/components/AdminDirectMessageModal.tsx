@@ -246,36 +246,36 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 font-sans"
+      className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 font-sans"
       id="admin_direct_message_modal"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 15 }}
+        initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 15 }}
+        exit={{ opacity: 0, scale: 0.98, y: 10 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="bg-white dark:bg-slate-900 rounded-3xl max-w-5xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[740px] max-h-[94vh] relative"
+        className="bg-white dark:bg-slate-900 rounded-none sm:rounded-3xl max-w-5xl w-full border-0 sm:border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-[100dvh] sm:h-[740px] max-h-none sm:max-h-[94vh] relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Top Header */}
-        <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+        <div className="px-4 sm:px-5 py-3 sm:py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
               <MessageSquare className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold text-white">
+                <h3 className="text-sm sm:text-base font-extrabold text-white">
                   Administrative Direct Messaging
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hidden sm:inline-block">
                   Universal User Access
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400 truncate max-w-[260px] sm:max-w-md">
                 Pick and chat with any student, faculty tutor, or administrator across the academy.
               </p>
             </div>
@@ -295,7 +295,7 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
         <div className="flex-1 flex overflow-hidden relative">
           {/* Left Column: User Search & Selection Panel */}
           <div className={`w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/70 dark:bg-slate-900/50 shrink-0 ${
-            !showMobileList && activeUser ? 'hidden md:flex' : 'flex'
+            !showMobileList ? 'hidden md:flex' : 'flex'
           }`}>
             {/* Search Input */}
             <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 space-y-2.5">
@@ -456,8 +456,8 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
           </div>
 
           {/* Right Column: Active Conversation Chat */}
-          <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 ${
-            showMobileList && !activeUser ? 'hidden md:flex' : 'flex'
+          <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 overflow-hidden relative ${
+            showMobileList ? 'hidden md:flex' : 'flex'
           }`}>
             {activeUser ? (
               <>

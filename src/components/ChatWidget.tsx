@@ -3,7 +3,7 @@ import { AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { firestoreService } from '../lib/firestoreService';
 import { DirectMessage, UserProfile, ChatAttachment } from '../types';
-import { Send, User, MessageSquare, AlertCircle, Search, Loader2 } from 'lucide-react';
+import { Send, User, MessageSquare, AlertCircle, Search, Loader2, ArrowLeft } from 'lucide-react';
 import { ChatAttachmentViewer } from './ChatAttachmentViewer';
 import { ChatTypingIndicator } from './ChatTypingIndicator';
 import { ChatReadReceipt } from './ChatReadReceipt';
@@ -25,6 +25,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
   const [loading, setLoading] = useState(false);
   const [isRecipientTyping, setIsRecipientTyping] = useState(false);
   const [typingUserName, setTypingUserName] = useState('');
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<any>(null);
 
@@ -168,9 +169,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-blue-50 shadow-md overflow-hidden grid grid-cols-1 md:grid-cols-3 h-[480px]" id="communication_hub">
+    <div className="bg-white rounded-2xl border border-blue-50 shadow-md overflow-hidden flex flex-col md:grid md:grid-cols-3 h-[520px] md:h-[480px] w-full" id="communication_hub">
       {/* Sidebar: Users directory */}
-      <div className="border-r border-gray-100 flex flex-col bg-gray-50/50">
+      <div className={`border-r border-gray-100 flex flex-col bg-gray-50/50 w-full h-full md:col-span-1 ${mobileView === 'chat' ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-gray-100 bg-white space-y-2">
           <div>
             <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
@@ -202,7 +203,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
               return (
                 <button
                   key={u.uid}
-                  onClick={() => setSelectedUser(u)}
+                  onClick={() => {
+                    setSelectedUser(u);
+                    setMobileView('chat');
+                  }}
                   className={`w-full p-3 text-left flex items-center gap-3 transition-colors cursor-pointer ${
                     isSelected ? 'bg-blue-50/80 border-r-2 border-blue-600' : 'hover:bg-gray-100/60'
                   }`}
@@ -245,12 +249,20 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
       </div>
 
       {/* Main chat window */}
-      <div className="col-span-1 md:col-span-2 flex flex-col h-full bg-white">
+      <div className={`flex-1 md:col-span-2 flex flex-col h-full bg-white overflow-hidden ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
         {selectedUser ? (
           <>
             {/* Header */}
             <div className="p-3 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setMobileView('list')}
+                  className="md:hidden p-1.5 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 cursor-pointer"
+                  title="Back to contacts"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
                 {selectedUser.photoURL ? (
                   <img 
                     src={selectedUser.photoURL} 

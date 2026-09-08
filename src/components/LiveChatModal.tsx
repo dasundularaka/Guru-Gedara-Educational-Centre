@@ -166,16 +166,16 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200"
       id="modal_tutor_live_chat"
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        exit={{ opacity: 0, scale: 0.98, y: 10 }}
         transition={{ duration: 0.2 }}
-        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[600px] max-h-[90vh]"
+        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col h-[100dvh] sm:h-[620px] max-h-none sm:max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

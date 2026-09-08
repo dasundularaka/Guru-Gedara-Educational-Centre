@@ -23,6 +23,7 @@ import { StudentProfileModal } from '../components/StudentProfileModal';
 import { AdminQRScannerModal } from '../components/AdminQRScannerModal';
 import { AdminUsersAndApprovals } from '../components/AdminUsersAndApprovals';
 import { AdminDirectMessageModal } from '../components/AdminDirectMessageModal';
+import { AdminMessagingSection } from '../components/AdminMessagingSection';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -125,7 +126,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
   
@@ -1940,13 +1941,13 @@ export const AdminDashboard: React.FC = () => {
               id="admin_btn_open_messages"
               onClick={() => {
                 setChatTargetUser(null);
-                setIsChatModalOpen(true);
+                setActiveTab('messages');
               }}
               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
               title="Open Universal Direct Messaging Hub to chat with any user"
             >
               <MessageSquare className="w-4 h-4" />
-              <span>Message Users</span>
+              <span>Direct Messages</span>
             </button>
 
             {/* Executive ID Pass Button */}
@@ -2015,11 +2016,6 @@ export const AdminDashboard: React.FC = () => {
                     items={adminSectionItems}
                     activeId={activeTab}
                     onSelect={(id) => {
-                      if (id === 'messages') {
-                        setChatTargetUser(null);
-                        setIsChatModalOpen(true);
-                        return;
-                      }
                       setActiveTab(id as any);
                       if (id === 'progress') fetchAttendanceRecords();
                     }}
@@ -2038,6 +2034,7 @@ export const AdminDashboard: React.FC = () => {
                       <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
                         <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
                           {activeTab === 'analytics' && <BarChart3 className="w-4 h-4" />}
+                          {activeTab === 'messages' && <MessageSquare className="w-4 h-4 text-emerald-500" />}
                           {activeTab === 'users_approvals' && <ShieldCheck className="w-4 h-4 text-indigo-600" />}
                           {activeTab === 'payments' && <CreditCard className="w-4 h-4" />}
                           {activeTab === 'students' && <Users className="w-4 h-4" />}
@@ -2053,6 +2050,7 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         <span className="capitalize">
                           {activeTab === 'analytics' && 'Insights & Analytics'}
+                          {activeTab === 'messages' && 'Direct Messages'}
                           {activeTab === 'users_approvals' && 'Users & Approvals'}
                           {activeTab === 'payments' && 'Global Ledger'}
                           {activeTab === 'students' && 'Scholars & Students'}
@@ -2085,12 +2083,6 @@ export const AdminDashboard: React.FC = () => {
                               key={opt.id}
                               id={`admin_tab_${opt.id}`}
                               onClick={() => {
-                                if (opt.id === 'messages') {
-                                  setChatTargetUser(null);
-                                  setIsChatModalOpen(true);
-                                  setIsNavDropdownOpen(false);
-                                  return;
-                                }
                                 setActiveTab(opt.id as any);
                                 if (opt.id === 'progress') fetchAttendanceRecords();
                                 setIsNavDropdownOpen(false);
@@ -2321,6 +2313,31 @@ export const AdminDashboard: React.FC = () => {
         ) : (
           <div className="animate-fade-in text-xs">
             
+            {/* Tab: Direct Messages Section */}
+            {activeTab === 'messages' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-4"
+              >
+                <AdminMessagingSection
+                  currentUser={currentUser || { uid: 'admin', role: 'admin', name: 'System Admin', email: 'admin@school.edu', createdAt: '' }}
+                  initialTargetUser={chatTargetUser}
+                  onViewUserProfile={(user) => {
+                    if (user.role === 'student') {
+                      setSelectedStudentForProfile(user);
+                    } else if (user.role === 'tutor') {
+                      setSelectedTutorForProfile(user);
+                    } else {
+                      setSelectedUserForIdCard(user);
+                    }
+                  }}
+                  showToast={showToast}
+                />
+              </motion.div>
+            )}
+
             {/* Tab 0: Insights & Analytics Dashboard */}
             {activeTab === 'analytics' && (
               <motion.div
@@ -6250,7 +6267,8 @@ export const AdminDashboard: React.FC = () => {
           reviews={reviews || []}
           onContactClick={() => {
             setChatTargetUser(selectedTutorForProfile);
-            setIsChatModalOpen(true);
+            setActiveTab('messages');
+            setSelectedTutorForProfile(null);
           }}
         />
       )}
@@ -6520,7 +6538,8 @@ export const AdminDashboard: React.FC = () => {
           onSendMessage={(studentUid, studentName) => {
             const target = users.find(u => u.uid === studentUid) || selectedStudentForProfile;
             setChatTargetUser(target || { uid: studentUid, name: studentName, email: '', role: 'student', createdAt: '' });
-            setIsChatModalOpen(true);
+            setActiveTab('messages');
+            setSelectedStudentForProfile(null);
           }}
         />
       )}
