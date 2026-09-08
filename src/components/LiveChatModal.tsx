@@ -166,9 +166,13 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-0 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200"
       id="modal_tutor_live_chat"
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
@@ -212,9 +216,13 @@ export const LiveChatModal: React.FC<LiveChatModalProps> = ({
 
           <button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-white/15 text-white/80 hover:text-white transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 sm:p-2.5 rounded-xl hover:bg-white/20 text-white transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
             title="Close chat"
+            id="btn_close_live_chat_modal"
           >
             <X className="w-5 h-5" />
           </button>

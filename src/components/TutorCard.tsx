@@ -182,6 +182,7 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor, onContactClick }) =
         onClose={() => setShowProfileModal(false)}
         reviews={reviews}
         onContactClick={currentUser?.uid !== tutor.uid ? () => {
+          setShowProfileModal(false);
           setShowChatModal(true);
         } : undefined}
       />

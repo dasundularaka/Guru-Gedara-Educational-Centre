@@ -127,6 +127,7 @@ export const AdminDashboard: React.FC = () => {
     executeWriteWithRetry
   } = useApp();
   const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
+  const [previousTab, setPreviousTab] = useState<typeof activeTab>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
   
@@ -178,6 +179,18 @@ export const AdminDashboard: React.FC = () => {
   const [bannerLinkUrl, setBannerLinkUrl] = useState("");
   const [bannerActive, setBannerActive] = useState(true);
   const [isSavingBanner, setIsSavingBanner] = useState(false);
+
+  const handleOpenMessagesTab = (targetUser?: UserProfile | null) => {
+    if (activeTab !== 'messages') {
+      setPreviousTab(activeTab);
+    }
+    setChatTargetUser(targetUser || null);
+    setActiveTab('messages');
+  };
+
+  const handleCloseMessagesTab = () => {
+    setActiveTab(previousTab === 'messages' ? 'analytics' : previousTab);
+  };
 
   // Review status filters
   const [reviewFilterStatus, setReviewFilterStatus] = useState<string>("all");
@@ -1936,18 +1949,34 @@ export const AdminDashboard: React.FC = () => {
               <span>Sections</span>
             </button>
 
-            {/* Direct Messaging Hub Button */}
+            {/* Direct Messaging Hub Button (Toggles open/close) */}
             <button
               id="admin_btn_open_messages"
               onClick={() => {
-                setChatTargetUser(null);
-                setActiveTab('messages');
+                if (activeTab === 'messages') {
+                  handleCloseMessagesTab();
+                } else {
+                  handleOpenMessagesTab(null);
+                }
               }}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-              title="Open Universal Direct Messaging Hub to chat with any user"
+              className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer min-h-[38px] ${
+                activeTab === 'messages'
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-400/40 shadow-rose-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
+              title={activeTab === 'messages' ? 'Close Direct Messages and return to dashboard' : 'Open Universal Direct Messaging Hub to chat with any user'}
             >
-              <MessageSquare className="w-4 h-4" />
-              <span>Direct Messages</span>
+              {activeTab === 'messages' ? (
+                <>
+                  <X className="w-4 h-4" />
+                  <span>Close Messages</span>
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Direct Messages</span>
+                </>
+              )}
             </button>
 
             {/* Executive ID Pass Button */}
@@ -2324,6 +2353,7 @@ export const AdminDashboard: React.FC = () => {
                 <AdminMessagingSection
                   currentUser={currentUser || { uid: 'admin', role: 'admin', name: 'System Admin', email: 'admin@school.edu', createdAt: '' }}
                   initialTargetUser={chatTargetUser}
+                  onClose={handleCloseMessagesTab}
                   onViewUserProfile={(user) => {
                     if (user.role === 'student') {
                       setSelectedStudentForProfile(user);
@@ -6266,8 +6296,7 @@ export const AdminDashboard: React.FC = () => {
           onClose={() => setSelectedTutorForProfile(null)}
           reviews={reviews || []}
           onContactClick={() => {
-            setChatTargetUser(selectedTutorForProfile);
-            setActiveTab('messages');
+            handleOpenMessagesTab(selectedTutorForProfile);
             setSelectedTutorForProfile(null);
           }}
         />
@@ -6537,8 +6566,7 @@ export const AdminDashboard: React.FC = () => {
           }}
           onSendMessage={(studentUid, studentName) => {
             const target = users.find(u => u.uid === studentUid) || selectedStudentForProfile;
-            setChatTargetUser(target || { uid: studentUid, name: studentName, email: '', role: 'student', createdAt: '' });
-            setActiveTab('messages');
+            handleOpenMessagesTab(target || { uid: studentUid, name: studentName, email: '', role: 'student', createdAt: '' });
             setSelectedStudentForProfile(null);
           }}
         />

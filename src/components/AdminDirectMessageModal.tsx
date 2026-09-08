@@ -282,8 +282,12 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
           </div>
 
           <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 sm:p-2.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
             title="Close messaging hub"
             id="btn_close_admin_chat_modal"
           >
@@ -520,16 +524,33 @@ export const AdminDirectMessageModal: React.FC<AdminDirectMessageModalProps> = (
                     </div>
                   </div>
 
-                  {/* Actions: View Profile */}
-                  {onViewUserProfile && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Actions: View Profile */}
+                    {onViewUserProfile && (
+                      <button
+                        type="button"
+                        onClick={() => onViewUserProfile(activeUser)}
+                        className="hidden sm:flex py-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>View Profile</span>
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => onViewUserProfile(activeUser)}
-                      className="hidden sm:flex py-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClose();
+                      }}
+                      className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/50 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                      title="Close messaging hub"
+                      id="btn_close_admin_chat_modal_header"
                     >
-                      <User className="w-3.5 h-3.5" />
-                      <span>View Profile</span>
+                      <X className="w-4 h-4" />
+                      <span className="hidden sm:inline">Close</span>
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 {/* Quick Administrative Message Prompts Toolbar */}
