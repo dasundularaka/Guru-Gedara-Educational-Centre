@@ -106,7 +106,8 @@ import {
   RefreshCw,
   Activity,
   UserPlus,
-  MessageSquare
+  MessageSquare,
+  Contact2
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -990,6 +991,14 @@ export const AdminDashboard: React.FC = () => {
     };
     window.addEventListener('open-mobile-sections', handleOpenSectionsEvent);
 
+    const handleSubTabEvent = (e: any) => {
+      if (e.detail?.adminTab) {
+        setActiveTab(e.detail.adminTab);
+        if (e.detail.adminTab === 'progress') fetchAttendanceRecords();
+      }
+    };
+    window.addEventListener('app_navigate_admin_subtab', handleSubTabEvent);
+
     return () => {
       unsubAdmissionFee();
       unsubBanners();
@@ -1001,6 +1010,7 @@ export const AdminDashboard: React.FC = () => {
       unsubPayments();
       unsubReviews();
       window.removeEventListener('open-mobile-sections', handleOpenSectionsEvent);
+      window.removeEventListener('app_navigate_admin_subtab', handleSubTabEvent);
     };
   }, []);
 
@@ -1926,7 +1936,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Workspace Title Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <div>
               <span className="text-xs font-bold text-red-600 font-mono uppercase tracking-widest block leading-none">Management Office</span>
@@ -1935,14 +1945,14 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Controls: Admin Profile Avatar & Navigation Dropdown */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Controls: All middle screen buttons adjusted to strictly one line in any screen size */}
+          <div className="flex flex-nowrap items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar max-w-full py-0.5" id="admin_middle_controls_bar">
             {/* Dedicated Mobile Section View Icon Trigger */}
             <button
               id="admin_btn_mobile_sections"
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="md:hidden px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+              className="md:hidden px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 min-h-[38px] shrink-0 whitespace-nowrap"
               title="Access Admin Sections Menu"
             >
               <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -1959,7 +1969,7 @@ export const AdminDashboard: React.FC = () => {
                   handleOpenMessagesTab(null);
                 }
               }}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer min-h-[38px] ${
+              className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer min-h-[38px] shrink-0 whitespace-nowrap ${
                 activeTab === 'messages'
                   ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-400/40 shadow-rose-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white'
@@ -1979,41 +1989,16 @@ export const AdminDashboard: React.FC = () => {
               )}
             </button>
 
-            {/* Executive ID Pass Button */}
+            {/* My ID Button (Updated from Executive ID Pass with Contact2 icon, preserving executive theme) */}
             <button
               id="admin_my_id_card_btn"
               onClick={() => setSelectedUserForIdCard(currentUser || null)}
-              className="px-3.5 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-slate-950 text-white rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              className="px-3.5 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-slate-950 text-white rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer min-h-[38px] shrink-0 whitespace-nowrap"
               title="View, print and export official Executive Admin ID Card"
             >
-              <BadgeCheck className="w-4 h-4 text-amber-400" />
-              <span>Executive ID Pass</span>
+              <Contact2 className="w-4 h-4 text-amber-400" />
+              <span>My ID</span>
             </button>
-
-            {/* Admin Profile Display */}
-            <div
-              id="admin_profile_avatar_badge"
-              className="relative p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm flex items-center gap-2.5 px-3 py-1.5"
-            >
-              <div className="relative">
-                <img
-                  src={currentUser?.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}
-                  alt={currentUser?.name || "Admin"}
-                  className="w-8 h-8 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
-                />
-                <div className="absolute -bottom-1 -right-1 bg-red-600 text-white p-0.5 rounded-full ring-2 ring-white dark:ring-slate-800 shadow-xs">
-                  <ShieldCheck className="w-2.5 h-2.5" />
-                </div>
-              </div>
-              <div className="text-left hidden sm:block">
-                <p className="text-[11px] font-extrabold text-slate-800 dark:text-white leading-tight">
-                  {currentUser?.name || 'Administrator'}
-                </p>
-                <span className="text-[9px] font-mono font-bold text-red-600 dark:text-red-400">
-                  System Admin
-                </span>
-              </div>
-            </div>
 
             {/* Sub menu controls - Desktop Dropdown & Mobile Modern Sidebar Drawer */}
             {(() => {
@@ -2054,11 +2039,11 @@ export const AdminDashboard: React.FC = () => {
                   />
 
                   {/* Desktop Dropdown Navigation (Hidden on Mobile) */}
-                  <div className="relative hidden md:block">
+                  <div className="relative hidden md:block shrink-0">
                     <button
                       id="admin_dashboard_nav_dropdown_trigger"
                       onClick={() => setIsNavDropdownOpen(!isNavDropdownOpen)}
-                      className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group"
+                      className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-3 cursor-pointer group shrink-0 whitespace-nowrap min-h-[38px]"
                     >
                       <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
                         <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">

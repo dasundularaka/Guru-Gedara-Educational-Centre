@@ -397,6 +397,16 @@ export const StudentDashboard: React.FC = () => {
     refreshClasses();
   }, [currentUser?.uid]);
 
+  useEffect(() => {
+    const handleSubTabNav = (e: any) => {
+      if (e.detail?.studentTab) {
+        setActiveSubTab(e.detail.studentTab);
+      }
+    };
+    window.addEventListener('app_navigate_student_subtab', handleSubTabNav);
+    return () => window.removeEventListener('app_navigate_student_subtab', handleSubTabNav);
+  }, []);
+
   const handleCancelBooking = (bookingId: string, classId: string, classTitle: string) => {
     setCancelConfirm({
       isOpen: true,

@@ -238,9 +238,18 @@ export const TutorDashboard: React.FC = () => {
     const unsubPath = firestoreService.subscribePathways((pathways) => {
       setDbPathways(pathways);
     });
+
+    const handleSubTabNav = (e: any) => {
+      if (e.detail?.tutorTab) {
+        setActiveSubTab(e.detail.tutorTab);
+      }
+    };
+    window.addEventListener('app_navigate_tutor_subtab', handleSubTabNav);
+
     return () => {
       unsubSub();
       unsubPath();
+      window.removeEventListener('app_navigate_tutor_subtab', handleSubTabNav);
     };
   }, []);
 

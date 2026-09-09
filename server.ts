@@ -310,8 +310,8 @@ Do not wrap in markdown quotes if possible, output valid JSON only.`;
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    // Express v5 uses wildcard pattern
-    app.get("*", (_req, res) => {
+    // Express v5 uses *all wildcard pattern
+    app.get("*all", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
