@@ -761,7 +761,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search student by name, email, or UID..."
+                      placeholder="Search student by name, email, or username..."
                       className="w-full text-xs pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium"
                     />
                   </div>
@@ -905,7 +905,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                                 </div>
 
                                 <p className="text-[11px] text-slate-500 truncate max-w-[160px]">{email}</p>
-                                <p className="text-[10px] font-mono text-slate-400">UID: {studentId}</p>
+                                <p className="text-[10px] font-mono text-slate-400">Username: {user?.username || studentId}</p>
                               </div>
                             </div>
 

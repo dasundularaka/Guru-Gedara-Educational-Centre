@@ -431,12 +431,11 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
               {onSendMessage && (
                 <button
                   onClick={() => onSendMessage(student.uid, student.name)}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer border border-emerald-400/40"
+                  className="p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all shadow-sm flex items-center justify-center cursor-pointer border border-emerald-400/40"
                   id="btn_student_profile_send_message"
-                  title={`Send Direct Message to ${student.name}`}
+                  title={`Direct Message ${student.name}`}
                 >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Direct Message</span>
+                  <MessageSquare className="w-4 h-4" />
                 </button>
               )}
 
@@ -444,6 +443,7 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
                 onClick={onClose}
                 className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer"
                 id="btn_close_student_profile_modal"
+                title="Close Profile"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -466,6 +466,11 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
               <div className="flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-xl font-black tracking-tight">{student.name}</h2>
+                  {(currentUser?.uid === student.uid || (currentUser?.username && currentUser.username === student.username)) && (
+                    <span className="text-[10px] font-mono font-black bg-indigo-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                      Me
+                    </span>
+                  )}
                   <span className="text-[10px] font-mono font-bold bg-white/15 px-2 py-0.5 rounded-full text-slate-200 uppercase">
                     ID: {student.username || student.uid.substring(0, 8)}
                   </span>
@@ -1228,24 +1233,27 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowIdCardModal(true)}
-                className="px-3.5 py-2 bg-gradient-to-r from-slate-900 to-indigo-950 text-white hover:from-slate-950 hover:to-indigo-900 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm border border-slate-700/60"
+                className="p-2.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white hover:from-slate-950 hover:to-indigo-900 rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-sm border border-slate-700/60"
                 id="btn_view_student_id_card_from_profile"
+                title="Student ID Card"
               >
-                <GraduationCap className="w-4 h-4 text-amber-400" /> Student ID Card
+                <GraduationCap className="w-4 h-4 text-amber-400" />
               </button>
               <button
                 onClick={() => setShowReminderBox(!showReminderBox)}
-                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                className="p-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-colors cursor-pointer flex items-center justify-center border border-indigo-200"
                 id="btn_toggle_student_reminder"
+                title="Message Student"
               >
-                <MessageSquare className="w-4 h-4" /> Message Student
+                <MessageSquare className="w-4 h-4" />
               </button>
               <button
                 onClick={onClose}
-                className="px-5 py-2 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                className="p-2.5 bg-slate-900 hover:bg-slate-950 text-white rounded-xl transition-colors cursor-pointer shadow-xs flex items-center justify-center"
                 id="btn_dismiss_student_profile"
+                title="Close Profile"
               >
-                Close Profile
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>

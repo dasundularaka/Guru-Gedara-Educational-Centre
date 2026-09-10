@@ -306,10 +306,8 @@ export function SmoothCarousel<T>({
             x: `-${currentIndex * (100 / visibleCount)}%`,
           }}
           transition={{
-            type: "spring",
-            stiffness: 220,
-            damping: 28,
-            mass: 0.65,
+            duration: 0.5,
+            ease: [0.25, 1, 0.5, 1],
           }}
           style={{
             display: 'flex',
@@ -319,17 +317,26 @@ export function SmoothCarousel<T>({
           {items.map((item, index) => {
             const key = keyExtractor ? keyExtractor(item, index) : index;
             const itemWidthPercent = 100 / visibleCount;
+            const isVisible = index >= currentIndex && index < currentIndex + visibleCount;
 
             return (
-              <div
+              <motion.div
                 key={key}
-                className={`shrink-0 px-3 box-border flex flex-col ${cardClassName}`}
+                animate={{
+                  opacity: isVisible ? 1 : 0.45,
+                  scale: isVisible ? 1 : 0.96,
+                }}
+                transition={{
+                  duration: 0.45,
+                  ease: [0.25, 1, 0.5, 1],
+                }}
+                className={`shrink-0 px-3 box-border flex flex-col transition-opacity ${cardClassName}`}
                 style={{
                   width: `${itemWidthPercent}%`,
                 }}
               >
                 {renderItem(item, index)}
-              </div>
+              </motion.div>
             );
           })}
         </motion.div>

@@ -106,6 +106,7 @@ export const TutorDashboard: React.FC = () => {
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'reminders'>('all');
   const [tutorNoticeTitle, setTutorNoticeTitle] = useState('');
   const [tutorNoticeMsg, setTutorNoticeMsg] = useState('');
+  const [tutorNoticeClassId, setTutorNoticeClassId] = useState('');
   const [sendingTutorNotice, setSendingTutorNotice] = useState(false);
   
   // Study Materials / Course Resources State
@@ -757,22 +758,64 @@ export const TutorDashboard: React.FC = () => {
   const handleTutorBroadcastNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tutorNoticeTitle.trim() || !tutorNoticeMsg.trim() || !currentUser) return;
+    if (!tutorNoticeClassId) {
+      showToast("Please select a relevant class to publish this announcement to.", "error");
+      return;
+    }
+    const targetClass = tutorClasses.find(c => c.id === tutorNoticeClassId);
+    if (!targetClass) {
+      showToast("Selected class is not recognized or not assigned to your faculty profile.", "error");
+      return;
+    }
+
     setSendingTutorNotice(true);
     try {
       await executeWriteWithRetry(
         `Broadcast Tutor Announcement: '${tutorNoticeTitle}'`,
         async () => {
-          await firestoreService.triggerNotification(
-            'all',
-            `📢 [Tutor ${currentUser.name}] ${tutorNoticeTitle}`,
-            tutorNoticeMsg,
-            'announcement'
+          // 1. Create class-targeted announcement
+          await firestoreService.createAnnouncement({
+            title: tutorNoticeTitle.trim(),
+            content: tutorNoticeMsg.trim(),
+            authorId: currentUser.uid,
+            authorName: currentUser.name,
+            authorRole: 'tutor',
+            targetType: 'class',
+            targetClassId: targetClass.id,
+            targetClassName: targetClass.title,
+            priority: 'normal',
+            isPinned: false
+          });
+
+          // 2. Notify students who are enrolled in this specific class
+          const relevantBookings = (bookings || []).filter(
+            b => b.classId === targetClass.id && (b.status === 'active' || b.status === 'approved')
           );
+          const studentUids = Array.from(new Set(relevantBookings.map(b => b.studentId).filter(Boolean)));
+          
+          if (studentUids.length > 0) {
+            for (const sUid of studentUids) {
+              await firestoreService.triggerNotification(
+                sUid,
+                `📢 [${targetClass.title}] ${tutorNoticeTitle.trim()}`,
+                tutorNoticeMsg.trim(),
+                'announcement'
+              );
+            }
+          } else {
+            await firestoreService.triggerNotification(
+              'all',
+              `📢 [${targetClass.title}] ${tutorNoticeTitle.trim()}`,
+              tutorNoticeMsg.trim(),
+              'announcement'
+            );
+          }
         }
       );
-      showToast("Class announcement broadcasted to students!", "success");
+      showToast(`Announcement successfully broadcasted for "${targetClass.title}"!`, "success");
       setTutorNoticeTitle('');
       setTutorNoticeMsg('');
+      setTutorNoticeClassId('');
       await refreshNotifications();
     } catch (err) {
       showToast("Failed to broadcast announcement.", "error");
@@ -3382,6 +3425,31 @@ export const TutorDashboard: React.FC = () => {
 
                     <form onSubmit={handleTutorBroadcastNotice} className="space-y-3 text-xs">
                       <div>
+                        <label className="block text-[11px] font-bold text-indigo-200 mb-1">
+                          Relevant Target Class <span className="text-rose-400">*</span>
+                        </label>
+                        {tutorClasses.length === 0 ? (
+                          <div className="p-2.5 bg-indigo-950/60 rounded-xl border border-indigo-700/60 text-[11px] text-amber-300">
+                            No active classes assigned. You must have an assigned class to broadcast an announcement.
+                          </div>
+                        ) : (
+                          <select
+                            required
+                            value={tutorNoticeClassId}
+                            onChange={(e) => setTutorNoticeClassId(e.target.value)}
+                            className="w-full px-3 py-2 bg-indigo-950/80 border border-indigo-700 text-white rounded-xl outline-none text-xs focus:border-indigo-400 cursor-pointer"
+                            id="select_tutor_notice_class"
+                          >
+                            <option value="" className="bg-slate-900 text-white">-- Select Relevant Class --</option>
+                            {tutorClasses.map(c => (
+                              <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                                {c.title} • {c.subject}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      <div>
                         <label className="block text-[11px] font-bold text-indigo-200 mb-1">Announcement Title</label>
                         <input
                           type="text"
@@ -3405,7 +3473,7 @@ export const TutorDashboard: React.FC = () => {
                       </div>
                       <button
                         type="submit"
-                        disabled={sendingTutorNotice || !tutorNoticeTitle.trim() || !tutorNoticeMsg.trim()}
+                        disabled={sendingTutorNotice || !tutorNoticeTitle.trim() || !tutorNoticeMsg.trim() || !tutorNoticeClassId || tutorClasses.length === 0}
                         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
                       >
                         {sendingTutorNotice ? 'Sending...' : 'Publish Announcement'} <Megaphone className="w-3.5 h-3.5" />

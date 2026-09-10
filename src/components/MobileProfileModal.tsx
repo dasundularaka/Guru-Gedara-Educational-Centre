@@ -210,6 +210,9 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {getRoleBadge(currentUser.role)}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-600 text-white uppercase tracking-wider shadow-xs">
+                      Me
+                    </span>
                   </div>
                   <h4 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate">
                     {currentUser.name}

@@ -728,7 +728,7 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
               <div className="space-y-2 pt-2 border-t border-slate-200">
                 <div className="flex justify-between items-center">
                   <label className="block text-[10px] font-extrabold text-slate-700 uppercase font-mono">
-                    Manual Student Username or UID Input:
+                    Manual Student Username Input:
                   </label>
                   <span className="text-[9px] text-indigo-600 font-mono font-bold">
                     Requires Tutor/Admin Confirmation
@@ -745,7 +745,7 @@ export const ClassAttendanceQRScannerModal: React.FC<ClassAttendanceQRScannerMod
                         handleProcessScan(manualInputStr, 'manual');
                       }
                     }}
-                    placeholder="Enter student username (e.g. john_doe or UID)..."
+                    placeholder="Enter student username (e.g. john_doe)..."
                     className="flex-1 text-xs px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono"
                     id="input_manual_student_uid"
                   />
