@@ -1959,36 +1959,6 @@ export const AdminDashboard: React.FC = () => {
               <span>Sections</span>
             </button>
 
-            {/* Direct Messaging Hub Button (Toggles open/close) */}
-            <button
-              id="admin_btn_open_messages"
-              onClick={() => {
-                if (activeTab === 'messages') {
-                  handleCloseMessagesTab();
-                } else {
-                  handleOpenMessagesTab(null);
-                }
-              }}
-              className={`px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer min-h-[38px] shrink-0 whitespace-nowrap ${
-                activeTab === 'messages'
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-400/40 shadow-rose-600/20'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              }`}
-              title={activeTab === 'messages' ? 'Close Direct Messages and return to dashboard' : 'Open Universal Direct Messaging Hub to chat with any user'}
-            >
-              {activeTab === 'messages' ? (
-                <>
-                  <X className="w-4 h-4" />
-                  <span>Close Messages</span>
-                </>
-              ) : (
-                <>
-                  <MessageSquare className="w-4 h-4" />
-                  <span>Direct Messages</span>
-                </>
-              )}
-            </button>
-
             {/* My ID Button (Updated from Executive ID Pass with Contact2 icon, preserving executive theme) */}
             <button
               id="admin_my_id_card_btn"

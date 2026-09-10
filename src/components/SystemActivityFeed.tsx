@@ -107,17 +107,42 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
   // Compile genuine database records into unified timeline events
   const allEvents = useMemo(() => {
     const list: SystemEvent[] = [];
+    const seenKeys = new Set<string>();
+    const seenPaymentIds = new Set<string>();
+
     const effectiveUsers = (propUsers && propUsers.length > 0) ? propUsers : internalUsers;
     const effectiveAttendance = (propAttendance && propAttendance.length > 0) ? propAttendance : internalAttendance;
 
-    // 1. Real Audit Logs from Firestore
+    // 1. Real Audit Logs from Firestore (Deduplicated - read each log only ONCE)
     (internalAuditLogs || []).forEach((log) => {
       if (!log) return;
       const logDate = log.timestamp ? new Date(log.timestamp) : new Date();
       if (isNaN(logDate.getTime())) return;
 
+      const logKey = log.id || `${log.action}_${log.details}_${logDate.getTime()}`;
+      if (seenKeys.has(logKey)) return;
+      seenKeys.add(logKey);
+
+      // If this is a payment-related audit log, record receipt ref so payments collection doesn't duplicate
+      if (log.action && log.action.includes('PAYMENT')) {
+        const match = log.details.match(/#([a-zA-Z0-9_-]+)/);
+        if (match && match[1]) {
+          seenPaymentIds.add(match[1]);
+        }
+        list.push({
+          id: `audit-${logKey}`,
+          type: 'payment_confirm',
+          title: log.action.replace(/_/g, ' '),
+          description: log.details || 'Tuition payment audit log recorded',
+          timestamp: logDate,
+          meta: log.username || 'Financial Ledger',
+          status: log.details.toLowerCase().includes('paid') ? 'paid' : log.details.toLowerCase().includes('pending') ? 'pending' : 'system'
+        });
+        return;
+      }
+
       list.push({
-        id: `audit-${log.id || Math.random().toString(36).substring(2, 9)}`,
+        id: `audit-${logKey}`,
         type: 'audit_log',
         title: log.action || 'Administrative Action',
         description: log.details || `Admin action performed`,
@@ -129,9 +154,11 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
 
     // 2. Real User Registrations & Accounts
     (effectiveUsers || []).forEach((user) => {
-      if (!user) return;
+      if (!user || !user.uid) return;
+      if (seenKeys.has(`user-${user.uid}`)) return;
+      seenKeys.add(`user-${user.uid}`);
+
       const userCreatedDate = user.createdAt ? new Date(user.createdAt) : null;
-      // If no valid createdAt, use current date
       const dateToUse = userCreatedDate && !isNaN(userCreatedDate.getTime()) ? userCreatedDate : new Date();
 
       if (user.role === 'student') {
@@ -170,9 +197,12 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
       }
     });
 
-    // 3. Real Payment & Fee Ledger Transactions
+    // 3. Real Payment & Fee Ledger Transactions (Read only ONCE per payment, no duplicates)
     (activePayments || []).forEach((payment) => {
-      if (!payment) return;
+      if (!payment || !payment.id) return;
+      if (seenPaymentIds.has(payment.id)) return;
+      seenPaymentIds.add(payment.id);
+
       const payDate = payment.date || payment.createdAt ? new Date(payment.date || payment.createdAt!) : null;
       const dateToUse = payDate && !isNaN(payDate.getTime()) ? payDate : new Date();
 
@@ -195,18 +225,21 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
       });
     });
 
-    // 4. Real Class Bookings & Seat Reservations
+    // 4. Real Class Bookings & Seat Reservations (Active only, exclude cancelled)
     (activeBookings || []).forEach((booking) => {
-      if (!booking) return;
+      if (!booking || !booking.id) return;
+      if (booking.status === 'cancelled' || booking.status === 'declined') return;
+      if (seenKeys.has(`book-${booking.id}`)) return;
+      seenKeys.add(`book-${booking.id}`);
+
       const bookDate = booking.bookingDate || booking.createdAt ? new Date(booking.bookingDate || booking.createdAt!) : null;
       const dateToUse = bookDate && !isNaN(bookDate.getTime()) ? bookDate : new Date();
 
-      const isCancelled = booking.status === 'cancelled';
       list.push({
         id: `book-${booking.id}`,
         type: 'booking_made',
-        title: isCancelled ? `Enrollment Cancelled: ${booking.classTitle || 'Class'}` : `Class Seat Reserved: ${booking.classTitle || 'Class'}`,
-        description: `${booking.studentName || 'Student'} ${isCancelled ? 'cancelled seat in' : 'enrolled into'} "${booking.classTitle}" (${booking.dayOfWeek || 'Scheduled'} ${booking.timeSlot || ''}) instructed by ${booking.tutorName || 'Faculty'}.`,
+        title: `Class Seat Reserved: ${booking.classTitle || 'Class'}`,
+        description: `${booking.studentName || 'Student'} enrolled into "${booking.classTitle}" (${booking.dayOfWeek || 'Scheduled'} ${booking.timeSlot || ''}) instructed by ${booking.tutorName || 'Faculty'}.`,
         timestamp: dateToUse,
         meta: booking.dayOfWeek || 'Enrolled',
         status: booking.status
@@ -215,7 +248,10 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
 
     // 5. Real Classes & Curriculum Syllabi
     (activeClasses || []).forEach((cls) => {
-      if (!cls) return;
+      if (!cls || !cls.id) return;
+      if (seenKeys.has(`class-${cls.id}`)) return;
+      seenKeys.add(`class-${cls.id}`);
+
       const classDate = cls.createdAt ? new Date(cls.createdAt) : null;
       const dateToUse = classDate && !isNaN(classDate.getTime()) ? classDate : new Date();
 
@@ -231,7 +267,10 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
 
     // 6. Real Attendance Records
     (effectiveAttendance || []).forEach((att) => {
-      if (!att) return;
+      if (!att || !att.id) return;
+      if (seenKeys.has(`att-${att.id}`)) return;
+      seenKeys.add(`att-${att.id}`);
+
       const attDateStr = att.markedAt || att.date;
       const attDate = attDateStr ? new Date(attDateStr) : null;
       const dateToUse = attDate && !isNaN(attDate.getTime()) ? attDate : new Date();

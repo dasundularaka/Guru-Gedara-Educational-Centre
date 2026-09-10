@@ -1234,20 +1234,33 @@ const firestoreServiceRaw = {
            8000,
            { docs: [] } as any
          );
-         cloudBookings = snap.docs.map(doc => doc.data() as Booking);
+         for (const docSnap of snap.docs) {
+           const data = docSnap.data() as Booking;
+           if (data.status === 'cancelled' || data.status === 'declined') {
+             deleteDoc(docSnap.ref).catch(() => {});
+           } else {
+             cloudBookings.push(data);
+           }
+         }
        } catch (e) {
          console.warn("Fallback reading bookings.", e);
        }
     }
     const fallbackBookings = handleFallback<Booking>('local_bookings', INITIAL_BOOKINGS);
     const bookingMap = new Map<string, Booking>();
-    fallbackBookings.forEach(b => bookingMap.set(b.id, b));
-    cloudBookings.forEach(b => bookingMap.set(b.id, b));
+    fallbackBookings.forEach(b => {
+      if (b.status !== 'cancelled' && b.status !== 'declined') {
+        bookingMap.set(b.id, b);
+      }
+    });
+    cloudBookings.forEach(b => {
+      if (b.status !== 'cancelled' && b.status !== 'declined') {
+        bookingMap.set(b.id, b);
+      }
+    });
 
     const combined = Array.from(bookingMap.values());
-    if (combined.length > 0) {
-      saveFallback('local_bookings', combined);
-    }
+    saveFallback('local_bookings', combined);
     return combined;
   },
 
@@ -1781,7 +1794,7 @@ const firestoreServiceRaw = {
             studentId = bDoc.data()?.studentId;
           }
         }
-        await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
+        await deleteDoc(doc(db, 'bookings', bookingId));
       } catch (e) {
         console.warn("Fallback cancel booking", e);
       }
@@ -1792,7 +1805,8 @@ const firestoreServiceRaw = {
       const targetB = bookings.find(b => b.id === bookingId);
       if (targetB) studentId = targetB.studentId;
     }
-    const updated = bookings.map(b => b.id === bookingId ? { ...b, status: 'cancelled' as const } : b);
+    // Delete cancelled booking data if marked cancelled and store real active data only
+    const updated = bookings.filter(b => b.id !== bookingId && b.status !== 'cancelled' && b.status !== 'declined');
     saveFallback('local_bookings', updated);
     await this.updateClassBookingsCount(classId, -1);
 
@@ -2130,6 +2144,15 @@ const firestoreServiceRaw = {
       console.warn("Payment notification auto-dispatch warning:", payNotifErr);
     }
 
+    // Write exactly one audit log for recording this payment action
+    try {
+      await this.addAuditLog({
+        username: studentName || 'student',
+        action: 'PAYMENT_RECORDED',
+        details: `Recorded tuition payment receipt #${id} for ${studentName} in '${classTitle}': LKR ${amount.toLocaleString()} (${status.toUpperCase()})`
+      });
+    } catch (_) {}
+
     return newPay;
   },
 
@@ -2174,6 +2197,15 @@ const firestoreServiceRaw = {
         console.warn("Error triggering receipt on updatePaymentStatus:", e);
       }
     }
+
+    // Write exactly one audit log for this payment status change
+    try {
+      await this.addAuditLog({
+        username: 'admin',
+        action: 'PAYMENT_STATUS_UPDATED',
+        details: `Updated tuition payment receipt #${id} (${effectivePay?.classTitle || 'Class'}) to status: ${status.toUpperCase()}`
+      });
+    } catch (_) {}
   },
 
   // -------------------------------------------------------------
@@ -2854,6 +2886,15 @@ const firestoreServiceRaw = {
     const payments = handleFallback<Payment>('local_payments', INITIAL_PAYMENTS);
     const updated = payments.map(p => p.id === paymentId ? { ...p, ...data } : p);
     saveFallback('local_payments', updated);
+
+    // Write exactly one audit log for this payment update
+    try {
+      await this.addAuditLog({
+        username: 'admin',
+        action: 'PAYMENT_RECORD_MODIFIED',
+        details: `Modified payment #${paymentId}: ${Object.keys(data).join(', ')}`
+      });
+    } catch (_) {}
   },
 
   async deletePayment(paymentId: string): Promise<void> {
@@ -3086,8 +3127,19 @@ const firestoreServiceRaw = {
   // AUDIT LOGS
   // -------------------------------------------------------------
   async addAuditLog(log: { username: string; action: string; details: string }): Promise<void> {
+    const logs = handleFallback<AuditLog>('local_audit_logs', []);
+    const now = Date.now();
+
+    // Prevent duplicate log writes: if an identical log with the same action and details exists within the last 15 seconds, do not write again
+    const isDuplicate = logs.some(l => 
+      l.action === log.action && 
+      l.details === log.details && 
+      (now - new Date(l.timestamp).getTime()) < 15000
+    );
+    if (isDuplicate) return;
+
     const newLog: AuditLog = {
-      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      id: 'log_' + now + '_' + Math.random().toString(36).substr(2, 5),
       timestamp: new Date().toISOString(),
       username: log.username || 'system',
       action: log.action,
@@ -3100,7 +3152,6 @@ const firestoreServiceRaw = {
         console.warn("Failed writing audit log online", e);
       }
     }
-    const logs = handleFallback<AuditLog>('local_audit_logs', []);
     logs.unshift(newLog);
     saveFallback('local_audit_logs', logs.slice(0, 500));
   },
@@ -4129,7 +4180,9 @@ const firestoreServiceRaw = {
     if (isUsingCloud) {
       try {
         return onSnapshot(collection(db, 'bookings'), (snap) => {
-          const docs = snap.docs.map(doc => doc.data() as Booking);
+          const docs = snap.docs
+            .map(doc => doc.data() as Booking)
+            .filter(b => b && b.status !== 'cancelled' && b.status !== 'declined');
           saveFallback('local_bookings', docs);
           callback(docs);
         }, (err) => console.warn("Bookings snapshot error", err));

@@ -90,17 +90,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onChangeTab('tutors');
           },
           isActive: currentTab === 'tutors'
-        },
-        {
-          id: 'announcements',
-          label: 'Notices',
-          icon: Megaphone,
-          badge: announcementCount > 0 ? announcementCount : undefined,
-          action: () => {
-            setActiveSubSection('');
-            onChangeTab('announcements');
-          },
-          isActive: currentTab === 'announcements'
         }
       ];
     }
@@ -441,25 +430,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       id="mobile_bottom_navigation"
       aria-label="Mobile Navigation"
     >
-      <div className="flex items-stretch justify-between w-full h-[62px] max-w-full relative overflow-hidden">
-        
-        {/* Scrollable Section Navigation Bar */}
-        <div 
-          ref={scrollContainerRef}
-          className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth px-2 py-1 overscroll-x-contain touch-pan-x"
-          style={{ WebkitOverflowScrolling: 'touch' }}
-          id="mobile_nav_scrollable_sections"
-        >
+      {isGuest ? (
+        /* Guest Mode: Fixed 4-column grid, no horizontal scrolling */
+        <div className="grid grid-cols-4 w-full h-[62px] px-1 py-1" id="mobile_nav_guest_grid">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = item.isActive;
-
             return (
               <button
                 key={item.id}
                 onClick={item.action}
                 aria-label={item.label}
-                className={`shrink-0 flex flex-col items-center justify-center min-w-[58px] px-2 py-1.5 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
+                className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
                   active 
                     ? 'text-indigo-600 dark:text-indigo-400 font-extrabold bg-indigo-50/80 dark:bg-indigo-950/60' 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -467,28 +449,79 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 id={`mobile_nav_${item.id}`}
                 title={item.label}
               >
-                <div className="relative flex items-center justify-center">
-                  <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-105 stroke-[2.4]' : 'stroke-[1.8]'}`} />
-                  {item.badge && item.badge > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-indigo-600 ring-2 ring-white dark:ring-slate-900 text-[8.5px] font-black text-white">
-                      {item.badge > 9 ? '9+' : item.badge}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] font-bold tracking-tight mt-0.5 truncate max-w-[62px] text-center leading-tight">
+                <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-105 stroke-[2.4]' : 'stroke-[1.8]'}`} />
+                <span className="text-[10px] font-bold tracking-tight mt-0.5 truncate text-center leading-tight">
                   {item.label}
                 </span>
               </button>
             );
           })}
-        </div>
 
-        {/* Fixed Profile Icon (Pinned Bottom Right Corner, Never Scrolls) */}
-        <div 
-          className="shrink-0 flex items-center justify-center border-l border-slate-200/80 dark:border-slate-800/80 px-2 py-1 bg-white/95 dark:bg-slate-900/95 shadow-[-4px_0_12px_rgba(0,0,0,0.03)] dark:shadow-[-4px_0_12px_rgba(0,0,0,0.25)]"
-          id="mobile_nav_fixed_profile_wrapper"
-        >
-          {currentUser ? (
+          <button
+            onClick={() => onChangeTab('auth')}
+            aria-label="Sign In"
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
+              currentTab === 'auth'
+                ? 'text-indigo-600 dark:text-indigo-400 font-extrabold bg-indigo-50/80 dark:bg-indigo-950/60'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+            id="mobile_nav_signin"
+            title="Sign In"
+          >
+            <LogIn className="w-5 h-5 stroke-[1.8]" />
+            <span className="text-[10px] font-bold tracking-tight mt-0.5 truncate text-center leading-tight">
+              Sign In
+            </span>
+          </button>
+        </div>
+      ) : (
+        /* Logged-in Mode: Horizontally scrollable navigation with pinned profile */
+        <div className="flex items-stretch justify-between w-full h-[62px] max-w-full relative overflow-hidden">
+          {/* Scrollable Section Navigation Bar */}
+          <div 
+            ref={scrollContainerRef}
+            className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth px-2 py-1 overscroll-x-contain touch-pan-x"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+            id="mobile_nav_scrollable_sections"
+          >
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = item.isActive;
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={item.action}
+                  aria-label={item.label}
+                  className={`shrink-0 flex flex-col items-center justify-center min-w-[58px] px-2 py-1.5 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
+                    active 
+                      ? 'text-indigo-600 dark:text-indigo-400 font-extrabold bg-indigo-50/80 dark:bg-indigo-950/60' 
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                  id={`mobile_nav_${item.id}`}
+                  title={item.label}
+                >
+                  <div className="relative flex items-center justify-center">
+                    <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-105 stroke-[2.4]' : 'stroke-[1.8]'}`} />
+                    {item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-indigo-600 ring-2 ring-white dark:ring-slate-900 text-[8.5px] font-black text-white">
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold tracking-tight mt-0.5 truncate max-w-[62px] text-center leading-tight">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Fixed Profile Icon (Pinned Bottom Right Corner, Never Scrolls) */}
+          <div 
+            className="shrink-0 flex items-center justify-center border-l border-slate-200/80 dark:border-slate-800/80 px-2 py-1 bg-white/95 dark:bg-slate-900/95 shadow-[-4px_0_12px_rgba(0,0,0,0.03)] dark:shadow-[-4px_0_12px_rgba(0,0,0,0.25)]"
+            id="mobile_nav_fixed_profile_wrapper"
+          >
             <button
               onClick={() => {
                 if (onOpenProfile) {
@@ -529,29 +562,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 Profile
               </span>
             </button>
-          ) : (
-            <button
-              onClick={() => onChangeTab('auth')}
-              aria-label="Sign In"
-              className={`flex flex-col items-center justify-center min-w-[56px] px-1.5 py-1.5 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
-                currentTab === 'auth'
-                  ? 'text-indigo-600 dark:text-indigo-400 font-extrabold bg-indigo-50/80 dark:bg-indigo-950/60'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-              id="mobile_nav_signin"
-              title="Sign In"
-            >
-              <div className="relative flex items-center justify-center">
-                <LogIn className="w-5 h-5 stroke-[1.8]" />
-              </div>
-              <span className="text-[10px] font-bold tracking-tight mt-0.5 truncate max-w-[58px] text-center leading-tight">
-                Sign In
-              </span>
-            </button>
-          )}
+          </div>
         </div>
-
-      </div>
+      )}
     </nav>
   );
 };

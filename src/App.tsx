@@ -189,6 +189,32 @@ function MainAppContent() {
   const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
   const [isMobileProfileOpen, setIsMobileProfileOpen] = useState<boolean>(false);
   const [showGlobalIdCard, setShowGlobalIdCard] = useState<boolean>(false);
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [showReconnectedAlert, setShowReconnectedAlert] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setShowReconnectedAlert(true);
+      const timer = setTimeout(() => {
+        setShowReconnectedAlert(false);
+      }, 3500);
+      return () => clearTimeout(timer);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setShowReconnectedAlert(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -266,6 +292,51 @@ function MainAppContent() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
+      {/* Network Connectivity Status Modern Top Banner */}
+      <div className="fixed top-4 inset-x-0 z-[100] flex justify-center px-4 pointer-events-none">
+        <AnimatePresence>
+          {!isOnline && (
+            <motion.div
+              key="offline_banner"
+              initial={{ opacity: 0, y: -24, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -24, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="pointer-events-auto flex items-center gap-3 px-4 py-3 bg-slate-900/95 text-white rounded-2xl border border-rose-500/50 shadow-2xl backdrop-blur-md max-w-md w-full"
+              id="banner_network_offline"
+            >
+              <div className="w-8 h-8 rounded-xl bg-rose-500/20 flex items-center justify-center shrink-0 border border-rose-500/40">
+                <WifiOff className="w-4 h-4 text-rose-400 animate-pulse" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white">Connection Lost</p>
+                <p className="text-[11px] text-slate-300">You are currently offline. Changes will automatically sync when reconnected.</p>
+              </div>
+            </motion.div>
+          )}
+
+          {isOnline && showReconnectedAlert && (
+            <motion.div
+              key="reconnected_banner"
+              initial={{ opacity: 0, y: -24, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -24, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="pointer-events-auto flex items-center gap-3 px-4 py-3 bg-slate-900/95 text-white rounded-2xl border border-emerald-500/50 shadow-2xl backdrop-blur-md max-w-md w-full"
+              id="banner_network_reconnected"
+            >
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0 border border-emerald-500/40">
+                <Wifi className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white">Connection Restored</p>
+                <p className="text-[11px] text-emerald-300">You are back online. All data channels are fully active.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Navbar navigation selection */}
       <Navbar currentTab={currentTab} onChangeTab={setCurrentTab} />
 
@@ -296,7 +367,7 @@ function MainAppContent() {
       {/* Global Academic footer */}
       <footer className="bg-blue-950 border-t border-blue-900 text-white py-10 md:py-12 mb-14 md:mb-0" id="academy_footer">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-4">
               <h4 className="text-base font-bold text-blue-300 flex items-center gap-2">
                 <GraduationCap className="w-5 h-5" /> Guru Gedara
@@ -322,134 +393,6 @@ function MainAppContent() {
                 <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-blue-400" /> registrar.academy@example.com</li>
                 <li className="flex items-center gap-2 font-mono"><UserCheck className="w-4 h-4 text-blue-400" /> Admin: Principal Office</li>
               </ul>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs uppercase font-bold text-white tracking-widest font-mono">Connection Core</h4>
-                {(isReconciling || syncState.status === 'syncing') && (
-                  <span className="text-[10px] font-mono font-bold text-cyan-300 animate-pulse bg-cyan-950/80 border border-cyan-800/60 px-2 py-0.5 rounded-full">
-                    {reconcileProgress}%
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2.5">
-                {/* Connection Status Badge */}
-                <div className={`inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs font-mono transition-all duration-300 ${
-                  isReconciling || syncState.status === 'syncing' || connectionStatus === 'reconnecting'
-                    ? 'bg-blue-900/50 border-cyan-500/60 text-cyan-200 shadow-lg shadow-cyan-500/10'
-                    : connectionStatus === 'unstable'
-                    ? 'bg-red-950/40 border-red-800/50 text-red-200'
-                    : cloudSync
-                    ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-200'
-                    : 'bg-white/5 border-white/10 text-blue-200'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {isReconciling || syncState.status === 'syncing' || connectionStatus === 'reconnecting' ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
-                        <span className="text-cyan-200 font-bold tracking-wide">
-                          Syncing... {reconcileProgress < 100 ? `${reconcileProgress}%` : ''}
-                        </span>
-                      </>
-                    ) : connectionStatus === 'unstable' ? (
-                      <>
-                        <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />
-                        <span className="text-red-300 font-bold">Connection Unstable</span>
-                      </>
-                    ) : cloudSync ? (
-                      <>
-                        <Wifi className="w-4 h-4 text-emerald-400 animate-pulse" />
-                        <span className="font-semibold">Cloud Database Linked</span>
-                      </>
-                    ) : (
-                      <>
-                        <WifiOff className="w-4 h-4 text-orange-400" />
-                        <span>Local State (Sandboxed)</span>
-                      </>
-                    )}
-                  </div>
-
-                  {cloudSync && !isReconciling && connectionStatus === 'stable' && (
-                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider">
-                      100% Synced
-                    </span>
-                  )}
-                </div>
-
-                {/* Animated Reconcile Progress Bar */}
-                {(isReconciling || syncState.status === 'syncing' || reconcileProgress < 100) && (
-                  <div className="space-y-1.5 bg-blue-950/80 border border-blue-800/60 p-2.5 rounded-xl shadow-inner">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-cyan-300">
-                      <span className="flex items-center gap-1.5 font-bold truncate max-w-[180px]">
-                        <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin shrink-0" />
-                        <span className="truncate">{reconcileStep || "Reconciling Firestore cache..."}</span>
-                      </span>
-                      <span className="font-bold text-white shrink-0">{reconcileProgress}%</span>
-                    </div>
-                    
-                    <div className="w-full bg-blue-900/80 rounded-full h-2 overflow-hidden p-0.5 border border-blue-700/50 relative">
-                      <motion.div 
-                        className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 h-full rounded-full shadow-lg shadow-cyan-400/50"
-                        initial={{ width: '0%' }}
-                        animate={{ width: `${reconcileProgress}%` }}
-                        transition={{ ease: "easeInOut", duration: 0.3 }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Telemetry metadata & Latency indicator */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-blue-300 bg-white/5 rounded-lg px-2.5 py-1.5 border border-white/5">
-                    <Activity className="w-3 h-3 text-indigo-400 shrink-0" />
-                    <span>Latency:</span>
-                    {pingTime !== null ? (
-                      <span className={`font-bold ${pingTime < 80 ? 'text-emerald-400' : pingTime < 150 ? 'text-amber-400' : 'text-red-400'}`}>
-                        {pingTime}ms
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">...</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-blue-300 bg-white/5 rounded-lg px-2.5 py-1.5 border border-white/5 truncate">
-                    <Database className="w-3 h-3 text-cyan-400 shrink-0" />
-                    <span className="truncate">
-                      {lastReconciledAt 
-                        ? `Synced: ${lastReconciledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` 
-                        : 'Cache Active'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Interactive Reconcile & Instability buttons */}
-                <div className="flex items-center justify-between pt-1 text-[10px] font-mono">
-                  <button
-                    onClick={() => reconcileCloudData()}
-                    disabled={isReconciling}
-                    className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-100 transition-colors font-bold cursor-pointer disabled:opacity-50"
-                    id="reconcile_cloud_btn"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isReconciling ? 'animate-spin text-cyan-400' : ''}`} />
-                    <span>{isReconciling ? "Syncing..." : "Reconcile"}</span>
-                  </button>
-
-                  <button
-                    onClick={handleSimulateInstability}
-                    disabled={connectionStatus === 'reconnecting'}
-                    className="text-indigo-300 hover:text-indigo-150 transition-colors underline cursor-pointer disabled:opacity-50"
-                    id="simulate_instability_btn"
-                  >
-                    {connectionStatus === 'reconnecting' ? "Calibrating..." : "Test Instability"}
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-[10px] text-blue-300/80 pt-0.5 leading-relaxed">
-                Guru Gedara uses reactive Firestore cloud buckets to maintain dynamic data states securely across browsers.
-              </p>
             </div>
           </div>
 

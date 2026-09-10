@@ -17,7 +17,8 @@ import {
   School,
   AlertCircle,
   BookOpen,
-  Clock
+  Clock,
+  Contact2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserProfile, Booking, ClassItem } from '../types';
@@ -239,9 +240,9 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
                     className="p-3 bg-slate-900 hover:bg-slate-950 dark:bg-slate-800 dark:hover:bg-slate-750 text-white rounded-2xl flex items-center gap-2.5 transition-all shadow-sm active:scale-95 cursor-pointer touch-target"
                     id="btn_mobile_profile_open_id_card"
                   >
-                    <GraduationCap className="w-4 h-4 text-amber-400 shrink-0" />
+                    <Contact2 className="w-4 h-4 text-amber-400 shrink-0" />
                     <div className="text-left min-w-0">
-                      <span className="block text-[11px] font-black leading-tight">Digital ID Card</span>
+                      <span className="block text-[11px] font-black leading-tight">My ID</span>
                       <span className="block text-[9px] text-slate-400 truncate">QR & Barcode</span>
                     </div>
                   </button>
@@ -504,21 +505,6 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
                     </button>
                   </form>
                 )}
-              </div>
-
-              {/* Study Mode & Theme */}
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 text-xs">
-                  {darkMode ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
-                  <span className="font-semibold">{darkMode ? "Night Study Mode" : "Day Study Mode"}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleDarkMode}
-                  className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
-                >
-                  Switch
-                </button>
               </div>
 
               {/* Sign Out Button */}

@@ -50,7 +50,8 @@ import {
   Printer,
   GraduationCap,
   Layers,
-  Award
+  Award,
+  Contact2
 } from 'lucide-react';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
@@ -539,7 +540,7 @@ export const StudentDashboard: React.FC = () => {
                   className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-2 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95 min-h-[38px]"
                   id="btn_student_view_id_card"
                 >
-                  <GraduationCap className="w-3.5 h-3.5 text-amber-400" /> ID Card
+                  <Contact2 className="w-3.5 h-3.5 text-amber-400" /> My ID
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}
@@ -1270,8 +1271,8 @@ export const StudentDashboard: React.FC = () => {
         isOpen={showIdCardModal}
         onClose={() => setShowIdCardModal(false)}
         currentUser={currentUser}
-        enrolledClasses={classes.filter(c => (currentUser.selectedClasses || []).includes(c.id))}
-        bookings={studentBookings}
+        enrolledClasses={classes.filter(c => studentBookings.some(b => b.classId === c.id && b.status === 'active'))}
+        bookings={studentBookings.filter(b => b.status === 'active')}
         showToast={showToast}
       />
 

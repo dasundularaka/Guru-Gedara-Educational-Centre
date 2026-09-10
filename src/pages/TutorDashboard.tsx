@@ -69,7 +69,8 @@ import {
   Award,
   Eye,
   Timer,
-  BadgeCheck
+  BadgeCheck,
+  Contact2
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
@@ -1229,6 +1230,14 @@ export const TutorDashboard: React.FC = () => {
                 title="Display live QR Code for class attendance check-ins"
               >
                 <QrCode className="w-4 h-4" /> Live Session QR Code
+              </button>
+              <button
+                id="tutor_btn_my_id"
+                onClick={() => setShowIdCardModal(true)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
+                title="Display digital faculty ID pass"
+              >
+                <Contact2 className="w-4 h-4 text-amber-400" /> My ID
               </button>
             </div>
 
