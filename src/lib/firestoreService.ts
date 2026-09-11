@@ -4073,33 +4073,92 @@ const firestoreServiceRaw = {
   // -------------------------------------------------------------
   // MONTHLY PAYMENT REMINDERS & AUTO-SUSPENSION (Requirement 13)
   // -------------------------------------------------------------
-  async runMonthlyPaymentAuditAndReminders(adminUid: string): Promise<{ reminded: number; suspended: number }> {
+  async runMonthlyPaymentAuditAndReminders(adminUid: string): Promise<{ 
+    reminded: number; 
+    suspended: number; 
+    exempted: number;
+    auditedCount: number;
+    details: string[];
+    timestamp: string;
+  }> {
     const allUsers = await this.getAllUsers();
     const students = allUsers.filter(u => u.role === 'student');
     const payments = await this.getPayments();
+    const classes = await this.getClasses();
+    const bookings = await this.getBookings();
 
     let reminded = 0;
     let suspended = 0;
+    let exempted = 0;
+    let auditedCount = 0;
+    const details: string[] = [];
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const monthName = now.toLocaleString('en-US', { month: 'long' });
 
     for (const student of students) {
-      if (student.isFreeCard) continue; // Free Card students are exempted
+      if (student.isFreeCard) {
+        exempted++;
+        details.push(`Scholar ${student.name || student.uid} is Free Card approved - fully exempted.`);
+        continue;
+      }
 
-      const enrolledClassIds = student.selectedClasses || [];
+      // Collect active enrolled class IDs from both selectedClasses and active bookings
+      const directBookings = bookings.filter(b => 
+        (b.studentId === student.uid || (student.email && b.studentEmail?.toLowerCase() === student.email.toLowerCase())) &&
+        b.status === 'active'
+      );
+
+      const enrolledClassIds = Array.from(
+        new Set([
+          ...(student.selectedClasses || []),
+          ...directBookings.map(b => b.classId)
+        ])
+      ).filter(Boolean);
+
       for (const classId of enrolledClassIds) {
-        // Check if paid for current month
-        const hasPaidCurrentMonth = payments.some(
-          p => p.studentId === student.uid && p.classId === classId && p.status === 'paid'
-        );
+        auditedCount++;
+        const targetClass = classes.find(c => c.id === classId);
+        const classTitle = targetClass?.title || classId;
+
+        // Check if student has class-level free card exemption
+        const currentClassStatus = student.classEnrollmentStatus?.[classId];
+        if (currentClassStatus === 'free_card') {
+          exempted++;
+          details.push(`${student.name || student.uid} exempted for "${classTitle}" (Free Card category).`);
+          continue;
+        }
+
+        // Check if student paid for current month
+        const hasPaidCurrentMonth = payments.some(p => {
+          const isUserMatch = p.studentId === student.uid || 
+            (p.studentEmail && student.email && p.studentEmail.toLowerCase() === student.email.toLowerCase()) ||
+            (p.studentName && student.name && p.studentName.toLowerCase() === student.name.toLowerCase());
+          
+          if (!isUserMatch || p.classId !== classId || p.status !== 'paid') return false;
+
+          if (p.date) {
+            try {
+              const pDate = new Date(p.date);
+              if (!isNaN(pDate.getTime())) {
+                return pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth;
+              }
+            } catch (e) {}
+          }
+          return true;
+        });
 
         if (!hasPaidCurrentMonth) {
           reminded++;
-          // Trigger system, email, and SMS reminder
-          const msg = `Payment Reminder: Monthly fee for class ${classId} is overdue. Please settle payment to maintain uninterrupted access.`;
+          // Trigger system, email, and in-app reminder
+          const msg = `Payment Reminder: Monthly tuition fee for "${classTitle}" (${monthName} ${currentYear}) is overdue. Please settle your payment promptly to prevent suspension of your class access.`;
           await this.triggerNotification(student.uid, 'Monthly Class Fee Due', msg, 'payment');
+          details.push(`Dispatched payment reminder to ${student.name || student.uid} for "${classTitle}".`);
 
-          // If unpaid and not marked late payment or free card, suspend class access
-          const currentClassStatus = student.classEnrollmentStatus?.[classId];
-          if (currentClassStatus !== 'late_payment' && currentClassStatus !== 'free_card') {
+          // If unpaid and not marked late payment, suspend class access
+          if (currentClassStatus !== 'late_payment') {
             suspended++;
             const updatedClassStatus = {
               ...(student.classEnrollmentStatus || {}),
@@ -4118,18 +4177,43 @@ const firestoreServiceRaw = {
             const registered = handleFallback<UserProfile>('local_registered_users', []);
             const updatedReg = registered.map(u => u.uid === student.uid ? updatedStudent : u);
             saveFallback('local_registered_users', updatedReg);
+
+            // Notify about auto-suspension
+            await this.triggerNotification(
+              student.uid,
+              'Class Access Suspended',
+              `Your enrollment in "${classTitle}" has been placed in suspended status due to unpaid monthly tuition fees for ${monthName}. Please settle your fee to reactivate access.`,
+              'warning'
+            );
+            details.push(`Auto-suspended class access for ${student.name || student.uid} in "${classTitle}".`);
+          } else {
+            details.push(`${student.name || student.uid} has "Late Payment" grace period approved for "${classTitle}" - suspension deferred.`);
           }
         }
       }
     }
 
+    const timestamp = new Date().toISOString();
+    const auditRecord = {
+      reminded,
+      suspended,
+      exempted,
+      auditedCount,
+      details,
+      timestamp
+    };
+
+    try {
+      localStorage.setItem('gurugedara_last_payment_audit', JSON.stringify(auditRecord));
+    } catch (e) {}
+
     await this.addAuditLog({
       username: adminUid,
       action: 'PAYMENT_AUDIT_RUN',
-      details: `Triggered payment audit: Sent ${reminded} reminders and suspended ${suspended} unpaid class access records.`
+      details: `Requirement 13 Monthly Payment Audit: Audited ${auditedCount} enrollments, dispatched ${reminded} reminders, auto-suspended ${suspended} records (${exempted} exempted).`
     });
 
-    return { reminded, suspended };
+    return auditRecord;
   },
 
   // -------------------------------------------------------------

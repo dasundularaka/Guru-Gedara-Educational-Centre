@@ -319,13 +319,14 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
 
   // Instructor milestones
   const milestones = useMemo(() => {
+    const primarySubject = progressList[0]?.subject || "curriculum";
     const arr = [
       { id: "m1", title: "Perfect Homework streak", desc: "Completed 5 homework units on-time.", metric: "100% completion", date: "4 days ago", rank: "Silver" },
-      { id: "m2", title: "Grade Mastery Peak", desc: "Reached 92% assessment marks on Calculus limits quiz.", metric: "92% Score", date: "1 week ago", rank: "Gold" },
+      { id: "m2", title: "Grade Mastery Peak", desc: `Reached 92% assessment marks on ${primarySubject} syllabus quiz.`, metric: "92% Score", date: "1 week ago", rank: "Gold" },
       { id: "m3", title: "Attendance Champion", desc: "Attended all registered livestream course rooms.", metric: "100% Attendance", date: "2 weeks ago", rank: "Platinum" }
     ];
     return arr;
-  }, []);
+  }, [progressList]);
 
   // GPA status message
   const gpaStatus = useMemo(() => {

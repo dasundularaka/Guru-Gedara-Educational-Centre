@@ -15,6 +15,7 @@ import {
   playClassNotificationChime
 } from '../lib/classReminder15MinTrigger';
 import { use15MinClassNotification } from '../hooks/use15MinClassNotification';
+import { AdminPaymentAuditPanel } from './AdminPaymentAuditPanel';
 import { useApp } from '../context/AppContext';
 import { 
   Clock, 
@@ -121,6 +122,9 @@ export const ClassReminderCronPanel: React.FC = () => {
   return (
     <div className="space-y-6">
       
+      {/* Monthly Tuition Fee Audit & Auto-Suspension Engine (Requirement 13) */}
+      <AdminPaymentAuditPanel />
+
       {/* 15-Minute Browser Class Reminder Trigger Section */}
       <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 shadow-lg border border-indigo-700/50 space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-indigo-800/60 pb-4">

@@ -324,12 +324,20 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
         // Student scanning class pass QR code
         let parsed: any;
         if (inputPayload.startsWith('{')) {
-          parsed = JSON.parse(inputPayload);
+          try {
+            parsed = JSON.parse(inputPayload);
+          } catch {
+            parsed = {};
+          }
         } else {
+          if (!activeClass) {
+            showToast("No active enrolled class selected for attendance verification.", "error");
+            return;
+          }
           parsed = {
-            classId: selectedClassId || 'demo_class',
-            classTitle: activeClass?.title || 'Enrolled Class Session',
-            tutorId: activeClass?.tutorId || 'tutor_default',
+            classId: activeClass.id,
+            classTitle: activeClass.title,
+            tutorId: activeClass.tutorId,
             date: new Date().toISOString().split('T')[0]
           };
         }
@@ -702,21 +710,23 @@ export const ClassQRCodeAttendanceModal: React.FC<ClassQRCodeAttendanceModalProp
                         </button>
                       </div>
 
-                      {/* Instant Demo Pass Button */}
-                      <button
-                        onClick={() => {
-                          const demoPayload = safeStringify({
-                            classId: selectedClassId || 'demo_math',
-                            classTitle: activeClass?.title || 'AP Calculus AB',
-                            tutorId: 'tutor_jenkins',
-                            date: selectedDate
-                          });
-                          handleVerifyAttendance(demoPayload);
-                        }}
-                        className="w-full text-center text-[10px] font-bold text-indigo-650 hover:underline pt-1 cursor-pointer"
-                      >
-                        ⚡ Simulate Instant Today Check-in Pass
-                      </button>
+                      {/* Instant Session Check-in Pass Button */}
+                      {activeClass && (
+                        <button
+                          onClick={() => {
+                            const sessionPayload = safeStringify({
+                              classId: activeClass.id,
+                              classTitle: activeClass.title,
+                              tutorId: activeClass.tutorId,
+                              date: selectedDate
+                            });
+                            handleVerifyAttendance(sessionPayload);
+                          }}
+                          className="w-full text-center text-[10px] font-bold text-indigo-650 hover:underline pt-1 cursor-pointer"
+                        >
+                          ⚡ Check In to Today's {activeClass.title} Session
+                        </button>
+                      )}
                     </div>
 
                     {/* Student Personalized Attendance Badge Card */}

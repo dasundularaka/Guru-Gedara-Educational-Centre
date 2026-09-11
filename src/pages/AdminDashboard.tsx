@@ -12,6 +12,7 @@ import { ClassProfileModal } from '../components/ClassProfileModal';
 import { TutorProfileModal } from '../components/TutorProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { ClassReminderCronPanel } from '../components/ClassReminderCronPanel';
+import { AdminPaymentAuditPanel } from '../components/AdminPaymentAuditPanel';
 import { EmailNotificationLogsModal } from '../components/EmailNotificationLogsModal';
 import { AdminEmailTemplatesPanel } from '../components/AdminEmailTemplatesPanel';
 import { AdminAnnouncementPanel } from '../components/AdminAnnouncementPanel';
@@ -2675,6 +2676,9 @@ export const AdminDashboard: React.FC = () => {
                 transition={{ duration: 0.4 }}
                 className="space-y-5"
               >
+                {/* Requirement 13: Monthly Payment Reminders & Auto-Suspension Engine */}
+                <AdminPaymentAuditPanel onAuditCompleted={fetchAdminDatasets} />
+
                 {/* 1. Global Academy Standard Admission Fee & Audit Logs Card */}
                 <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 border border-indigo-800/60 shadow-xl relative overflow-hidden">
                   <div className="absolute top-0 right-0 -mt-8 -mr-8 w-44 h-44 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
