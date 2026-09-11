@@ -225,13 +225,7 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
   const [chartMetric, setChartMetric] = useState<'grade' | 'attendance'>('grade');
 
   const trendData = useMemo(() => {
-    // Baseline sample courses if not enrolled in any class yet
-    const displayList = progressList.length > 0 ? progressList : [
-      getCourseMetrics("demo_math", "AP Calculus AB: Core Concepts", "Mathematics", "Dr. Sarah Jenkins"),
-      getCourseMetrics("demo_physics", "College Physics Foundations", "Physics", "Elena Rostova"),
-      getCourseMetrics("demo_coding", "Fullstack Web Development", "Coding", "Prof. Marcus Chen"),
-      getCourseMetrics("demo_english", "Critical Writing & Literature", "English", "Claire Sterling")
-    ];
+    const displayList = progressList;
 
     if (timeframe === 'weekly') {
       return Array.from({ length: 6 }).map((_, idx) => {
@@ -349,6 +343,61 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
     const needed = (desiredGrade - (currentScore * currentFraction)) / weightFraction;
     return Math.max(0, Math.round(needed * 10) / 10);
   }, [desiredGrade, currentScore, remainingWeight]);
+
+  if (activeBookings.length === 0) {
+    return (
+      <div className="space-y-6" id="student_academic_progress_widget">
+        {/* Attendance QR Pass Launch & Alerts Header Toolbar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                Class Attendance QR Pass & Tracker
+              </h3>
+              <p className="text-[11px] text-slate-300">
+                Scan instructor's session QR code or view your attendance history.
+              </p>
+            </div>
+          </div>
+
+          <button
+            id="btn_open_student_qr_scanner"
+            onClick={() => setIsQrModalOpen(true)}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+          >
+            <QrCode className="w-4 h-4" /> Scan Class QR Code
+          </button>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-100 p-12 rounded-3xl text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+            <GraduationCap className="w-8 h-8" />
+          </div>
+          <div className="max-w-md mx-auto space-y-2">
+            <h3 className="text-base font-black text-slate-900">No Enrolled Courses Found</h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              You are not currently enrolled in any academic courses. Browse classes and enroll to start tracking your attendance, marks, grade trajectories, and assignment performance.
+            </p>
+          </div>
+        </div>
+
+        {/* Class QR Code Attendance Scanner Modal */}
+        <ClassQRCodeAttendanceModal
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+          currentUser={currentUser}
+          tutorClasses={classes}
+          bookings={userBookings}
+          attendanceRecords={attendanceRecords}
+          onAttendanceMarked={onAttendanceMarked}
+          showToast={showToast || ((msg) => console.log(msg))}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8" id="student_academic_progress_widget">
@@ -625,35 +674,24 @@ export const StudentProgressTracker: React.FC<StudentProgressTrackerProps> = ({
                         dot={{ r: 4, fill: "#4f46e5", strokeWidth: 2, stroke: "#ffffff" }}
                         activeDot={{ r: 7 }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Mathematics" 
-                        name="Mathematics"
-                        stroke="#0284c7" 
-                        strokeWidth={2}
-                        strokeDasharray="4 4"
-                        dot={{ r: 3, fill: "#0284c7" }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Physics" 
-                        name="Physics"
-                        stroke="#059669" 
-                        strokeWidth={2}
-                        strokeDasharray="4 4"
-                        dot={{ r: 3, fill: "#059669" }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Coding" 
-                        name="Coding"
-                        stroke="#d97706" 
-                        strokeWidth={2}
-                        strokeDasharray="4 4"
-                        dot={{ r: 3, fill: "#d97706" }}
-                      />
-                    </>
-                  ) : (
+                        {progressList.map((course, idx) => {
+                          const lineColors = ['#0284c7', '#059669', '#d97706', '#ec4899', '#8b5cf6', '#14b8a6'];
+                          const color = lineColors[idx % lineColors.length];
+                          return (
+                            <Line 
+                              key={course.classId}
+                              type="monotone" 
+                              dataKey={course.subject} 
+                              name={course.title}
+                              stroke={color} 
+                              strokeWidth={2}
+                              strokeDasharray="4 4"
+                              dot={{ r: 3, fill: color }}
+                            />
+                          );
+                        })}
+                      </>
+                    ) : (
                     <Line 
                       type="monotone" 
                       dataKey="Syllabus Grade" 

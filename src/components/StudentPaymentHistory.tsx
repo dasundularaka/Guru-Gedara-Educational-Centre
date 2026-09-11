@@ -55,10 +55,9 @@ export const StudentPaymentHistory: React.FC = () => {
     isStudentMatch(b.studentId, (b as any).studentEmail, b.studentName) && b.status !== 'cancelled'
   );
 
-  // Direct authentic payments from database only. No demo or synthesized payment data.
+  // Direct authentic payments from database only. Strictly matching current student identity.
   const studentPayments = (payments || []).filter(p => 
-    isStudentMatch(p.studentId, (p as any).studentEmail, p.studentName) ||
-    userBookings.some(b => b.classId === p.classId)
+    isStudentMatch(p.studentId, (p as any).studentEmail, p.studentName)
   );
 
   const filteredPayments = studentPayments.filter(p => {

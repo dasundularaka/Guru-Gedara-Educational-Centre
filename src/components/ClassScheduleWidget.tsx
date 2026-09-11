@@ -11,7 +11,7 @@ interface ClassScheduleWidgetProps {
 }
 
 export const ClassScheduleWidget: React.FC<ClassScheduleWidgetProps> = ({ compact = false }) => {
-  const { classes, currentUser } = useApp();
+  const { classes, bookings, currentUser } = useApp();
   const [filterEnrolledOnly, setFilterEnrolledOnly] = useState<boolean>(true);
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>("All");
 
@@ -19,7 +19,15 @@ export const ClassScheduleWidget: React.FC<ClassScheduleWidgetProps> = ({ compac
   const isLoggedIn = !!currentUser;
   const isStudent = currentUser?.role === 'student';
   const isTutor = currentUser?.role === 'tutor';
-  const enrolledClassIds = currentUser?.selectedClasses || [];
+  
+  const studentActiveBookings = (bookings || []).filter(b => 
+    b.status === 'active' && 
+    (b.studentId === currentUser?.uid || (b as any).studentEmail?.toLowerCase() === currentUser?.email?.toLowerCase())
+  );
+  const enrolledClassIds = Array.from(new Set([
+    ...(currentUser?.selectedClasses || []),
+    ...studentActiveBookings.map(b => b.classId)
+  ]));
 
   // Filter classes according to criteria
   const getFilteredClasses = () => {

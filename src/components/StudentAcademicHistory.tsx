@@ -89,12 +89,12 @@ export const StudentAcademicHistory: React.FC<StudentAcademicHistoryProps> = ({
       }
     }
 
-    // 3. Cross-reference student bookings (including cancelled or completed)
+    // 3. Cross-reference student active bookings
     for (const b of bookings) {
+      if (b.status === 'cancelled') continue;
       if (b.studentId === currentUser.uid || b.studentEmail?.toLowerCase() === currentUser.email?.toLowerCase()) {
         const matchingClass = classes.find(c => c.id === b.classId);
         if (!recordsMap.has(b.classId)) {
-          const status = b.status === 'cancelled' ? 'Dropped' : 'Active';
           recordsMap.set(b.classId, {
             classId: b.classId,
             classTitle: b.classTitle || matchingClass?.title || 'Course',
@@ -102,7 +102,7 @@ export const StudentAcademicHistory: React.FC<StudentAcademicHistoryProps> = ({
             tutorName: b.tutorName || matchingClass?.tutorName || 'Faculty Instructor',
             schedule: matchingClass?.schedule || '',
             enrolledAt: b.bookingDate || b.createdAt || currentUser.createdAt,
-            status,
+            status: 'Active',
             classItem: matchingClass
           });
         }

@@ -492,7 +492,7 @@ export const StudentModuleRoadmap: React.FC<StudentModuleRoadmapProps> = ({ curr
 
   // Selected subject profile
   const activeClassProfile = useMemo(() => {
-    return coursesList.find(c => c.id === selectedClassId) || { id: 'default', title: 'Calculus', subject: 'Mathematics' };
+    return coursesList.find(c => c.id === selectedClassId) || coursesList[0] || { id: 'empty', title: 'No Course Selected', subject: 'Academics' };
   }, [coursesList, selectedClassId]);
 
   // Generate modules on selection
@@ -591,6 +591,22 @@ export const StudentModuleRoadmap: React.FC<StudentModuleRoadmapProps> = ({ curr
       }));
     }
   };
+
+  if (coursesList.length === 0) {
+    return (
+      <div className="bg-slate-50 border border-slate-100 p-12 rounded-3xl text-center space-y-4" id="digital_syllabus_roadmap_panel">
+        <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-indigo-600">
+          <Compass className="w-8 h-8" />
+        </div>
+        <div className="max-w-md mx-auto space-y-2">
+          <h3 className="text-base font-black text-slate-900">No Enrolled Courses Found</h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            You are not currently enrolled in any academic courses. Once you enroll in a class, its step-by-step syllabus roadmap, learning modules, interactive checks, and study notes will appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl space-y-6" id="digital_syllabus_roadmap_panel">

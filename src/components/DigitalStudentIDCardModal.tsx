@@ -119,8 +119,8 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
   const displayCourses = enrolledSubjectNames.length > 0
     ? enrolledSubjectNames
     : role === 'tutor' 
-      ? ['Combined Mathematics', 'Advanced Physics']
-      : ['Combined Mathematics', 'Advanced Physics', 'Chemistry', 'Information Technology'];
+      ? (currentUser.tutorDetails?.subjects || [])
+      : [];
 
   // Theme styling definitions
   const themeStyles: Record<CardTheme, {
@@ -357,7 +357,7 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
       pdf.text('• Present this digital pass on your mobile device or print on cardstock for lecture hall gate verification.', 18, 44);
       pdf.text('• The high-density QR token is cryptographically synced with the Gurugedara attendance logging system.', 18, 48);
       if (role === 'student') {
-        pdf.text('• Enrolled Courses: ' + displayCourses.slice(0, 4).join(', '), 18, 52);
+        pdf.text('• Enrolled Courses: ' + (displayCourses.length > 0 ? displayCourses.slice(0, 4).join(', ') : 'None currently enrolled'), 18, 52);
       } else if (role === 'tutor') {
         pdf.text(`• Faculty Subjects: ${currentUser.tutorDetails?.subjects?.join(', ') || 'Academic Faculty'}`, 18, 52);
       } else {
@@ -514,21 +514,27 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               <span className="text-[6px] sm:text-[7px] font-mono uppercase text-amber-300 tracking-wider flex items-center gap-1 font-bold">
                 <BookOpen className="w-2 sm:w-2.5 h-2 sm:h-2.5 shrink-0" /> Courses ({displayCourses.length})
               </span>
-              <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-0.5 max-h-5 sm:max-h-8 overflow-hidden">
-                {displayCourses.slice(0, 3).map((course, idx) => (
-                  <span 
-                    key={idx}
-                    className="px-1 sm:px-1.5 py-0.2 text-[6px] sm:text-[7px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[80px] sm:max-w-[110px]"
-                  >
-                    {course}
-                  </span>
-                ))}
-                {displayCourses.length > 3 && (
-                  <span className="px-1 py-0.2 text-[5.5px] sm:text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
-                    +{displayCourses.length - 3}
-                  </span>
-                )}
-              </div>
+              {displayCourses.length > 0 ? (
+                <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-0.5 max-h-5 sm:max-h-8 overflow-hidden">
+                  {displayCourses.slice(0, 3).map((course, idx) => (
+                    <span 
+                      key={idx}
+                      className="px-1 sm:px-1.5 py-0.2 text-[6px] sm:text-[7px] font-bold bg-white/10 border border-white/15 rounded text-slate-100 truncate max-w-[80px] sm:max-w-[110px]"
+                    >
+                      {course}
+                    </span>
+                  ))}
+                  {displayCourses.length > 3 && (
+                    <span className="px-1 py-0.2 text-[5.5px] sm:text-[6.5px] font-bold bg-amber-400/20 text-amber-300 rounded">
+                      +{displayCourses.length - 3}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[6px] sm:text-[7px] text-slate-300 italic mt-0.5">
+                  Not enrolled yet
+                </div>
+              )}
             </div>
           )}
 
@@ -697,15 +703,21 @@ export const DigitalStudentIDCardModal: React.FC<DigitalStudentIDCardModalProps>
               {role === 'tutor' ? 'Faculty Courses' : role === 'admin' ? 'Supervisory Access' : 'Enrolled Courses'}
             </span>
             <div className="flex flex-col gap-0.5 max-h-11 sm:max-h-14 overflow-y-auto pr-0.5">
-              {displayCourses.slice(0, 4).map((sub, i) => (
-                <div
-                  key={i}
-                  className="px-1 sm:px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[6px] sm:text-[7px] flex items-center justify-between"
-                >
-                  <span className="truncate max-w-[85px] sm:max-w-[110px]">▸ {sub}</span>
-                  <span className="text-[5.5px] sm:text-[6px] text-amber-300 font-mono shrink-0 ml-0.5">ACTIVE</span>
+              {displayCourses.length > 0 ? (
+                displayCourses.slice(0, 4).map((sub, i) => (
+                  <div
+                    key={i}
+                    className="px-1 sm:px-1.5 py-0.5 rounded bg-white/10 text-white font-medium text-[6px] sm:text-[7px] flex items-center justify-between"
+                  >
+                    <span className="truncate max-w-[85px] sm:max-w-[110px]">▸ {sub}</span>
+                    <span className="text-[5.5px] sm:text-[6px] text-amber-300 font-mono shrink-0 ml-0.5">ACTIVE</span>
+                  </div>
+                ))
+              ) : (
+                <div className="px-1 py-1 text-slate-300 italic text-[6px] sm:text-[7px]">
+                  No active courses
                 </div>
-              ))}
+              )}
             </div>
           </div>
 

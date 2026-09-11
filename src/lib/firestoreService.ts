@@ -1820,15 +1820,7 @@ const firestoreServiceRaw = {
           delete updatedStatusMap[classId];
 
           const existingHistory = studentUser.enrolledClassesHistory || [];
-          const historyIdx = existingHistory.findIndex(h => h.classId === classId);
-          let updatedHistory = [...existingHistory];
-          if (historyIdx >= 0) {
-            updatedHistory[historyIdx] = {
-              ...updatedHistory[historyIdx],
-              status: 'Dropped',
-              completionDate: new Date().toISOString()
-            };
-          }
+          const updatedHistory = existingHistory.filter(h => h.classId !== classId);
 
           await this.updateUserProfile(studentId, {
             selectedClasses: updatedSelected,
