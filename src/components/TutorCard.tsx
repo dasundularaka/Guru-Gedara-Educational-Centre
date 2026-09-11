@@ -65,7 +65,14 @@ export const TutorCard: React.FC<TutorCardProps> = ({ tutor, onContactClick }) =
           )}
 
           <div className="min-w-0">
-            <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">{tutorName}</h4>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight truncate">{tutorName}</h4>
+              {currentUser?.uid === tutor.uid && (
+                <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[8px] sm:text-[9px] font-black uppercase tracking-wider">
+                  Me
+                </span>
+              )}
+            </div>
             
             {/* Real-time Booking Availability Badge */}
             <div className="mt-1 flex items-center">

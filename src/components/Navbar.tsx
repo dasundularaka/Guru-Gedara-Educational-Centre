@@ -5,7 +5,6 @@ import {
   BookOpen, 
   Bell, 
   Settings, 
-  Database, 
   LogOut, 
   Menu, 
   X, 
@@ -409,12 +408,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
-            {/* Sync connection status indicators */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-xs text-slate-500 font-mono">
-              <Database className={`w-3.5 h-3.5 ${cloudSync ? 'text-emerald-500 animate-pulse' : 'text-orange-500'}`} />
-              <span>{cloudSync ? 'Live Sync' : 'Sandbox (Offline)'}</span>
-            </div>
-
             {currentUser ? (
               <>
                 {/* Notification Bell */}
@@ -709,25 +702,35 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
                 <div className="flex items-center gap-3 pl-2 border-l border-gray-100">
                   <div className="text-right">
-                    <span className="block text-sm font-bold text-gray-800 leading-tight">{currentUser.name}</span>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="block text-sm font-bold text-gray-800 leading-tight">{currentUser.name}</span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-wider">Me</span>
+                    </div>
                     <span className="block">{getRoleBadge(currentUser.role)}</span>
                   </div>
-                  {currentUser.photoURL ? (
-                    <img 
-                      referrerPolicy="no-referrer"
-                      className="h-9 w-9 rounded-full object-cover ring-2 ring-blue-100 cursor-pointer hover:scale-105 transition-transform" 
-                      src={currentUser.photoURL} 
-                      alt={currentUser.name} 
-                      onClick={() => setShowProfileDetails(true)}
-                    />
-                  ) : (
-                    <div 
-                      className="h-9 w-9 bg-blue-100 text-blue-700 flex items-center justify-center font-bold rounded-full border border-blue-200 cursor-pointer hover:bg-blue-250 transition-colors"
-                      onClick={() => setShowProfileDetails(true)}
-                    >
-                      <User className="w-5 h-5" />
-                    </div>
-                  )}
+                  <div className="relative">
+                    {currentUser.photoURL ? (
+                      <img 
+                        referrerPolicy="no-referrer"
+                        className="h-9 w-9 rounded-full object-cover ring-2 ring-blue-100 cursor-pointer hover:scale-105 transition-transform" 
+                        src={currentUser.photoURL} 
+                        alt={currentUser.name} 
+                        onClick={() => setShowProfileDetails(true)}
+                        title="View Profile (Me)"
+                      />
+                    ) : (
+                      <div 
+                        className="h-9 w-9 bg-blue-100 text-blue-700 flex items-center justify-center font-bold rounded-full border border-blue-200 cursor-pointer hover:bg-blue-250 transition-colors"
+                        onClick={() => setShowProfileDetails(true)}
+                        title="View Profile (Me)"
+                      >
+                        <User className="w-5 h-5" />
+                      </div>
+                    )}
+                    <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-[8px] font-black px-1 rounded-full ring-1 ring-white shadow-xs">
+                      Me
+                    </span>
+                  </div>
                   <button
                     onClick={() => setShowLogoutConfirm(true)}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
@@ -751,14 +754,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
           {/* Mobile actions (Header top-right) */}
           <div className="flex md:hidden items-center gap-1.5 sm:gap-2">
-            {/* Mobile Live Sync icon badge */}
-            <div 
-              className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700" 
-              title={cloudSync ? 'Live Database Connected' : 'Sandbox (Offline)'}
-            >
-              <Database className={`w-4 h-4 ${cloudSync ? 'text-emerald-500 animate-pulse' : 'text-amber-500'}`} />
-            </div>
-
             {/* If Logged In: Show Notifications Bell + Top-Right Logout Button replacing profile photo */}
             {currentUser ? (
               <>
@@ -924,15 +919,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               </button>
               
               <div className="flex items-center gap-4 border-b border-gray-100 pb-5 mb-5">
-                {currentUser.photoURL ? (
-                  <img className="h-16 w-16 rounded-full object-cover ring-4 ring-indigo-50" src={currentUser.photoURL} alt={currentUser.name} />
-                ) : (
-                  <div className="h-16 w-16 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-2xl">
-                    {currentUser.name.charAt(0)}
-                  </div>
-                )}
+                <div className="relative shrink-0">
+                  {currentUser.photoURL ? (
+                    <img className="h-16 w-16 rounded-full object-cover ring-4 ring-indigo-50" src={currentUser.photoURL} alt={currentUser.name} />
+                  ) : (
+                    <div className="h-16 w-16 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-2xl">
+                      {currentUser.name.charAt(0)}
+                    </div>
+                  )}
+                  <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full ring-2 ring-white shadow-xs">
+                    Me
+                  </span>
+                </div>
                 <div>
-                  <h2 className="text-lg font-extrabold text-slate-900 leading-tight">{currentUser.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-extrabold text-slate-900 leading-tight">{currentUser.name}</h2>
+                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-md uppercase tracking-wider">Me</span>
+                  </div>
                   {currentUser.displayName && currentUser.displayName !== currentUser.name && (
                     <p className="text-xs text-slate-500 font-sans">Displaying as: <span className="font-bold text-slate-755">"{currentUser.displayName}"</span></p>
                   )}

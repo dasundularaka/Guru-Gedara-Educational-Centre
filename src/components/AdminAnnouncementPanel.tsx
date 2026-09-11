@@ -106,12 +106,26 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
 }) => {
   const { currentUser, classes, refreshAnnouncements, showToast } = useApp();
 
+  const isTutor = currentUser?.role === 'tutor';
+
+  // Classes relevant to this user (filtered for tutors to only their assigned classes)
+  const relevantClasses = React.useMemo(() => {
+    if (!isTutor) return classes;
+    return classes.filter(c => 
+      c.tutorId === currentUser?.uid || 
+      c.tutorName === currentUser?.name || 
+      (c.tutorEmail && currentUser?.email && c.tutorEmail.toLowerCase() === currentUser?.email.toLowerCase())
+    );
+  }, [isTutor, currentUser, classes]);
+
   const [title, setTitle] = useState(editingAnnouncement?.title || '');
   const [content, setContent] = useState(editingAnnouncement?.content || '');
   const [priority, setPriority] = useState<AnnouncementPriority>(editingAnnouncement?.priority || 'normal');
-  const [targetType, setTargetType] = useState<AnnouncementTargetType>(editingAnnouncement?.targetType || 'all');
+  const [targetType, setTargetType] = useState<AnnouncementTargetType>(
+    editingAnnouncement?.targetType || (isTutor ? 'classes' : 'all')
+  );
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>(editingAnnouncement?.targetClassIds || []);
-  const [category, setCategory] = useState(editingAnnouncement?.category || 'General Notice');
+  const [category, setCategory] = useState(editingAnnouncement?.category || (isTutor ? 'Curriculum & Syllabi' : 'General Notice'));
   const [isPinned, setIsPinned] = useState(editingAnnouncement?.isPinned || false);
   const [isPreview, setIsPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -125,14 +139,14 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
   };
 
   const selectAllClasses = () => {
-    setSelectedClassIds(classes.map(c => c.id));
+    setSelectedClassIds(relevantClasses.map(c => c.id));
   };
 
   const deselectAllClasses = () => {
     setSelectedClassIds([]);
   };
 
-  const filteredClassesList = classes.filter(c => 
+  const filteredClassesList = relevantClasses.filter(c => 
     c.title.toLowerCase().includes(classSearch.toLowerCase()) ||
     c.subject.toLowerCase().includes(classSearch.toLowerCase()) ||
     (c.tutorName && c.tutorName.toLowerCase().includes(classSearch.toLowerCase()))
@@ -176,14 +190,14 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
           title: title.trim(),
           content: content.trim(),
           priority,
-          targetType,
-          targetClassIds: targetType === 'classes' ? selectedClassIds : [],
-          targetClassTitles: targetType === 'classes' ? targetClassTitles : [],
+          targetType: isTutor ? 'classes' : targetType,
+          targetClassIds: (isTutor || targetType === 'classes') ? selectedClassIds : [],
+          targetClassTitles: (isTutor || targetType === 'classes') ? targetClassTitles : [],
           category,
-          authorId: currentUser?.uid || 'admin',
-          authorName: currentUser?.displayName || currentUser?.name || 'Administrator',
-          authorRole: 'admin',
-          isPinned
+          authorId: currentUser?.uid || (isTutor ? 'tutor' : 'admin'),
+          authorName: currentUser?.displayName || currentUser?.name || (isTutor ? 'Faculty Tutor' : 'Administrator'),
+          authorRole: isTutor ? 'tutor' : 'admin',
+          isPinned: isTutor ? false : isPinned
         });
         showToast("Announcement published and notifications sent!", "success");
       }
@@ -345,117 +359,126 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
               Choose who will be able to see this announcement and receive the instant notification alert.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Option A: All Academy */}
-              <button
-                type="button"
-                onClick={() => setTargetType('all')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  targetType === 'all'
-                    ? 'bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs'
-                    : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
-                }`}
-                id="target_filter_all"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs">
-                    <Users className="w-4 h-4" />
-                  </span>
-                  {targetType === 'all' ? (
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
-                  )}
-                </div>
+            {isTutor ? (
+              <div className="p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 flex items-center gap-2.5">
+                <Layers className="w-5 h-5 text-indigo-600 shrink-0" />
                 <div>
-                  <div className="text-xs font-black text-slate-900 dark:text-white">All Academy</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Students, Tutors & Staff</div>
+                  <span className="font-bold">Faculty Class Targeting:</span> You are publishing an announcement for your assigned classes. Select the relevant enrolled classes below.
                 </div>
-              </button>
-
-              {/* Option B: All Students Only */}
-              <button
-                type="button"
-                onClick={() => setTargetType('all_students')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  targetType === 'all_students'
-                    ? 'bg-blue-50/70 dark:bg-blue-950/50 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
-                    : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
-                }`}
-                id="target_filter_all_students"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs">
-                    <GraduationCap className="w-4 h-4" />
-                  </span>
-                  {targetType === 'all_students' ? (
-                    <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs font-black text-slate-900 dark:text-white">All Students Only</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Every enrolled student</div>
-                </div>
-              </button>
-
-              {/* Option C: Tutors Only */}
-              <button
-                type="button"
-                onClick={() => setTargetType('tutors_only')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  targetType === 'tutors_only'
-                    ? 'bg-purple-50/70 dark:bg-purple-950/50 border-purple-500 ring-2 ring-purple-500/20 shadow-xs'
-                    : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
-                }`}
-                id="target_filter_tutors_only"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-xs">
-                    <BookOpen className="w-4 h-4" />
-                  </span>
-                  {targetType === 'tutors_only' ? (
-                    <CheckCircle2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs font-black text-slate-900 dark:text-white">Tutors Only</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">All teaching faculty</div>
-                </div>
-              </button>
-
-              {/* Option D: Specific Class or Classes */}
-              <button
-                type="button"
-                onClick={() => setTargetType('classes')}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  targetType === 'classes'
-                    ? 'bg-emerald-50/70 dark:bg-emerald-950/50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
-                    : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
-                }`}
-                id="target_filter_classes"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs">
-                    <Layers className="w-4 h-4" />
-                  </span>
-                  {targetType === 'classes' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs font-black text-slate-900 dark:text-white">Specific Class(es)</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {selectedClassIds.length > 0 ? `${selectedClassIds.length} class(es) selected` : 'Select classes below'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Option A: All Academy */}
+                <button
+                  type="button"
+                  onClick={() => setTargetType('all')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    targetType === 'all'
+                      ? 'bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs'
+                      : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
+                  }`}
+                  id="target_filter_all"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs">
+                      <Users className="w-4 h-4" />
+                    </span>
+                    {targetType === 'all' ? (
+                      <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
+                    )}
                   </div>
-                </div>
-              </button>
-            </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white">All Academy</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Students, Tutors & Staff</div>
+                  </div>
+                </button>
+
+                {/* Option B: All Students Only */}
+                <button
+                  type="button"
+                  onClick={() => setTargetType('all_students')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    targetType === 'all_students'
+                      ? 'bg-blue-50/70 dark:bg-blue-950/50 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                      : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
+                  }`}
+                  id="target_filter_all_students"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs">
+                      <GraduationCap className="w-4 h-4" />
+                    </span>
+                    {targetType === 'all_students' ? (
+                      <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white">All Students Only</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Every enrolled student</div>
+                  </div>
+                </button>
+
+                {/* Option C: Tutors Only */}
+                <button
+                  type="button"
+                  onClick={() => setTargetType('tutors_only')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    targetType === 'tutors_only'
+                      ? 'bg-purple-50/70 dark:bg-purple-950/50 border-purple-500 ring-2 ring-purple-500/20 shadow-xs'
+                      : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
+                  }`}
+                  id="target_filter_tutors_only"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-xs">
+                      <BookOpen className="w-4 h-4" />
+                    </span>
+                    {targetType === 'tutors_only' ? (
+                      <CheckCircle2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white">Tutors Only</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">All teaching faculty</div>
+                  </div>
+                </button>
+
+                {/* Option D: Specific Class or Classes */}
+                <button
+                  type="button"
+                  onClick={() => setTargetType('classes')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    targetType === 'classes'
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                      : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/70'
+                  }`}
+                  id="target_filter_classes"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="p-2 rounded-xl bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs">
+                      <Layers className="w-4 h-4" />
+                    </span>
+                    {targetType === 'classes' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-900 dark:text-white">Specific Class(es)</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {selectedClassIds.length > 0 ? `${selectedClassIds.length} class(es) selected` : 'Select classes below'}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
 
             {/* If Specific Classes selected, show interactive class picker */}
             <AnimatePresence>

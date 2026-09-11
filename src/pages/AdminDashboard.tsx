@@ -3032,6 +3032,11 @@ export const AdminDashboard: React.FC = () => {
                               >
                                 {stud.name}
                               </h4>
+                              {currentUser?.uid === stud.uid && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider">
+                                  Me
+                                </span>
+                              )}
                               {isPending ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-wider">
                                   Pending Intake
@@ -3193,23 +3198,25 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Card Action Controls */}
-                        <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap">
+                        {/* Card Action Controls - Icon-only buttons for scholar profiles */}
+                        <div className="flex justify-end gap-1.5 mt-3 pt-2.5 border-t border-slate-100 flex-wrap items-center">
                           <button
                             id={`profile-student-btn-${stud.uid}`}
                             onClick={() => setSelectedStudentForProfile(stud)}
-                            className="p-1 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all shadow-xs"
-                            title="Open scholar profile with enrolled classes, tuition & late payments"
+                            className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer flex items-center justify-center transition-all shadow-2xs hover:scale-105 active:scale-95"
+                            title="Profile & Tuition Preview"
+                            aria-label="Profile & Tuition Preview"
                           >
-                            <User className="w-3.5 h-3.5 text-white" /> Profile & Tuition
+                            <User className="w-4 h-4 text-white" />
                           </button>
                           <button
                             id={`idcard-student-btn-${stud.uid}`}
                             onClick={() => setSelectedUserForIdCard(stud)}
-                            className="p-1 px-2.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all"
-                            title="Generate and print official Student ID Card"
+                            className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 cursor-pointer flex items-center justify-center transition-all shadow-2xs hover:scale-105 active:scale-95"
+                            title="Generate and Print Student ID Card"
+                            aria-label="Student ID Card"
                           >
-                            <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" /> ID Card
+                            <BadgeCheck className="w-4 h-4 text-emerald-600" />
                           </button>
                           <button
                             id={`progress-student-btn-${stud.uid}`}
@@ -3218,26 +3225,29 @@ export const AdminDashboard: React.FC = () => {
                               setActiveTab('progress');
                               fetchAttendanceRecords();
                             }}
-                            className="p-1 px-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 cursor-pointer flex items-center gap-1 text-[11px] font-bold transition-all"
-                            title="View student academic progress, quiz scores & attendance"
+                            className="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-700 cursor-pointer flex items-center justify-center transition-all shadow-2xs hover:scale-105 active:scale-95"
+                            title="View Academic Progress & Attendance"
+                            aria-label="View Progress"
                           >
-                            <GraduationCap className="w-3.5 h-3.5 text-indigo-600" /> View Progress
+                            <GraduationCap className="w-4 h-4 text-indigo-600" />
                           </button>
                           <button 
                             id={`edit-student-btn-${stud.uid}`}
                             onClick={() => openEditModal('student', stud)}
-                            className="p-1 px-2.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                            title="Edit scholar profile"
+                            className="p-2 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-blue-600 cursor-pointer flex items-center justify-center transition-all shadow-2xs hover:scale-105 active:scale-95"
+                            title="Edit Scholar Profile"
+                            aria-label="Edit Profile"
                           >
-                            <Edit className="w-3.5 h-3.5" /> Edit
+                            <Edit className="w-4 h-4 text-blue-600" />
                           </button>
                           <button 
                             id={`delete-student-btn-${stud.uid}`}
                             onClick={() => handleDeleteStudent(stud.uid, stud.name)}
-                            className="p-1 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                            title="Withdraw/Delete scholar account"
+                            className="p-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-100 text-red-600 cursor-pointer flex items-center justify-center transition-all shadow-2xs hover:scale-105 active:scale-95"
+                            title="Delete / Withdraw Scholar"
+                            aria-label="Delete Scholar"
                           >
-                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                            <Trash2 className="w-4 h-4 text-red-600" />
                           </button>
                         </div>
                       </div>

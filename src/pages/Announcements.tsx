@@ -225,6 +225,30 @@ export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) =
     }
   };
 
+  // Requirement: "Don't show announcements in guest view"
+  if (!currentUser) {
+    return (
+      <div className="min-h-[70vh] bg-slate-50/50 dark:bg-slate-950 py-16 px-4 flex items-center justify-center font-sans">
+        <div className="max-w-md w-full text-center bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+          <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+            <Megaphone className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white">Academy Announcements Protected</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Official academy notices, academic calendars, and announcements are reserved for registered scholars, faculty tutors, and administration.
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('auth')}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
+          >
+            Sign In to View Announcements
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-slate-50/50 dark:bg-slate-950 min-h-screen py-8 sm:py-12 font-sans" id="announcements_page_view">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -274,8 +298,8 @@ export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) =
               </div>
             </div>
 
-            {/* Admin Broadcast Trigger */}
-            {isAdmin && (
+            {/* Admin and Tutor Broadcast Trigger */}
+            {(isAdmin || isTutor) && (
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
                 <button
                   type="button"
@@ -287,16 +311,22 @@ export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) =
                   id="btn_admin_create_announcement"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{showAdminPanel ? 'Close Announcement Panel' : 'Publish New Announcement'}</span>
+                  <span>
+                    {showAdminPanel 
+                      ? 'Close Announcement Panel' 
+                      : isTutor 
+                        ? 'Publish Class Announcement' 
+                        : 'Publish New Announcement'}
+                  </span>
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Admin Broadcast Panel (Collapsible / Toggleable) */}
+        {/* Broadcast Panel (Collapsible / Toggleable for Admin and Tutor) */}
         <AnimatePresence>
-          {isAdmin && showAdminPanel && (
+          {(isAdmin || isTutor) && showAdminPanel && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}

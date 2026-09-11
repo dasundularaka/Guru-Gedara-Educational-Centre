@@ -19,7 +19,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  Database
+  User
 } from 'lucide-react';
 import { Booking, ClassItem, Payment, UserProfile, AttendanceRecord, AuditLog } from '../types';
 
@@ -29,6 +29,7 @@ export interface SystemEvent {
   title: string;
   description: string;
   timestamp: Date;
+  username: string;
   meta?: string;
   status?: string;
   userRole?: string;
@@ -54,10 +55,8 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
 }) => {
   const context = useApp();
   
-  // Internal state for freshly fetched records if props not provided
-  const [internalUsers, setInternalUsers] = useState<UserProfile[]>([]);
+  // Real database audit logs state - ONLY read from genuine audit logs
   const [internalAuditLogs, setInternalAuditLogs] = useState<AuditLog[]>([]);
-  const [internalAttendance, setInternalAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
   
@@ -65,26 +64,14 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 8;
-
-  // Active data sources (prioritize props, fallback to context/internal state)
-  const activeClasses = propClasses || context.classes || [];
-  const activePayments = propPayments || context.payments || [];
-  const activeBookings = propBookings || context.bookings || [];
+  const itemsPerPage = 10;
 
   const loadRealDatabaseEvents = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch users, audit logs, and attendance from Firestore directly
-      const [fetchedUsers, fetchedLogs, fetchedAtt] = await Promise.all([
-        firestoreService.getAllUsers().catch(() => []),
-        firestoreService.getAuditLogs().catch(() => []),
-        firestoreService.getAttendance().catch(() => [])
-      ]);
-      
-      setInternalUsers(fetchedUsers || []);
+      // Fetch genuine audit logs from Firestore directly
+      const fetchedLogs = await firestoreService.getAuditLogs().catch(() => []);
       setInternalAuditLogs(fetchedLogs || []);
-      setInternalAttendance(fetchedAtt || []);
       setLastRefreshedAt(new Date());
     } catch (e) {
       console.error("Failed loading real database events for activity ledger:", e);
@@ -95,6 +82,12 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
 
   useEffect(() => {
     loadRealDatabaseEvents();
+    // Real-time subscription so if any change is marked in the system, it appears immediately with timestamp and username
+    const unsubscribe = firestoreService.subscribeAuditLogs((logs) => {
+      setInternalAuditLogs(logs || []);
+      setLastRefreshedAt(new Date());
+    });
+    return () => unsubscribe();
   }, [loadRealDatabaseEvents]);
 
   const handleManualRefresh = async () => {
@@ -104,16 +97,11 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
     }
   };
 
-  // Compile genuine database records into unified timeline events
+  // Compile strictly from audit logs without manufacturing artificial duplicates of payments and classes
   const allEvents = useMemo(() => {
     const list: SystemEvent[] = [];
     const seenKeys = new Set<string>();
-    const seenPaymentIds = new Set<string>();
 
-    const effectiveUsers = (propUsers && propUsers.length > 0) ? propUsers : internalUsers;
-    const effectiveAttendance = (propAttendance && propAttendance.length > 0) ? propAttendance : internalAttendance;
-
-    // 1. Real Audit Logs from Firestore (Deduplicated - read each log only ONCE)
     (internalAuditLogs || []).forEach((log) => {
       if (!log) return;
       const logDate = log.timestamp ? new Date(log.timestamp) : new Date();
@@ -123,172 +111,42 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
       if (seenKeys.has(logKey)) return;
       seenKeys.add(logKey);
 
-      // If this is a payment-related audit log, record receipt ref so payments collection doesn't duplicate
-      if (log.action && log.action.includes('PAYMENT')) {
-        const match = log.details.match(/#([a-zA-Z0-9_-]+)/);
-        if (match && match[1]) {
-          seenPaymentIds.add(match[1]);
-        }
-        list.push({
-          id: `audit-${logKey}`,
-          type: 'payment_confirm',
-          title: log.action.replace(/_/g, ' '),
-          description: log.details || 'Tuition payment audit log recorded',
-          timestamp: logDate,
-          meta: log.username || 'Financial Ledger',
-          status: log.details.toLowerCase().includes('paid') ? 'paid' : log.details.toLowerCase().includes('pending') ? 'pending' : 'system'
-        });
-        return;
+      const actionUpper = (log.action || '').toUpperCase();
+      let eventType: SystemEvent['type'] = 'audit_log';
+
+      if (actionUpper.includes('PAYMENT') || actionUpper.includes('FEE') || actionUpper.includes('TUITION')) {
+        eventType = 'payment_confirm';
+      } else if (actionUpper.includes('CLASS') || actionUpper.includes('SUBJECT') || actionUpper.includes('CURRICULUM')) {
+        eventType = 'class_update';
+      } else if (actionUpper.includes('USER') || actionUpper.includes('STUDENT') || actionUpper.includes('TUTOR') || actionUpper.includes('PROFILE') || actionUpper.includes('ADMISSION') || actionUpper.includes('ACCOUNT')) {
+        eventType = 'user_register';
+      } else if (actionUpper.includes('BOOKING') || actionUpper.includes('ENROLL') || actionUpper.includes('INTAKE')) {
+        eventType = 'booking_made';
+      } else if (actionUpper.includes('ATTENDANCE') || actionUpper.includes('QR')) {
+        eventType = 'attendance_log';
       }
 
       list.push({
         id: `audit-${logKey}`,
-        type: 'audit_log',
-        title: log.action || 'Administrative Action',
-        description: log.details || `Admin action performed`,
+        type: eventType,
+        title: log.action ? log.action.replace(/_/g, ' ') : 'System Action',
+        description: log.details || 'System event recorded in ledger.',
         timestamp: logDate,
-        meta: log.username || 'Admin Board',
-        status: 'system'
-      });
-    });
-
-    // 2. Real User Registrations & Accounts
-    (effectiveUsers || []).forEach((user) => {
-      if (!user || !user.uid) return;
-      if (seenKeys.has(`user-${user.uid}`)) return;
-      seenKeys.add(`user-${user.uid}`);
-
-      const userCreatedDate = user.createdAt ? new Date(user.createdAt) : null;
-      const dateToUse = userCreatedDate && !isNaN(userCreatedDate.getTime()) ? userCreatedDate : new Date();
-
-      if (user.role === 'student') {
-        const gradeText = user.studentDetails?.grade ? `Grade ${user.studentDetails.grade}` : 'Academic Division';
-        list.push({
-          id: `user-stud-${user.uid}`,
-          type: 'user_register',
-          title: `Student Enrolled: ${user.name || 'Student Scholar'}`,
-          description: `Scholar account verified (${gradeText}, ID: ${user.username || user.uid.substring(0, 8)}). Contact: ${user.email || 'N/A'}.`,
-          timestamp: dateToUse,
-          meta: gradeText,
-          userRole: 'student'
-        });
-      } else if (user.role === 'tutor') {
-        const subjects = user.tutorDetails?.subjects?.join(', ') || 'Specialized Subjects';
-        const qual = user.tutorDetails?.qualification || 'Certified Faculty';
-        list.push({
-          id: `user-tut-${user.uid}`,
-          type: 'user_register',
-          title: `Faculty Tutor Onboarded: ${user.name || 'Instructor'}`,
-          description: `Faculty credentials active for ${subjects}. Qualification: ${qual}.`,
-          timestamp: dateToUse,
-          meta: 'Faculty',
-          userRole: 'tutor'
-        });
-      } else if (user.role === 'admin') {
-        list.push({
-          id: `user-adm-${user.uid}`,
-          type: 'user_register',
-          title: `System Admin Account: ${user.name || 'Admin'}`,
-          description: `Administrative privileges granted for email ${user.email}.`,
-          timestamp: dateToUse,
-          meta: 'Security',
-          userRole: 'admin'
-        });
-      }
-    });
-
-    // 3. Real Payment & Fee Ledger Transactions (Read only ONCE per payment, no duplicates)
-    (activePayments || []).forEach((payment) => {
-      if (!payment || !payment.id) return;
-      if (seenPaymentIds.has(payment.id)) return;
-      seenPaymentIds.add(payment.id);
-
-      const payDate = payment.date || payment.createdAt ? new Date(payment.date || payment.createdAt!) : null;
-      const dateToUse = payDate && !isNaN(payDate.getTime()) ? payDate : new Date();
-
-      const amountFormatted = (payment.amount || 0).toLocaleString();
-      const statusTitle = payment.status === 'paid' 
-        ? `Tuition Settled: LKR ${amountFormatted}`
-        : payment.status === 'pending'
-        ? `Tuition Invoice Pending: LKR ${amountFormatted}`
-        : `Payment Attempt Failed: LKR ${amountFormatted}`;
-
-      list.push({
-        id: `pay-${payment.id}`,
-        type: 'payment_confirm',
-        title: statusTitle,
-        description: `Transaction reference #${payment.id?.substring(0, 10) || 'N/A'} for ${payment.studentName || 'Student'} in "${payment.classTitle || 'Academic Course'}". Method: ${payment.paymentMethod || 'Online Gateway'}.`,
-        timestamp: dateToUse,
-        meta: payment.status === 'paid' ? 'Settled' : payment.status === 'pending' ? 'Pending' : 'Failed',
-        status: payment.status,
-        amount: payment.amount
-      });
-    });
-
-    // 4. Real Class Bookings & Seat Reservations (Active only, exclude cancelled)
-    (activeBookings || []).forEach((booking) => {
-      if (!booking || !booking.id) return;
-      if (booking.status === 'cancelled' || booking.status === 'declined') return;
-      if (seenKeys.has(`book-${booking.id}`)) return;
-      seenKeys.add(`book-${booking.id}`);
-
-      const bookDate = booking.bookingDate || booking.createdAt ? new Date(booking.bookingDate || booking.createdAt!) : null;
-      const dateToUse = bookDate && !isNaN(bookDate.getTime()) ? bookDate : new Date();
-
-      list.push({
-        id: `book-${booking.id}`,
-        type: 'booking_made',
-        title: `Class Seat Reserved: ${booking.classTitle || 'Class'}`,
-        description: `${booking.studentName || 'Student'} enrolled into "${booking.classTitle}" (${booking.dayOfWeek || 'Scheduled'} ${booking.timeSlot || ''}) instructed by ${booking.tutorName || 'Faculty'}.`,
-        timestamp: dateToUse,
-        meta: booking.dayOfWeek || 'Enrolled',
-        status: booking.status
-      });
-    });
-
-    // 5. Real Classes & Curriculum Syllabi
-    (activeClasses || []).forEach((cls) => {
-      if (!cls || !cls.id) return;
-      if (seenKeys.has(`class-${cls.id}`)) return;
-      seenKeys.add(`class-${cls.id}`);
-
-      const classDate = cls.createdAt ? new Date(cls.createdAt) : null;
-      const dateToUse = classDate && !isNaN(classDate.getTime()) ? classDate : new Date();
-
-      list.push({
-        id: `class-${cls.id}`,
-        type: 'class_update',
-        title: `Curriculum Active: ${cls.title || 'Course'}`,
-        description: `Subject "${cls.subject || 'Academics'}" scheduled by ${cls.tutorName || 'Faculty'}. Tuition: LKR ${(cls.price || 0).toLocaleString()}/mo.`,
-        timestamp: dateToUse,
-        meta: cls.subject || 'Curriculum'
-      });
-    });
-
-    // 6. Real Attendance Records
-    (effectiveAttendance || []).forEach((att) => {
-      if (!att || !att.id) return;
-      if (seenKeys.has(`att-${att.id}`)) return;
-      seenKeys.add(`att-${att.id}`);
-
-      const attDateStr = att.markedAt || att.date;
-      const attDate = attDateStr ? new Date(attDateStr) : null;
-      const dateToUse = attDate && !isNaN(attDate.getTime()) ? attDate : new Date();
-
-      list.push({
-        id: `att-${att.id}`,
-        type: 'attendance_log',
-        title: `Attendance Logged: ${att.studentName || 'Student'}`,
-        description: `Marked ${att.status?.toUpperCase() || 'PRESENT'} for "${att.classTitle || 'Course Session'}" on ${att.date || 'Scheduled Date'}.`,
-        timestamp: dateToUse,
-        meta: att.status || 'Present',
-        status: att.status
+        username: log.username || 'system',
+        meta: log.action ? log.action.replace(/_/g, ' ') : 'Log Entry',
+        status: log.details?.toLowerCase().includes('paid') || log.details?.toLowerCase().includes('confirmed') || log.details?.toLowerCase().includes('approved')
+          ? 'paid' 
+          : log.details?.toLowerCase().includes('pending') 
+          ? 'pending' 
+          : log.details?.toLowerCase().includes('fail') || log.details?.toLowerCase().includes('decline')
+          ? 'failed'
+          : 'system'
       });
     });
 
     // Sort strictly descending by timestamp
     return list.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [internalUsers, internalAuditLogs, internalAttendance, activeClasses, activePayments, activeBookings, propUsers, propAttendance]);
+  }, [internalAuditLogs]);
 
   // Apply category filtering & search
   const filteredEvents = useMemo(() => {
@@ -307,19 +165,19 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
         const matchesTitle = event.title.toLowerCase().includes(q);
         const matchesDesc = event.description.toLowerCase().includes(q);
         const matchesMeta = event.meta?.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesDesc && !matchesMeta) return false;
+        const matchesUser = event.username?.toLowerCase().includes(q);
+        if (!matchesTitle && !matchesDesc && !matchesMeta && !matchesUser) return false;
       }
 
       return true;
     });
   }, [allEvents, selectedFilter, searchQuery]);
 
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / itemsPerPage));
+  const totalPages = Math.ceil(filteredEvents.length / itemsPerPage) || 1;
   const paginatedEvents = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredEvents.slice(start, start + itemsPerPage);
-  }, [filteredEvents, currentPage]);
+  }, [filteredEvents, currentPage, itemsPerPage]);
 
   const getEventIcon = (type: SystemEvent['type'], status?: string) => {
     switch (type) {
@@ -388,7 +246,7 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 dark:border-slate-800 pb-4 mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-slate-900 dark:bg-slate-800 flex items-center justify-center text-white shadow-sm">
-            <Database className="w-5 h-5 text-indigo-400" />
+            <Activity className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -397,11 +255,11 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
               </h4>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Database Live
+                System Logs Live
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Genuine audit ledger streamed directly from Firestore collections ({allEvents.length} total entries)
+              Comprehensive audit trail of all marked system changes with timestamp and username ({allEvents.length} total logs)
             </p>
           </div>
         </div>
@@ -412,10 +270,10 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
             onClick={handleManualRefresh}
             disabled={isLoading}
             className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-            title="Re-query latest Firestore collections"
+            title="Re-query latest system logs"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-indigo-500' : ''}`} />
-            <span>{isLoading ? 'Syncing...' : 'Refresh Feed'}</span>
+            <span>{isLoading ? 'Syncing...' : 'Refresh Logs'}</span>
           </button>
           
           <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono hidden sm:inline-block">
@@ -429,13 +287,13 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
         {/* Category tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {[
-            { id: 'all', label: 'All Events', count: allEvents.length },
+            { id: 'all', label: 'All Logs', count: allEvents.length },
             { id: 'payments', label: 'Payments', count: allEvents.filter(e => e.type === 'payment_confirm').length },
-            { id: 'users', label: 'Registrations', count: allEvents.filter(e => e.type === 'user_register').length },
+            { id: 'users', label: 'Users & Staff', count: allEvents.filter(e => e.type === 'user_register').length },
             { id: 'bookings', label: 'Enrollments', count: allEvents.filter(e => e.type === 'booking_made').length },
             { id: 'classes', label: 'Classes', count: allEvents.filter(e => e.type === 'class_update').length },
             { id: 'attendance', label: 'Attendance', count: allEvents.filter(e => e.type === 'attendance_log').length },
-            { id: 'audit', label: 'Audit Logs', count: allEvents.filter(e => e.type === 'audit_log').length }
+            { id: 'audit', label: 'System & Security', count: allEvents.filter(e => e.type === 'audit_log').length }
           ].map(tab => (
             <button
               key={tab.id}
@@ -452,7 +310,7 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
             >
               <span>{tab.label}</span>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                selectedFilter === tab.id ? 'bg-indigo-700 text-white' : 'bg-gray-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                selectedFilter === tab.id ? 'bg-indigo-800 text-indigo-100' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
               }`}>
                 {tab.count}
               </span>
@@ -461,32 +319,43 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
         </div>
 
         {/* Search input */}
-        <div className="relative min-w-[200px]">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="relative min-w-[200px] sm:w-64">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             id="input_search_activity_ledger"
             type="text"
-            placeholder="Search records, names..."
+            placeholder="Search by action, user or details..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
           />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 font-bold"
+            >
+              &times;
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Activity Timeline List */}
-      <div className="flow-root min-h-[300px]">
-        {paginatedEvents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-3">
-              <Database className="w-6 h-6" />
-            </div>
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No database activity found</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm">
-              {searchQuery ? `No activity matching "${searchQuery}". Try clearing search.` : 'No transactions or logs recorded in this category in the database.'}
+      {/* Feed list */}
+      <div className="flow-root mt-4">
+        {isLoading && allEvents.length === 0 ? (
+          <div className="py-12 text-center text-slate-400">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
+            <p className="text-xs font-medium">Streaming system logs from Firestore...</p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="py-12 text-center text-slate-400 border border-dashed border-gray-200 dark:border-slate-800 rounded-xl">
+            <Activity className="w-6 h-6 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">No system events found</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+              {searchQuery ? 'Try adjusting your search query or filter criteria.' : 'System changes will appear in this ledger as operations take place.'}
             </p>
           </div>
         ) : (
@@ -511,20 +380,34 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
                         </span>
                       </div>
                       <div className="flex-1 min-w-0 pt-0.5 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-4">
-                        <div className="pr-2">
+                        <div className="pr-2 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{event.title}</p>
+                            
+                            {/* Actor Username badge */}
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-semibold" title="System actor / user who marked this change">
+                              <User className="w-2.5 h-2.5 text-indigo-500" />
+                              <span>@{event.username}</span>
+                            </span>
+
                             {event.meta && (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-gray-200 dark:border-slate-700">
                                 {event.meta}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{event.description}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{event.description}</p>
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap self-start sm:self-auto">
-                          <Clock className="w-3 h-3 flex-shrink-0" />
-                          <span title={event.timestamp.toLocaleString()}>{formatEventTime(event.timestamp)}</span>
+                        
+                        {/* Timestamp & Relative time */}
+                        <div className="flex flex-col sm:items-end text-[11px] font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap self-start sm:self-auto shrink-0">
+                          <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-semibold">
+                            <Clock className="w-3 h-3 text-indigo-500 flex-shrink-0" />
+                            <span>{event.timestamp.toLocaleDateString()} {event.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400" title={event.timestamp.toISOString()}>
+                            ({formatEventTime(event.timestamp)})
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -540,7 +423,7 @@ export const SystemActivityFeed: React.FC<SystemActivityFeedProps> = ({
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-gray-100 dark:border-slate-800 pt-3 mt-2 text-xs">
           <p className="text-slate-500 dark:text-slate-400">
-            Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredEvents.length)} of {filteredEvents.length} entries
+            Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredEvents.length)} of {filteredEvents.length} logs
           </p>
           <div className="flex items-center gap-1">
             <button

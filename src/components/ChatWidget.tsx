@@ -228,7 +228,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-bold text-gray-900 truncate">{u.name}</p>
+                      <div className="flex items-center gap-1.5 min-w-0 truncate">
+                        <p className="text-xs font-bold text-gray-900 truncate">{u.name}</p>
+                        {u.uid === currentUserId && (
+                          <span className="px-1.5 py-0.2 rounded bg-indigo-600 text-white text-[8px] font-black uppercase shrink-0">
+                            Me
+                          </span>
+                        )}
+                      </div>
                       <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded capitalize ${
                         u.role === 'admin' ? 'bg-purple-100 text-purple-700 font-bold' :
                         u.role === 'tutor' ? 'bg-amber-100 text-amber-800' :
@@ -276,7 +283,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ currentUserId, currentUs
                   </div>
                 )}
                 <div>
-                  <h4 className="text-xs font-bold text-gray-900 leading-tight">{selectedUser.name}</h4>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-gray-900 leading-tight">{selectedUser.name}</h4>
+                    {selectedUser.uid === currentUserId && (
+                      <span className="px-1.5 py-0.2 rounded bg-indigo-600 text-white text-[8px] font-black uppercase">Me</span>
+                    )}
+                  </div>
                   <span className="inline-flex items-center gap-1.5 text-[9px] text-green-600 font-bold font-mono">
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span> ONLINE / SYNCED
                   </span>

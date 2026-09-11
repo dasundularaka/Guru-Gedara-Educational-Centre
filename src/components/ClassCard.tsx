@@ -403,7 +403,12 @@ export const ClassCard: React.FC<ClassCardProps> = ({
                   <User className="w-2.5 h-2.5" />
                 </div>
               )}
-              <span className="text-[11px] text-white/90 font-medium whitespace-nowrap group-hover/tutor:underline">by {item.tutorName}</span>
+              <span className="text-[11px] text-white/90 font-medium whitespace-nowrap group-hover/tutor:underline">
+                by {item.tutorName}
+                {currentUser && (currentUser.uid === item.tutorId || (currentUser.role === 'tutor' && currentUser.name === item.tutorName)) && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-indigo-500 text-white text-[8px] font-black uppercase tracking-wider">Me</span>
+                )}
+              </span>
             </div>
           </div>
         </div>
@@ -454,7 +459,12 @@ export const ClassCard: React.FC<ClassCardProps> = ({
                 <User className="w-3 h-3" />
               </div>
             )}
-            <span className="text-xs text-slate-650 font-medium group-hover/tutor:underline">by {item.tutorName}</span>
+            <span className="text-xs text-slate-650 font-medium group-hover/tutor:underline flex items-center gap-1">
+              by {item.tutorName}
+              {currentUser && (currentUser.uid === item.tutorId || (currentUser.role === 'tutor' && currentUser.name === item.tutorName)) && (
+                <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[8px] font-black uppercase tracking-wider">Me</span>
+              )}
+            </span>
           </div>
         </div>
       )}

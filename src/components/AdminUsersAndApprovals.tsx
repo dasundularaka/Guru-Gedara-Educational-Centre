@@ -1314,6 +1314,11 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                             <h4 className="text-xs font-black text-slate-900 dark:text-white truncate">
                               {user.name}
                             </h4>
+                            {currentUser?.uid === user.uid && (
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider">
+                                Me
+                              </span>
+                            )}
                             <span className={`w-2 h-2 rounded-full shrink-0 ${
                               user.status === 'suspended' ? 'bg-rose-500' : user.status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'
                             }`} />
@@ -1534,8 +1539,12 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                         <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-1 text-xs">
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400">Requesting Student:</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {req.studentName} <span className="text-slate-400 font-mono">(@{req.studentId})</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                              {req.studentName}
+                              {currentUser?.uid === req.studentId && (
+                                <span className="px-1.5 py-0.2 rounded bg-indigo-600 text-white text-[8px] font-black uppercase">Me</span>
+                              )}
+                              <span className="text-slate-400 font-mono">(@{req.studentId})</span>
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -1622,9 +1631,16 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                               {student.name?.charAt(0) || 'S'}
                             </div>
                             <div>
-                              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                                {student.name}
-                              </h4>
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                  {student.name}
+                                </h4>
+                                {currentUser?.uid === student.uid && (
+                                  <span className="px-1.5 py-0.2 rounded bg-indigo-600 text-white text-[9px] font-black uppercase">
+                                    Me
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs text-indigo-600 dark:text-indigo-400 font-mono font-bold">
                                 @{student.username || student.uid.slice(0, 8)}
                               </p>

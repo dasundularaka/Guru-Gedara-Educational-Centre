@@ -781,9 +781,10 @@ export const TutorDashboard: React.FC = () => {
             authorId: currentUser.uid,
             authorName: currentUser.name,
             authorRole: 'tutor',
-            targetType: 'class',
-            targetClassId: targetClass.id,
-            targetClassName: targetClass.title,
+            targetType: 'classes',
+            targetClassIds: [targetClass.id],
+            targetClassTitles: [targetClass.title],
+            category: 'Curriculum & Syllabi',
             priority: 'normal',
             isPinned: false
           });

@@ -3168,6 +3168,28 @@ const firestoreServiceRaw = {
     return handleFallback<AuditLog>('local_audit_logs', []);
   },
 
+  subscribeAuditLogs(callback: (logs: AuditLog[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        const unsubscribe = onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
+          const logs = snapshot.docs.map(doc => doc.data() as AuditLog);
+          logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          callback(logs);
+        }, (error) => {
+          console.warn("Audit logs subscription error:", error);
+          const local = handleFallback<AuditLog>('local_audit_logs', []);
+          callback(local);
+        });
+        return unsubscribe;
+      } catch (err) {
+        console.warn("Real-time audit logs setup failure:", err);
+      }
+    }
+    const local = handleFallback<AuditLog>('local_audit_logs', []);
+    callback(local);
+    return () => {};
+  },
+
   // -------------------------------------------------------------
   // BANNERS (CAROUSEL)
   // -------------------------------------------------------------
@@ -3796,6 +3818,70 @@ const firestoreServiceRaw = {
       }
     }
     saveFallback('local_materials', list.filter(m => m.id !== id));
+  },
+
+  // -------------------------------------------------------------
+  // STUDENT ROADMAP & CURRICULUM PROGRESS
+  // -------------------------------------------------------------
+  async getStudentRoadmapProgress(studentId: string, classId: string): Promise<{ completedModuleIds: string[]; quizScores: Record<string, number>; lastUpdated?: string }> {
+    const key = `student_progress_${studentId}_${classId}`;
+    if (isUsingCloud) {
+      try {
+        const docSnap = await getDoc(doc(db, 'student_roadmap_progress', `${studentId}_${classId}`));
+        if (docSnap.exists()) {
+          const data = docSnap.data() as any;
+          const result = {
+            completedModuleIds: Array.isArray(data.completedModuleIds) ? data.completedModuleIds : [],
+            quizScores: data.quizScores || {},
+            lastUpdated: data.lastUpdated || ''
+          };
+          localStorage.setItem(key, JSON.stringify(result));
+          return result;
+        }
+      } catch (e) {
+        console.warn("Failed fetching student roadmap progress from cloud:", e);
+      }
+    }
+    const local = localStorage.getItem(key);
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (_) {}
+    }
+    return { completedModuleIds: [], quizScores: {} };
+  },
+
+  async saveStudentRoadmapProgress(
+    studentId: string, 
+    classId: string, 
+    progress: { completedModuleIds: string[]; quizScores?: Record<string, number> },
+    actorName?: string
+  ): Promise<void> {
+    const key = `student_progress_${studentId}_${classId}`;
+    const payload = {
+      studentId,
+      classId,
+      completedModuleIds: progress.completedModuleIds,
+      quizScores: progress.quizScores || {},
+      lastUpdated: new Date().toISOString()
+    };
+
+    localStorage.setItem(key, JSON.stringify(payload));
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'student_roadmap_progress', `${studentId}_${classId}`), sanitizeForFirestore(payload));
+      } catch (e) {
+        console.warn("Failed saving student roadmap progress to cloud:", e);
+      }
+    }
+
+    // Write to audit ledger
+    await this.addAuditLog({
+      username: actorName || studentId,
+      action: 'CURRICULUM_PROGRESS_UPDATED',
+      details: `Curriculum roadmap progress updated for class #${classId.substring(0, 8)}: ${progress.completedModuleIds.length} modules completed.`
+    });
   },
 
   // -------------------------------------------------------------
