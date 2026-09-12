@@ -240,9 +240,41 @@
         "readByUserIds": { "type": "array" }
       },
       "required": ["id", "title", "content", "priority", "targetType", "authorId", "authorName", "createdAt"]
+    },
+    "StudentSuccessStory": {
+      "title": "StudentSuccessStory",
+      "description": "Represents student academic success stories submitted for admin approval before being shown to all users.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentEmail": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "achievement": { "type": "string" },
+        "currentRole": { "type": "string" },
+        "batch": { "type": "string" },
+        "subject": { "type": "string" },
+        "tutorName": { "type": "string" },
+        "score": { "type": "string" },
+        "quote": { "type": "string" },
+        "badge": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "reviewedByAdminName": { "type": "string" },
+        "adminFeedback": { "type": "string" }
+      },
+      "required": ["id", "studentId", "name", "achievement", "quote", "status", "createdAt"]
     }
   },
   "firestore": {
+    "/student_success_stories/{storyId}": {
+      "schema": "StudentSuccessStory",
+      "description": "Student success stories moderated by admins and displayed to all users once approved"
+    },
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "The user accounts collection"

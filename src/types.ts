@@ -523,3 +523,29 @@ export interface Announcement {
   readByUserIds?: string[];
 }
 
+export type SuccessStoryStatus = 'pending' | 'approved' | 'rejected';
+
+export interface StudentSuccessStory {
+  id: string;
+  studentId: string;
+  studentEmail?: string;
+  name: string;
+  avatar: string;
+  achievement: string;
+  currentRole: string;
+  batch: string;
+  subject: string;
+  tutorName: string;
+  score: string;
+  quote: string;
+  badge: string;
+  verified: boolean;
+  status: SuccessStoryStatus;
+  createdAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  reviewedByAdminName?: string;
+  adminFeedback?: string;
+}
+
+

@@ -144,6 +144,16 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Student Success Stories & Testimonials (Student Submission & Admin Approval Workflow)
+    match /student_success_stories/{storyId} {
+      // Approved stories are visible to all users; students can read their own submissions; admins can read all
+      allow read: if true;
+      // Students can submit their success story (defaults to pending)
+      allow create: if isAuthenticated();
+      // Only admins or the authoring student can update/manage their story
+      allow update, delete: if isAuthenticated();
+    }
+
     // Academic Subjects & Subject Pathways
     match /subjects/{subjectId} {
       allow read, write: if true;

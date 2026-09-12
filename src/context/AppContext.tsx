@@ -24,9 +24,10 @@ import {
   ToastItem,
   ToastType,
   ToastAction,
-  Announcement
+  Announcement,
+  StudentSuccessStory
 } from '../types';
-import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
+import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS, INITIAL_STUDENT_STORIES } from '../data/mockData';
 
 interface AppContextType {
   currentUser: UserProfile | null;
@@ -68,6 +69,23 @@ interface AppContextType {
   createReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => Promise<Review>;
   updateReviewStatus: (reviewId: string, status: 'approved' | 'rejected' | 'flagged') => Promise<void>;
   deleteReview: (reviewId: string) => Promise<void>;
+  successStories: StudentSuccessStory[];
+  refreshSuccessStories: () => Promise<void>;
+  submitSuccessStory: (storyData: {
+    achievement: string;
+    currentRole: string;
+    batch: string;
+    subject: string;
+    tutorName: string;
+    score: string;
+    quote: string;
+    badge?: string;
+    avatar?: string;
+  }) => Promise<StudentSuccessStory>;
+  approveSuccessStory: (storyId: string) => Promise<void>;
+  rejectSuccessStory: (storyId: string, reason?: string) => Promise<void>;
+  updateSuccessStory: (storyId: string, updates: Partial<StudentSuccessStory>) => Promise<void>;
+  deleteSuccessStory: (storyId: string) => Promise<void>;
   authDomainError: string | null;
   clearAuthDomainError: () => void;
   bookings: Booking[];
@@ -143,6 +161,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
     }
     return [];
+  });
+  const [successStories, setSuccessStories] = useState<StudentSuccessStory[]>(() => {
+    const cached = localStorage.getItem('local_student_success_stories');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return INITIAL_STUDENT_STORIES;
   });
   const [bookings, setBookings] = useState<Booking[]>(() => {
     const cached = localStorage.getItem('local_bookings');
@@ -527,6 +554,117 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     );
     showToast("Review deleted successfully.", "success");
+  };
+
+  const refreshSuccessStories = async () => {
+    try {
+      const data = await firestoreService.getSuccessStories();
+      setSuccessStories(data);
+      localStorage.setItem('local_student_success_stories', safeStringify(data));
+    } catch (e) {
+      console.warn("Failed refreshing success stories:", e);
+    }
+  };
+
+  const submitSuccessStory = async (storyData: {
+    achievement: string;
+    currentRole: string;
+    batch: string;
+    subject: string;
+    tutorName: string;
+    score: string;
+    quote: string;
+    badge?: string;
+    avatar?: string;
+  }) => {
+    if (!currentUser) {
+      showToast("Please sign in as a student to submit your success story.", "warning");
+      throw new Error("Student authentication required.");
+    }
+    return executeWriteWithRetry(
+      `Submit Academic Success Story for ${currentUser.name}`,
+      async () => {
+        const newStory = await firestoreService.submitStudentSuccessStory({
+          studentId: currentUser.uid,
+          studentEmail: currentUser.email,
+          name: currentUser.name,
+          avatar: storyData.avatar || currentUser.photoURL,
+          achievement: storyData.achievement,
+          currentRole: storyData.currentRole,
+          batch: storyData.batch,
+          subject: storyData.subject,
+          tutorName: storyData.tutorName,
+          score: storyData.score,
+          quote: storyData.quote,
+          badge: storyData.badge || 'Academic Excellence'
+        });
+        await refreshSuccessStories();
+        return newStory;
+      }
+    ).then(res => {
+      showToast("Success story submitted! It has been parked for administrator review and will be shown to all users once approved.", "success");
+      return res;
+    });
+  };
+
+  const approveSuccessStory = async (storyId: string) => {
+    if (currentUser?.role !== 'admin') {
+      showToast("Unauthorized: Only administrators can approve student success stories.", "error");
+      return;
+    }
+    await executeWriteWithRetry(
+      `Approve Student Success Story (ID: ${storyId})`,
+      async () => {
+        await firestoreService.adminApproveSuccessStory(storyId, currentUser.name, currentUser.uid);
+        await refreshSuccessStories();
+      }
+    );
+    showToast("Success story approved! It is now published live and visible to all users.", "success");
+  };
+
+  const rejectSuccessStory = async (storyId: string, reason?: string) => {
+    if (currentUser?.role !== 'admin') {
+      showToast("Unauthorized: Only administrators can moderate student success stories.", "error");
+      return;
+    }
+    await executeWriteWithRetry(
+      `Decline Student Success Story (ID: ${storyId})`,
+      async () => {
+        await firestoreService.adminRejectSuccessStory(storyId, currentUser.name, reason, currentUser.uid);
+        await refreshSuccessStories();
+      }
+    );
+    showToast("Story status updated to declined.", "info");
+  };
+
+  const updateSuccessStory = async (storyId: string, updates: Partial<StudentSuccessStory>) => {
+    if (currentUser?.role !== 'admin') {
+      showToast("Unauthorized: Only administrators can edit success stories.", "error");
+      return;
+    }
+    await executeWriteWithRetry(
+      `Update Success Story (ID: ${storyId})`,
+      async () => {
+        await firestoreService.adminUpdateSuccessStory(storyId, updates, currentUser.name, currentUser.uid);
+        await refreshSuccessStories();
+      }
+    );
+    showToast("Success story details updated.", "success");
+  };
+
+  const deleteSuccessStory = async (storyId: string) => {
+    if (currentUser?.role !== 'admin') {
+      showToast("Unauthorized: Only administrators can delete success stories.", "error");
+      return;
+    }
+    await executeWriteWithRetry(
+      `Delete Student Success Story (ID: ${storyId})`,
+      async () => {
+        await firestoreService.deleteSuccessStory(storyId, currentUser.name, currentUser.uid);
+        await refreshSuccessStories();
+      }
+    );
+    showToast("Success story deleted successfully.", "success");
   };
 
   const reconcileCloudData = async () => {
@@ -1182,6 +1320,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createReview,
       updateReviewStatus,
       deleteReview,
+      successStories,
+      refreshSuccessStories,
+      submitSuccessStory,
+      approveSuccessStory,
+      rejectSuccessStory,
+      updateSuccessStory,
+      deleteSuccessStory,
       authDomainError,
       clearAuthDomainError,
       bookings,

@@ -20,7 +20,7 @@ import { db, auth, storage, firebaseConfig } from './firebase';
 import { binaryStore } from './binaryStore';
 import { optimizeImage } from './imageOptimizer';
 import { emailNotificationService } from './emailNotificationService';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, ChatAttachment, ChatTypingStatus, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, ChatAttachment, ChatTypingStatus, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType, StudentSuccessStory } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -29,7 +29,8 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_MESSAGES,
   INITIAL_REVIEWS,
-  INITIAL_ANNOUNCEMENTS
+  INITIAL_ANNOUNCEMENTS,
+  INITIAL_STUDENT_STORIES
 } from '../data/mockData';
 
 export const INITIAL_ADMISSION_FEE_CONFIG: AdmissionFeeConfig = {
@@ -2995,6 +2996,274 @@ const firestoreServiceRaw = {
     const reviews = handleFallback<Review>('local_reviews', INITIAL_REVIEWS);
     const filtered = reviews.filter(r => r.id !== reviewId);
     saveFallback('local_reviews', filtered);
+  },
+
+  // -------------------------------------------------------------
+  // STUDENT SUCCESS STORIES & TESTIMONIALS (STUDENT SUBMISSION & ADMIN APPROVAL)
+  // -------------------------------------------------------------
+  async getSuccessStories(filterStatus?: 'all' | 'pending' | 'approved' | 'rejected'): Promise<StudentSuccessStory[]> {
+    let cloudStories: StudentSuccessStory[] = [];
+    if (isUsingCloud) {
+      try {
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'student_success_stories')),
+          8000,
+          { docs: [] } as any
+        );
+        cloudStories = snap.docs.map(doc => doc.data() as StudentSuccessStory);
+        if (cloudStories.length > 0) {
+          saveFallback('local_student_success_stories', cloudStories);
+          if (filterStatus && filterStatus !== 'all') {
+            return cloudStories.filter(s => s.status === filterStatus);
+          }
+          return cloudStories;
+        }
+      } catch (e) {
+        console.warn("Fallback reading student success stories.", e);
+      }
+    }
+    const local = handleFallback<StudentSuccessStory>('local_student_success_stories', INITIAL_STUDENT_STORIES);
+    if (filterStatus && filterStatus !== 'all') {
+      return local.filter(s => s.status === filterStatus);
+    }
+    return local;
+  },
+
+  async getApprovedSuccessStories(): Promise<StudentSuccessStory[]> {
+    const all = await this.getSuccessStories();
+    const approved = all.filter(s => s.status === 'approved');
+    return approved.length > 0 ? approved : INITIAL_STUDENT_STORIES;
+  },
+
+  subscribeToApprovedSuccessStories(callback: (stories: StudentSuccessStory[]) => void): () => void {
+    if (isUsingCloud) {
+      try {
+        const q = query(collection(db, 'student_success_stories'), where('status', '==', 'approved'));
+        return onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const list = snapshot.docs.map(d => d.data() as StudentSuccessStory);
+            saveFallback('local_student_success_stories', list);
+            callback(list);
+          } else {
+            callback(INITIAL_STUDENT_STORIES);
+          }
+        }, (err) => {
+          console.warn("Success stories subscription error, using local fallback", err);
+          this.getApprovedSuccessStories().then(callback);
+        });
+      } catch (e) {
+        console.warn("Error establishing success stories snapshot", e);
+      }
+    }
+    this.getApprovedSuccessStories().then(callback);
+    return () => {};
+  },
+
+  async submitStudentSuccessStory(storyData: {
+    studentId: string;
+    studentEmail?: string;
+    name: string;
+    avatar?: string;
+    achievement: string;
+    currentRole: string;
+    batch: string;
+    subject: string;
+    tutorName: string;
+    score: string;
+    quote: string;
+    badge?: string;
+  }): Promise<StudentSuccessStory> {
+    const id = "story_" + Math.random().toString(36).substring(2, 9);
+    const newStory: StudentSuccessStory = {
+      ...storyData,
+      id,
+      avatar: storyData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop',
+      badge: storyData.badge || 'Scholar Achievement',
+      verified: false,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'student_success_stories', id), newStory);
+      } catch (e) {
+        console.warn("Failed saving success story to cloud, saving locally.", e);
+      }
+    }
+
+    const currentStories = handleFallback<StudentSuccessStory>('local_student_success_stories', INITIAL_STUDENT_STORIES);
+    const updated = [newStory, ...currentStories];
+    saveFallback('local_student_success_stories', updated);
+
+    // Notify admins of new pending student success story
+    try {
+      const users = await this.getUsers();
+      const adminUsers = users.filter(u => u.role === 'admin');
+      for (const admin of adminUsers) {
+        await this.triggerNotification(
+          admin.uid,
+          `🏆 New Success Story Submitted`,
+          `Student ${newStory.name} has submitted a success story ('${newStory.achievement}'). Parked for admin approval.`,
+          'announcement'
+        );
+      }
+    } catch (_) {}
+
+    await this.logAuditAction({
+      actionType: 'CREATE',
+      targetCollection: 'student_success_stories',
+      documentId: id,
+      performedBy: storyData.studentId,
+      performedByUsername: storyData.name,
+      details: `Student submitted success story for admin approval: ${storyData.achievement}`
+    });
+
+    return newStory;
+  },
+
+  async adminApproveSuccessStory(storyId: string, adminName: string, adminUid?: string): Promise<void> {
+    const updates = {
+      status: 'approved' as const,
+      verified: true,
+      approvedAt: new Date().toISOString(),
+      approvedBy: adminName,
+      reviewedByAdminName: adminName
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'student_success_stories', storyId), updates, { merge: true });
+      } catch (e) {
+        console.warn("Failed approving success story in Firestore", e);
+      }
+    }
+
+    const stories = handleFallback<StudentSuccessStory>('local_student_success_stories', INITIAL_STUDENT_STORIES);
+    let targetStudentId = '';
+    let studentName = '';
+    const updated = stories.map(s => {
+      if (s.id === storyId) {
+        targetStudentId = s.studentId;
+        studentName = s.name;
+        return { ...s, ...updates };
+      }
+      return s;
+    });
+    saveFallback('local_student_success_stories', updated);
+
+    // Notify student that story is approved and live
+    if (targetStudentId) {
+      await this.triggerNotification(
+        targetStudentId,
+        `🎉 Success Story Approved & Published!`,
+        `Congratulations ${studentName}! Your success story has been approved by ${adminName} and is now live on the Gurugedara platform for all users to see.`,
+        'announcement'
+      );
+    }
+
+    await this.logAuditAction({
+      actionType: 'UPDATE',
+      targetCollection: 'student_success_stories',
+      documentId: storyId,
+      performedBy: adminUid || 'admin',
+      performedByUsername: adminName,
+      details: `Admin approved student success story #${storyId} for public display`
+    });
+  },
+
+  async adminRejectSuccessStory(storyId: string, adminName: string, reason?: string, adminUid?: string): Promise<void> {
+    const updates = {
+      status: 'rejected' as const,
+      verified: false,
+      reviewedByAdminName: adminName,
+      adminFeedback: reason || 'Submission declined by administrator'
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'student_success_stories', storyId), updates, { merge: true });
+      } catch (e) {
+        console.warn("Failed rejecting success story in Firestore", e);
+      }
+    }
+
+    const stories = handleFallback<StudentSuccessStory>('local_student_success_stories', INITIAL_STUDENT_STORIES);
+    let targetStudentId = '';
+    let studentName = '';
+    const updated = stories.map(s => {
+      if (s.id === storyId) {
+        targetStudentId = s.studentId;
+        studentName = s.name;
+        return { ...s, ...updates };
+      }
+      return s;
+    });
+    saveFallback('local_student_success_stories', updated);
+
+    if (targetStudentId) {
+      await this.triggerNotification(
+        targetStudentId,
+        `Update on your Success Story Submission`,
+        `Your success story was reviewed by administrative staff. Status: Declined. Note: ${reason || 'Does not meet current guidelines.'}`,
+        'reminder'
+      );
+    }
+
+    await this.logAuditAction({
+      actionType: 'UPDATE',
+      targetCollection: 'student_success_stories',
+      documentId: storyId,
+      performedBy: adminUid || 'admin',
+      performedByUsername: adminName,
+      details: `Admin declined student success story #${storyId}: ${reason || 'No specific reason'}`
+    });
+  },
+
+  async adminUpdateSuccessStory(storyId: string, updates: Partial<StudentSuccessStory>, adminName: string, adminUid?: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'student_success_stories', storyId), updates, { merge: true });
+      } catch (e) {
+        console.warn("Failed updating success story in Firestore", e);
+      }
+    }
+
+    const stories = handleFallback<StudentSuccessStory>('local_student_success_stories', INITIAL_STUDENT_STORIES);
+    const updated = stories.map(s => s.id === storyId ? { ...s, ...updates } : s);
+    saveFallback('local_student_success_stories', updated);
+
+    await this.logAuditAction({
+      actionType: 'UPDATE',
+      targetCollection: 'student_success_stories',
+      documentId: storyId,
+      performedBy: adminUid || 'admin',
+      performedByUsername: adminName,
+      details: `Admin updated student success story details #${storyId}`
+    });
+  },
+
+  async deleteSuccessStory(storyId: string, adminName: string, adminUid?: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'student_success_stories', storyId));
+      } catch (e) {
+        console.warn("Failed deleting success story from Firestore", e);
+      }
+    }
+
+    const stories = handleFallback<StudentSuccessStory>('local_student_success_stories', INITIAL_STUDENT_STORIES);
+    const filtered = stories.filter(s => s.id !== storyId);
+    saveFallback('local_student_success_stories', filtered);
+
+    await this.logAuditAction({
+      actionType: 'DELETE',
+      targetCollection: 'student_success_stories',
+      documentId: storyId,
+      performedBy: adminUid || 'admin',
+      performedByUsername: adminName,
+      details: `Admin deleted student success story #${storyId}`
+    });
   },
 
   // -------------------------------------------------------------
