@@ -989,6 +989,11 @@ export const AdminUsersAndApprovals: React.FC<AdminUsersAndApprovalsProps> = ({
                           <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                             {selectedUser.name}
                           </h3>
+                          {currentUser?.uid === selectedUser.uid && (
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider">
+                              Me
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-indigo-600 dark:text-indigo-400 font-mono font-bold">
                           @{selectedUser.username || selectedUser.uid}

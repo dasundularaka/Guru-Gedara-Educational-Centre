@@ -306,8 +306,8 @@ export function SmoothCarousel<T>({
             x: `-${currentIndex * (100 / visibleCount)}%`,
           }}
           transition={{
-            duration: 0.8,
-            ease: "easeInOut",
+            duration: 0.95,
+            ease: [0.25, 1, 0.5, 1],
           }}
           style={{
             display: 'flex',
@@ -322,14 +322,15 @@ export function SmoothCarousel<T>({
             return (
               <motion.div
                 key={key}
-                initial={{ opacity: 0, scale: 0.98 }}
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
                 animate={{
-                  opacity: isVisible ? 1 : 0.15,
+                  opacity: isVisible ? 1 : 0.08,
+                  y: isVisible ? 0 : 6,
                   scale: isVisible ? 1 : 0.97,
                 }}
                 transition={{
-                  duration: 0.8,
-                  ease: "easeInOut",
+                  duration: 0.95,
+                  ease: [0.25, 1, 0.5, 1],
                 }}
                 className={`shrink-0 px-3 box-border flex flex-col transition-all ${cardClassName}`}
                 style={{

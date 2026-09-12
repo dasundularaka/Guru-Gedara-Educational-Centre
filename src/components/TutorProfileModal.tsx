@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, Review } from '../types';
+import { useApp } from '../context/AppContext';
 import { X, Star, Calendar, GraduationCap, Award, BookOpen, Clock, Heart, MessageSquare } from 'lucide-react';
 
 interface TutorProfileModalProps {
@@ -18,6 +19,7 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
   reviews = [],
   onContactClick
 }) => {
+  const { currentUser } = useApp();
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -122,6 +124,11 @@ export const TutorProfileModal: React.FC<TutorProfileModalProps> = ({
             <div className="space-y-2 flex-1">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <h2 className="text-xl font-extrabold text-slate-900 leading-tight">{tutorName}</h2>
+                {currentUser?.uid === tutor.uid && (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider shadow-2xs">
+                    Me
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-150">
                   <Award className="w-2.5 h-2.5" /> Verified Faculty
                 </span>

@@ -557,9 +557,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     {unreadCount > 9 ? '•' : unreadCount}
                   </span>
                 )}
+                <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-[7px] font-black px-1 rounded-full ring-1 ring-white shadow-2xs">
+                  Me
+                </span>
               </div>
               <span className="text-[10px] font-bold tracking-tight mt-0.5 truncate max-w-[58px] text-center leading-tight">
-                Profile
+                Profile (Me)
               </span>
             </button>
           </div>

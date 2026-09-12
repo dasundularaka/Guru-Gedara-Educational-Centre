@@ -508,6 +508,11 @@ export const ClassRosterModal: React.FC<ClassRosterModalProps> = ({
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-extrabold text-sm text-slate-900 truncate">{user.name}</h4>
+                          {currentUser?.uid === user.uid && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider shadow-2xs">
+                              Me
+                            </span>
+                          )}
                           {isSuspended ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
                               Suspended

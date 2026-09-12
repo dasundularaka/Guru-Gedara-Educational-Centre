@@ -6,6 +6,7 @@ import { ClassCard } from '../components/ClassCard';
 import { TutorCard } from '../components/TutorCard';
 import { SmoothCarousel } from '../components/SmoothCarousel';
 import { EducationalNewsWidget } from '../components/EducationalNewsWidget';
+import { StudentTestimonialsCarousel } from '../components/StudentTestimonialsCarousel';
 import { 
   Sparkles, 
   GraduationCap, 
@@ -547,6 +548,9 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
           <EducationalNewsWidget />
         </div>
       </div>
+
+      {/* 4.8 STUDENT TESTIMONIALS & ALUMNI SUCCESS STORIES CAROUSEL */}
+      <StudentTestimonialsCarousel />
 
       {/* 5. COMMENTS & TESTIMONIALS CAROUSEL + SUBMISSION BOX */}
       <div className="py-8 sm:py-14 bg-slate-50 border-t border-slate-200/60">
