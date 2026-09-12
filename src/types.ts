@@ -523,6 +523,8 @@ export interface Announcement {
   readByUserIds?: string[];
 }
 
+export type ViewAsRole = 'admin' | 'tutor' | 'student' | 'guest';
+
 export type SuccessStoryStatus = 'pending' | 'approved' | 'rejected';
 
 export interface StudentSuccessStory {

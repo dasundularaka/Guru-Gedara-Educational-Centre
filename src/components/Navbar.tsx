@@ -22,11 +22,16 @@ import {
   Calendar,
   Sparkles,
   Info,
-  Megaphone
+  Megaphone,
+  Eye,
+  ChevronDown,
+  RotateCcw,
+  GraduationCap,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
-import { Booking, NotificationItem, StudyMaterial } from '../types';
+import { Booking, NotificationItem, StudyMaterial, ViewAsRole } from '../types';
 import { EmailNotificationLogsModal } from './EmailNotificationLogsModal';
 import { Class15MinReminderBanner } from './Class15MinReminderBanner';
 import { genericFirestoreService } from '../lib/genericFirestore';
@@ -41,6 +46,11 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const { 
     currentUser, 
+    realAdminUser,
+    viewAsRole,
+    setViewAsRole,
+    leaveViewAs,
+    isViewAsActive,
     logout, 
     cloudSync, 
     notifications, 
@@ -63,6 +73,47 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [showProfileDetails, setShowProfileDetails] = useState(false);
   const [upcomingClasses, setUpcomingClasses] = useState<Booking[]>([]);
   const [unviewedStudyMaterials, setUnviewedStudyMaterials] = useState<StudyMaterial[]>([]);
+  const [showViewAsDropdown, setShowViewAsDropdown] = useState(false);
+  const viewAsContainerRef = React.useRef<HTMLDivElement>(null);
+  const mobileViewAsContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const canViewAs = Boolean(realAdminUser || currentUser?.role === 'admin');
+  const activeRoleDisplay: ViewAsRole = (viewAsRole || (currentUser ? currentUser.role as ViewAsRole : 'guest'));
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        viewAsContainerRef.current && 
+        !viewAsContainerRef.current.contains(e.target as Node) &&
+        mobileViewAsContainerRef.current &&
+        !mobileViewAsContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowViewAsDropdown(false);
+      }
+    };
+    if (showViewAsDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showViewAsDropdown]);
+
+  const handleSelectViewAs = (role: ViewAsRole) => {
+    setShowViewAsDropdown(false);
+    setViewAsRole(role);
+    if (role === 'admin' || role === 'tutor' || role === 'student') {
+      onChangeTab('dashboard');
+    } else if (role === 'guest') {
+      onChangeTab('home');
+    }
+  };
+
+  const handleLeaveViewAs = () => {
+    setShowViewAsDropdown(false);
+    leaveViewAs();
+    onChangeTab('dashboard');
+  };
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
   const [showEmailLogsModal, setShowEmailLogsModal] = useState(false);
@@ -312,6 +363,125 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
       default:
         return <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">Student</span>;
     }
+  };
+
+  const renderViewAsMenu = () => {
+    if (!showViewAsDropdown) return null;
+
+    const rolesList: {
+      role: ViewAsRole;
+      title: string;
+      desc: string;
+      icon: any;
+      badgeColor: string;
+    }[] = [
+      {
+        role: 'admin',
+        title: 'Administrator',
+        desc: 'Full administrative panel & governance',
+        icon: Shield,
+        badgeColor: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300',
+      },
+      {
+        role: 'tutor',
+        title: 'Faculty Tutor',
+        desc: 'Instructor workspace & lecture schedules',
+        icon: BookOpen,
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300',
+      },
+      {
+        role: 'student',
+        title: 'Scholar Student',
+        desc: 'Course catalogues, enrollments & studies',
+        icon: GraduationCap,
+        badgeColor: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300',
+      },
+      {
+        role: 'guest',
+        title: 'Guest (Visitor)',
+        desc: 'Public website view before user login',
+        icon: Globe,
+        badgeColor: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300',
+      },
+    ];
+
+    return (
+      <div 
+        className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-[9999] overflow-hidden text-left"
+      >
+        <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+              <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>View System As</span>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              Admin Tool
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+            Admins can preview the system as admin, tutor, student, or guest.
+          </p>
+        </div>
+
+        <div className="py-1 space-y-1">
+          {rolesList.map((item) => {
+            const isCurrent = activeRoleDisplay === item.role;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.role}
+                onClick={() => handleSelectViewAs(item.role)}
+                id={`view_as_opt_${item.role}`}
+                className={`w-full text-left p-2.5 rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                  isCurrent
+                    ? 'bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-transparent'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div className={`p-2 rounded-lg border shrink-0 ${item.badgeColor}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {item.title}
+                      </span>
+                      {isCurrent && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-emerald-500 text-white">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block line-clamp-1">
+                      {item.desc}
+                    </span>
+                  </div>
+                </div>
+                {isCurrent && <Check className="w-4 h-4 text-emerald-600 shrink-0 ml-2" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {isViewAsActive && (
+          <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800">
+            <button
+              onClick={handleLeaveViewAs}
+              id="view_as_leave_menu_btn"
+              className="w-full p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80 flex items-center justify-between font-bold text-xs transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Leave View-As Mode</span>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider opacity-80">Return to Admin</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -700,6 +870,38 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                   </AnimatePresence>
                 </div>
 
+                {/* Admin View As switcher in desktop header */}
+                {canViewAs && (
+                  <div className="relative flex items-center gap-2 mr-2" ref={viewAsContainerRef}>
+                    {isViewAsActive && (
+                      <button
+                        onClick={handleLeaveViewAs}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                        title="Leave preview and return to Administrator view"
+                        id="nav_leave_view_as_btn"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Leave</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                        isViewAsActive
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                      }`}
+                      id="nav_view_as_dropdown_btn"
+                      title="Preview system as different roles"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>View as: <strong className="capitalize">{activeRoleDisplay}</strong></span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showViewAsDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+                    {renderViewAsMenu()}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 pl-2 border-l border-gray-100">
                   <div className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
@@ -742,21 +944,84 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 </div>
               </>
             ) : (
-              <button
-                onClick={() => onChangeTab('auth')}
-                className="inline-flex items-center justify-center px-4.5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md hover:shadow-lg transition-all cursor-pointer gap-1.5"
-                id="nav_login_btn"
-              >
-                <User className="w-3.5 h-3.5" /> Sign In / Enroll
-              </button>
+              <div className="flex items-center gap-2">
+                {canViewAs && (
+                  <div className="relative flex items-center gap-2" ref={viewAsContainerRef}>
+                    {isViewAsActive && (
+                      <button
+                        onClick={handleLeaveViewAs}
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                        title="Leave preview and return to Administrator view"
+                        id="nav_leave_view_as_btn"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Leave</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                        isViewAsActive
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                      }`}
+                      id="nav_view_as_dropdown_btn"
+                      title="Preview system as different roles"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>View as: <strong className="capitalize">{activeRoleDisplay}</strong></span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showViewAsDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+                    {renderViewAsMenu()}
+                  </div>
+                )}
+                <button
+                  onClick={() => onChangeTab('auth')}
+                  className="inline-flex items-center justify-center px-4.5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md hover:shadow-lg transition-all cursor-pointer gap-1.5"
+                  id="nav_login_btn"
+                >
+                  <User className="w-3.5 h-3.5" /> Sign In / Enroll
+                </button>
+              </div>
             )}
           </div>
 
           {/* Mobile actions (Header top-right) */}
           <div className="flex md:hidden items-center gap-1.5 sm:gap-2">
-            {/* If Logged In: Show Notifications Bell + Top-Right Logout Button replacing profile photo */}
             {currentUser ? (
               <>
+                {/* Admin View As in mobile header */}
+                {canViewAs && (
+                  <div className="relative flex items-center gap-1.5" ref={mobileViewAsContainerRef}>
+                    {isViewAsActive && (
+                      <button
+                        onClick={handleLeaveViewAs}
+                        className="px-2.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm min-h-[44px] cursor-pointer"
+                        id="mobile_leave_view_as_btn"
+                        title="Leave View As and return to Admin"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Leave</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 border min-h-[44px] cursor-pointer ${
+                        isViewAsActive 
+                          ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200' 
+                          : 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
+                      }`}
+                      id="mobile_view_as_btn"
+                      title="View system as different roles"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span className="capitalize">{activeRoleDisplay}</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {renderViewAsMenu()}
+                  </div>
+                )}
+
                 {/* Notification Bell for Logged-In User */}
                 <div className="relative">
                   <button
@@ -788,20 +1053,72 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 </button>
               </>
             ) : (
-              /* If Guest: No notification bell icon in guest view, just Sign In button */
-              <button
-                onClick={() => onChangeTab('auth')}
-                className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm min-h-[44px] cursor-pointer"
-                id="mobile_header_login_btn"
-              >
-                <User className="w-4 h-4" />
-                <span>Sign In</span>
-              </button>
+              /* If Not Logged In */
+              canViewAs ? (
+                /* In mobile view, replace sign in button from view as button top right corner. If used that button, show leave button to return. */
+                <div className="flex items-center gap-1.5" ref={mobileViewAsContainerRef}>
+                  <button
+                    onClick={handleLeaveViewAs}
+                    className="px-2.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm min-h-[44px] cursor-pointer"
+                    id="mobile_leave_view_as_btn"
+                    title="Leave View As and return to Admin"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Leave</span>
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
+                      className="px-3 py-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 font-bold rounded-xl text-xs flex items-center gap-1.5 min-h-[44px] cursor-pointer"
+                      id="mobile_view_as_btn"
+                      title="View system as different roles"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Guest</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                    {renderViewAsMenu()}
+                  </div>
+                </div>
+              ) : (
+                /* And also, don't show that view as button in guest mode(before login). */
+                <button
+                  onClick={() => onChangeTab('auth')}
+                  className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm min-h-[44px] cursor-pointer"
+                  id="mobile_header_login_btn"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              )
             )}
           </div>
         </div>
       </div>
     </nav>
+
+    {/* View-As Active Sticky Notification Sub-Banner */}
+    {isViewAsActive && (
+      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-white px-4 py-1.5 text-xs font-semibold shadow-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Eye className="w-3.5 h-3.5 shrink-0 animate-pulse" />
+            <span>
+              Currently viewing system as <strong className="uppercase tracking-wider underline underline-offset-2">{activeRoleDisplay}</strong>. All permissions and views are simulated.
+            </span>
+          </div>
+          <button
+            onClick={handleLeaveViewAs}
+            id="sticky_banner_leave_view_as_btn"
+            className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
+            title="Return to real Administrator account"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Leave</span>
+          </button>
+        </div>
+      </div>
+    )}
 
     {/* Notifications Settings Panel Dialog overlay */}
     <AnimatePresence>

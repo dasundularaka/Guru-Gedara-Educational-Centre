@@ -56,7 +56,6 @@ import {
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
-import { StudentSuccessStoryModal } from '../components/StudentSuccessStoryModal';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -75,14 +74,12 @@ export const StudentDashboard: React.FC = () => {
     refreshBookings,
     refreshPayments,
     reviews,
-    executeWriteWithRetry,
-    successStories
+    executeWriteWithRetry
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'history' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments' | 'stories'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'history' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [showStoryModal, setShowStoryModal] = useState(false);
   
   const [studentBookings, setStudentBookings] = useState<Booking[]>([]);
   const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
@@ -565,7 +562,6 @@ export const StudentDashboard: React.FC = () => {
               { id: 'payments', label: 'Payment Receipts', icon: <FileText className="w-4 h-4 text-emerald-500" />, description: 'Invoices & slips' },
               { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" />, description: 'Marks & attendance history' },
               { id: 'roadmap', label: 'Syllabus Roadmap', icon: <Compass className="w-4 h-4 text-purple-500" />, description: 'A/L curriculum tracking' },
-              { id: 'stories', label: 'My Success Story', icon: <Award className="w-4 h-4 text-indigo-500" />, description: 'Submit achievements for social proof' },
               { id: 'chat', label: 'Live Chat', icon: <MessageSquare className="w-4 h-4 text-cyan-500" />, description: 'Direct tutor messaging' },
               { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length, description: 'System alerts & announcements' },
             ];
@@ -600,7 +596,6 @@ export const StudentDashboard: React.FC = () => {
                         {activeSubTab === 'payments' && <FileText className="w-4 h-4" />}
                         {activeSubTab === 'performance' && <TrendingUp className="w-4 h-4" />}
                         {activeSubTab === 'roadmap' && <Compass className="w-4 h-4" />}
-                        {activeSubTab === 'stories' && <Award className="w-4 h-4" />}
                         {activeSubTab === 'chat' && <MessageSquare className="w-4 h-4" />}
                         {activeSubTab === 'notifications' && <Bell className="w-4 h-4" />}
                       </span>
@@ -611,7 +606,6 @@ export const StudentDashboard: React.FC = () => {
                         {activeSubTab === 'payments' && 'Payments'}
                         {activeSubTab === 'performance' && 'Progress & Attendance'}
                         {activeSubTab === 'roadmap' && 'Syllabus Roadmap'}
-                        {activeSubTab === 'stories' && 'My Success Story'}
                         {activeSubTab === 'chat' && 'Chat'}
                         {activeSubTab === 'notifications' && 'Notifications'}
                       </span>
@@ -1049,145 +1043,7 @@ export const StudentDashboard: React.FC = () => {
             </motion.div>
           )}
 
-          {/* 5. Success Stories tab */}
-          {activeSubTab === 'stories' && (
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6"
-            >
-              <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                  <div className="flex items-center gap-2.5 mb-1.5">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/20">
-                      <Award className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white">
-                      My Academic Success Stories
-                    </h3>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl leading-relaxed">
-                    Submit your academic accomplishments, examination ranks, and testimonials. Submissions are parked for academy admin review, and upon approval will be highlighted across the homepage carousel for all users to see.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  id="student_open_story_modal_btn"
-                  onClick={() => setShowStoryModal(true)}
-                  className="px-5 py-2.5 rounded-2xl bg-linear-to-r from-indigo-500 to-sky-500 hover:from-indigo-600 hover:to-sky-600 text-white font-extrabold text-xs transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center gap-2 shrink-0 self-start md:self-auto"
-                >
-                  <Award className="w-4 h-4 text-amber-300" />
-                  Submit / Manage Stories
-                </button>
-              </div>
-
-              {/* Submissions list */}
-              {(() => {
-                const myStories = (successStories || []).filter(
-                  s => s.studentId === currentUser?.uid || (currentUser?.email && s.studentEmail === currentUser?.email)
-                );
-
-                if (myStories.length === 0) {
-                  return (
-                    <div className="p-12 text-center bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700">
-                      <Award className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                      <h4 className="text-sm font-black text-slate-800 dark:text-white">
-                        No Stories Submitted Yet
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                        Share your examination milestones, university entrance results, or subject distinctions to inspire the Gurugedara community.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setShowStoryModal(true)}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2"
-                      >
-                        <Award className="w-3.5 h-3.5" />
-                        Submit Your Success Story
-                      </button>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {myStories.map((story) => {
-                      const isPending = story.status === 'pending';
-                      const isApproved = story.status === 'approved';
-                      const isRejected = story.status === 'rejected';
-
-                      return (
-                        <div
-                          key={story.id}
-                          className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-3"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                                {story.achievement}
-                              </h4>
-                              <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                                {story.currentRole}
-                              </span>
-                            </div>
-
-                            {isPending && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                                ⏳ Parked for Approval
-                              </span>
-                            )}
-                            {isApproved && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                                ✓ Live on Home Carousel
-                              </span>
-                            )}
-                            {isRejected && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
-                                ✕ Declined
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 text-xs grid grid-cols-2 gap-2">
-                            <div>
-                              <span className="text-[9px] uppercase font-mono text-slate-400 block">Course</span>
-                              <span className="font-bold text-slate-800 dark:text-slate-200">{story.subject}</span>
-                            </div>
-                            <div>
-                              <span className="text-[9px] uppercase font-mono text-slate-400 block">Faculty</span>
-                              <span className="font-bold text-slate-800 dark:text-slate-200">{story.tutorName}</span>
-                            </div>
-                          </div>
-
-                          <blockquote className="text-xs text-slate-600 dark:text-slate-300 italic border-l-2 border-indigo-400 pl-3 leading-relaxed">
-                            "{story.quote}"
-                          </blockquote>
-
-                          {isPending && (
-                            <p className="text-[11px] text-amber-700 dark:text-amber-300/90 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 font-medium">
-                              Your story is parked for academy administrator review. Once approved, it will immediately appear on the home page carousel for all users.
-                            </p>
-                          )}
-                          {isApproved && (
-                            <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 font-medium">
-                              🎉 Congratulations! Your story is approved and visible to all visitors on the home page carousel.
-                            </p>
-                          )}
-                          {isRejected && story.adminFeedback && (
-                            <p className="text-[11px] text-rose-700 dark:text-rose-300/90 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20 font-medium">
-                              Note from administrator: {story.adminFeedback}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </motion.div>
-          )}
+          {/* 5. Success Stories tab - removed */}
 
           </div>
         )}
@@ -1447,12 +1303,6 @@ export const StudentDashboard: React.FC = () => {
           reviews={reviews || []}
         />
       )}
-
-      {/* Student Success Story Submission Modal */}
-      <StudentSuccessStoryModal
-        isOpen={showStoryModal}
-        onClose={() => setShowStoryModal(false)}
-      />
     </motion.div>
   );
 };

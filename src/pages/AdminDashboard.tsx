@@ -26,7 +26,6 @@ import { AdminUsersAndApprovals } from '../components/AdminUsersAndApprovals';
 import { AdminDirectMessageModal } from '../components/AdminDirectMessageModal';
 import { AdminMessagingSection } from '../components/AdminMessagingSection';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
-import { AdminSuccessStoriesModeration } from '../components/AdminSuccessStoriesModeration';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -127,10 +126,9 @@ export const AdminDashboard: React.FC = () => {
     resetDatabase,
     notifications,
     refreshNotifications,
-    executeWriteWithRetry,
-    successStories
+    executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'stories' | 'progress' | 'email_templates'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
   const [previousTab, setPreviousTab] = useState<typeof activeTab>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
@@ -1991,13 +1989,6 @@ export const AdminDashboard: React.FC = () => {
                 { id: 'email_templates', label: 'Email Templates', icon: <Mail className="w-4 h-4 text-indigo-500" />, description: 'Automated email suite' },
                 { id: 'admins', label: 'Administrative Staff', icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />, description: 'System admins' },
                 { id: 'reviews', label: 'Moderate Reviews', icon: <Star className="w-4 h-4 text-amber-500 fill-amber-500" />, description: 'Student feedback' },
-                { 
-                  id: 'stories', 
-                  label: 'Success Stories', 
-                  icon: <Award className="w-4 h-4 text-indigo-500" />, 
-                  badge: (successStories || []).filter(s => s.status === 'pending').length > 0 ? (successStories || []).filter(s => s.status === 'pending').length : undefined, 
-                  description: 'Student achievements moderation' 
-                },
               ];
 
               return (
@@ -2041,7 +2032,6 @@ export const AdminDashboard: React.FC = () => {
                           {activeTab === 'email_templates' && <Mail className="w-4 h-4 text-indigo-600" />}
                           {activeTab === 'admins' && <ShieldCheck className="w-4 h-4" />}
                           {activeTab === 'reviews' && <Star className="w-4 h-4" />}
-                          {activeTab === 'stories' && <Award className="w-4 h-4" />}
                         </span>
                         <span className="capitalize">
                           {activeTab === 'analytics' && 'Insights & Analytics'}
@@ -2058,7 +2048,6 @@ export const AdminDashboard: React.FC = () => {
                           {activeTab === 'email_templates' && 'Email Templates & Notifications'}
                           {activeTab === 'admins' && 'Administrative Staff'}
                           {activeTab === 'reviews' && 'Moderate Reviews'}
-                          {activeTab === 'stories' && 'Success Stories Moderation'}
                         </span>
                       </div>
                       <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-700 px-2 py-0.5 rounded-full font-bold ml-1">
@@ -4601,11 +4590,6 @@ export const AdminDashboard: React.FC = () => {
                   )}
                 </div>
               </motion.div>
-            )}
-
-            {/* Success Stories Moderation Tab */}
-            {activeTab === 'stories' && (
-              <AdminSuccessStoriesModeration />
             )}
 
             {/* 9. PATHWAYS & SUBJECTS MANAGEMENT */}

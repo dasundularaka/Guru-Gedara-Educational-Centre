@@ -25,12 +25,17 @@ import {
   ToastType,
   ToastAction,
   Announcement,
-  StudentSuccessStory
+  ViewAsRole
 } from '../types';
-import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS, INITIAL_STUDENT_STORIES } from '../data/mockData';
+import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
 interface AppContextType {
   currentUser: UserProfile | null;
+  realAdminUser: UserProfile | null;
+  viewAsRole: ViewAsRole | null;
+  setViewAsRole: (role: ViewAsRole | null) => void;
+  leaveViewAs: () => void;
+  isViewAsActive: boolean;
   loading: boolean;
   cloudSync: boolean;
   notifications: NotificationItem[];
@@ -69,23 +74,6 @@ interface AppContextType {
   createReview: (reviewData: Omit<Review, 'id' | 'createdAt'>) => Promise<Review>;
   updateReviewStatus: (reviewId: string, status: 'approved' | 'rejected' | 'flagged') => Promise<void>;
   deleteReview: (reviewId: string) => Promise<void>;
-  successStories: StudentSuccessStory[];
-  refreshSuccessStories: () => Promise<void>;
-  submitSuccessStory: (storyData: {
-    achievement: string;
-    currentRole: string;
-    batch: string;
-    subject: string;
-    tutorName: string;
-    score: string;
-    quote: string;
-    badge?: string;
-    avatar?: string;
-  }) => Promise<StudentSuccessStory>;
-  approveSuccessStory: (storyId: string) => Promise<void>;
-  rejectSuccessStory: (storyId: string, reason?: string) => Promise<void>;
-  updateSuccessStory: (storyId: string, updates: Partial<StudentSuccessStory>) => Promise<void>;
-  deleteSuccessStory: (storyId: string) => Promise<void>;
   authDomainError: string | null;
   clearAuthDomainError: () => void;
   bookings: Booking[];
@@ -162,14 +150,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return [];
   });
-  const [successStories, setSuccessStories] = useState<StudentSuccessStory[]>(() => {
-    const cached = localStorage.getItem('local_student_success_stories');
-    if (cached) {
+  const [realAdminUser, setRealAdminUser] = useState<UserProfile | null>(() => {
+    const cachedAdmin = localStorage.getItem('local_real_admin_user');
+    if (cachedAdmin) {
       try {
-        return JSON.parse(cached);
+        return JSON.parse(cachedAdmin);
       } catch (e) {}
     }
-    return INITIAL_STUDENT_STORIES;
+    const cachedSession = localStorage.getItem('local_running_session');
+    if (cachedSession) {
+      try {
+        const u = JSON.parse(cachedSession);
+        if (u && u.role === 'admin') return u;
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [viewAsRole, setViewAsRoleState] = useState<ViewAsRole | null>(() => {
+    return (localStorage.getItem('local_view_as_role') as ViewAsRole | null) || null;
   });
   const [bookings, setBookings] = useState<Booking[]>(() => {
     const cached = localStorage.getItem('local_bookings');
@@ -556,115 +554,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast("Review deleted successfully.", "success");
   };
 
-  const refreshSuccessStories = async () => {
-    try {
-      const data = await firestoreService.getSuccessStories();
-      setSuccessStories(data);
-      localStorage.setItem('local_student_success_stories', safeStringify(data));
-    } catch (e) {
-      console.warn("Failed refreshing success stories:", e);
-    }
-  };
-
-  const submitSuccessStory = async (storyData: {
-    achievement: string;
-    currentRole: string;
-    batch: string;
-    subject: string;
-    tutorName: string;
-    score: string;
-    quote: string;
-    badge?: string;
-    avatar?: string;
-  }) => {
-    if (!currentUser) {
-      showToast("Please sign in as a student to submit your success story.", "warning");
-      throw new Error("Student authentication required.");
-    }
-    return executeWriteWithRetry(
-      `Submit Academic Success Story for ${currentUser.name}`,
-      async () => {
-        const newStory = await firestoreService.submitStudentSuccessStory({
-          studentId: currentUser.uid,
-          studentEmail: currentUser.email,
-          name: currentUser.name,
-          avatar: storyData.avatar || currentUser.photoURL,
-          achievement: storyData.achievement,
-          currentRole: storyData.currentRole,
-          batch: storyData.batch,
-          subject: storyData.subject,
-          tutorName: storyData.tutorName,
-          score: storyData.score,
-          quote: storyData.quote,
-          badge: storyData.badge || 'Academic Excellence'
-        });
-        await refreshSuccessStories();
-        return newStory;
-      }
-    ).then(res => {
-      showToast("Success story submitted! It has been parked for administrator review and will be shown to all users once approved.", "success");
-      return res;
-    });
-  };
-
-  const approveSuccessStory = async (storyId: string) => {
-    if (currentUser?.role !== 'admin') {
-      showToast("Unauthorized: Only administrators can approve student success stories.", "error");
+  // "View As" system impersonation for administrators
+  const setViewAsRole = (role: ViewAsRole | null) => {
+    const admin = realAdminUser || (currentUser?.role === 'admin' ? currentUser : null);
+    if (!admin) {
+      showToast("View-as mode is only available for system administrators.", "warning");
       return;
     }
-    await executeWriteWithRetry(
-      `Approve Student Success Story (ID: ${storyId})`,
-      async () => {
-        await firestoreService.adminApproveSuccessStory(storyId, currentUser.name, currentUser.uid);
-        await refreshSuccessStories();
-      }
-    );
-    showToast("Success story approved! It is now published live and visible to all users.", "success");
+
+    if (!realAdminUser) {
+      setRealAdminUser(admin);
+      try {
+        localStorage.setItem('local_real_admin_user', safeStringify(admin));
+      } catch (_) {}
+    }
+
+    const targetRole = role || 'admin';
+    setViewAsRoleState(targetRole === 'admin' ? null : targetRole);
+
+    if (targetRole === 'admin') {
+      localStorage.removeItem('local_view_as_role');
+      setCurrentUser(admin);
+      try {
+        localStorage.setItem('local_running_session', safeStringify(admin));
+      } catch (_) {}
+      showToast("Returned to Administrator view.", "success");
+    } else if (targetRole === 'guest') {
+      localStorage.setItem('local_view_as_role', 'guest');
+      setCurrentUser(null);
+      localStorage.removeItem('local_running_session');
+      showToast("Viewing system as Guest (Visitor mode). Click 'Leave' at top to return.", "info");
+    } else if (targetRole === 'tutor') {
+      localStorage.setItem('local_view_as_role', 'tutor');
+      const tutorPersona: UserProfile = {
+        ...admin,
+        role: 'tutor',
+        name: admin.name ? `${admin.name} (Tutor View)` : 'Faculty Tutor (Preview)',
+        tutorDetails: {
+          bio: 'Previewing system features under Faculty Tutor persona.',
+          subjects: ['Combined Mathematics', 'Physics'],
+          qualification: 'Senior Lecturer, B.Sc. (Hons) Eng.',
+          experience: 10,
+          rating: 4.9,
+          availability: [],
+        },
+      };
+      setCurrentUser(tutorPersona);
+      try {
+        localStorage.setItem('local_running_session', safeStringify(tutorPersona));
+      } catch (_) {}
+      showToast("Viewing system as Faculty Tutor.", "info");
+    } else if (targetRole === 'student') {
+      localStorage.setItem('local_view_as_role', 'student');
+      const studentPersona: UserProfile = {
+        ...admin,
+        role: 'student',
+        name: admin.name ? `${admin.name} (Student View)` : 'Scholar Student (Preview)',
+        studentDetails: {
+          grade: '12',
+          school: 'Royal College',
+          interests: ['Mathematics', 'Physics', 'Chemistry'],
+        },
+      };
+      setCurrentUser(studentPersona);
+      try {
+        localStorage.setItem('local_running_session', safeStringify(studentPersona));
+      } catch (_) {}
+      showToast("Viewing system as Scholar Student.", "info");
+    }
   };
 
-  const rejectSuccessStory = async (storyId: string, reason?: string) => {
-    if (currentUser?.role !== 'admin') {
-      showToast("Unauthorized: Only administrators can moderate student success stories.", "error");
-      return;
+  const leaveViewAs = () => {
+    if (realAdminUser) {
+      setViewAsRole('admin');
     }
-    await executeWriteWithRetry(
-      `Decline Student Success Story (ID: ${storyId})`,
-      async () => {
-        await firestoreService.adminRejectSuccessStory(storyId, currentUser.name, reason, currentUser.uid);
-        await refreshSuccessStories();
-      }
-    );
-    showToast("Story status updated to declined.", "info");
   };
 
-  const updateSuccessStory = async (storyId: string, updates: Partial<StudentSuccessStory>) => {
-    if (currentUser?.role !== 'admin') {
-      showToast("Unauthorized: Only administrators can edit success stories.", "error");
-      return;
-    }
-    await executeWriteWithRetry(
-      `Update Success Story (ID: ${storyId})`,
-      async () => {
-        await firestoreService.adminUpdateSuccessStory(storyId, updates, currentUser.name, currentUser.uid);
-        await refreshSuccessStories();
-      }
-    );
-    showToast("Success story details updated.", "success");
-  };
+  const isViewAsActive = Boolean(realAdminUser && viewAsRole && viewAsRole !== 'admin');
 
-  const deleteSuccessStory = async (storyId: string) => {
-    if (currentUser?.role !== 'admin') {
-      showToast("Unauthorized: Only administrators can delete success stories.", "error");
-      return;
+  const syncAdminSession = (profile: UserProfile | null) => {
+    if (!profile) return;
+    if ((profile.role as string) === 'admin') {
+      setRealAdminUser(profile);
+      try {
+        localStorage.setItem('local_real_admin_user', safeStringify(profile));
+      } catch (_) {}
+    } else {
+      setRealAdminUser(null);
+      setViewAsRoleState(null);
+      localStorage.removeItem('local_real_admin_user');
+      localStorage.removeItem('local_view_as_role');
     }
-    await executeWriteWithRetry(
-      `Delete Student Success Story (ID: ${storyId})`,
-      async () => {
-        await firestoreService.deleteSuccessStory(storyId, currentUser.name, currentUser.uid);
-        await refreshSuccessStories();
-      }
-    );
-    showToast("Success story deleted successfully.", "success");
   };
 
   const reconcileCloudData = async () => {
@@ -861,12 +841,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (profile.status === 'suspended') {
                 try { await signOut(auth); } catch (_) {}
                 localStorage.removeItem('local_running_session');
+                localStorage.removeItem('local_real_admin_user');
+                localStorage.removeItem('local_view_as_role');
                 setCurrentUser(null);
+                setRealAdminUser(null);
+                setViewAsRoleState(null);
                 showToast("Your account has been suspended by administration. Access denied.", "error");
                 setLoading(false);
                 return;
               }
-              setCurrentUser(profile);
+              syncAdminSession(profile);
+              const savedViewAs = localStorage.getItem('local_view_as_role') as ViewAsRole | null;
+              if (profile.role === 'admin' && savedViewAs && savedViewAs !== 'admin') {
+                if (savedViewAs === 'guest') {
+                  setCurrentUser(null);
+                } else if (savedViewAs === 'tutor') {
+                  setCurrentUser({
+                    ...profile,
+                    role: 'tutor',
+                    name: profile.name ? `${profile.name} (Tutor View)` : 'Faculty Tutor (Preview)',
+                    specialty: 'Faculty Instructor & Academic Lead',
+                    bio: 'Previewing system features under Faculty Tutor persona.',
+                  });
+                } else if (savedViewAs === 'student') {
+                  setCurrentUser({
+                    ...profile,
+                    role: 'student',
+                    name: profile.name ? `${profile.name} (Student View)` : 'Scholar Student (Preview)',
+                    studentId: profile.uid,
+                    batch: '2026 A/L',
+                    stream: 'Combined Mathematics & Physical Sciences',
+                  });
+                }
+              } else {
+                setCurrentUser(profile);
+              }
               // Load notifications
               const nots = await firestoreService.getNotifications(profile.uid);
               setNotifications(nots);
@@ -970,6 +979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       if (profile) {
+        syncAdminSession(profile);
         setCurrentUser(profile);
         showToast(`Welcome back, ${profile.name}!`, "success");
         setLoading(false);
@@ -982,6 +992,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           role: isTutor ? 'tutor' : 'student',
           photoURL: result.user.photoURL || undefined
         });
+        syncAdminSession(newProf);
         setCurrentUser(newProf);
         showToast("Welcome to Guru Gedara Educational Centre! Account successfully initialized.", "success");
         setLoading(false);
@@ -1087,6 +1098,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.warn("Failed storing running session", err);
         }
 
+        syncAdminSession(existingProfile);
         setCurrentUser(existingProfile);
         showToast(`Logged in successfully as ${existingProfile.name}!`, "success");
         setLoading(false);
@@ -1102,6 +1114,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (pass !== expectedPassword && pass !== 'test123' && pass !== 'password123') throw new Error("Invalid password credentials.");
         const dummy = await handleSimulatedDemo('admin');
         const customUser: UserProfile = { ...dummy, uid: 'dasun_dularaka', username: 'GA00000001', email: 'dasundularaka@gmail.com', name: 'Dasun Dularaka', role: 'admin' };
+        syncAdminSession(customUser);
         try { localStorage.setItem('local_running_session', safeStringify(customUser)); } catch (err) {}
         setCurrentUser(customUser);
         showToast("Logged in successfully as Dasun Dularaka (Administrator)!", "success");
@@ -1196,7 +1209,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Firebase Auth signOut skipped or offline", e);
     }
     localStorage.removeItem('local_running_session');
+    localStorage.removeItem('local_real_admin_user');
+    localStorage.removeItem('local_view_as_role');
     setCurrentUser(null);
+    setRealAdminUser(null);
+    setViewAsRoleState(null);
     setNotifications([]);
     showToast("Logged out successfully.", "info");
     setLoading(false);
@@ -1210,6 +1227,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const profile = await firestoreService.getUserProfile(dummyId);
     if (profile) {
+      syncAdminSession(profile);
       try {
         localStorage.setItem('local_running_session', safeStringify(profile));
       } catch (err) {
@@ -1320,13 +1338,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createReview,
       updateReviewStatus,
       deleteReview,
-      successStories,
-      refreshSuccessStories,
-      submitSuccessStory,
-      approveSuccessStory,
-      rejectSuccessStory,
-      updateSuccessStory,
-      deleteSuccessStory,
+      realAdminUser,
+      viewAsRole,
+      setViewAsRole,
+      leaveViewAs,
+      isViewAsActive,
       authDomainError,
       clearAuthDomainError,
       bookings,
