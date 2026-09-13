@@ -26,6 +26,8 @@ import { AdminUsersAndApprovals } from '../components/AdminUsersAndApprovals';
 import { AdminDirectMessageModal } from '../components/AdminDirectMessageModal';
 import { AdminMessagingSection } from '../components/AdminMessagingSection';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
+import { OrbitalLoader } from '../components/OrbitalLoader';
+import { auditLogger } from '../lib/auditLogger';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
@@ -718,12 +720,19 @@ export const AdminDashboard: React.FC = () => {
   // Class Enrollment Request Handlers
   const handleApproveEnrollmentRequest = async (bookingId: string) => {
     try {
+      const actingAdmin = currentUser?.name || currentUser?.username || 'Administrator';
       await firestoreService.approveClassEnrollmentRequest(
         bookingId,
         'active',
         'Normal',
-        currentUser?.name || 'Admin'
+        actingAdmin
       );
+      await auditLogger.log({
+        username: actingAdmin,
+        action: 'APPROVE_ENROLLMENT',
+        details: `Approved student class enrollment request #${bookingId}.`,
+        category: 'course',
+      });
       showToast("Student enrollment request successfully approved and activated!", "success");
       await fetchAdminDatasets();
       if (refreshBookings) await refreshBookings();
@@ -735,11 +744,18 @@ export const AdminDashboard: React.FC = () => {
 
   const handleRejectEnrollmentRequest = async (bookingId: string) => {
     try {
+      const actingAdmin = currentUser?.name || currentUser?.username || 'Administrator';
       await firestoreService.rejectClassEnrollmentRequest(
         bookingId,
         'Administrative decision / capacity constraint',
-        currentUser?.name || 'Admin'
+        actingAdmin
       );
+      await auditLogger.log({
+        username: actingAdmin,
+        action: 'REJECT_ENROLLMENT',
+        details: `Declined student class enrollment request #${bookingId}.`,
+        category: 'course',
+      });
       showToast("Student enrollment request declined.", "info");
       await fetchAdminDatasets();
       if (refreshBookings) await refreshBookings();
@@ -809,6 +825,11 @@ export const AdminDashboard: React.FC = () => {
         createdAt: editingBanner ? editingBanner.createdAt : new Date().toISOString()
       };
       await firestoreService.saveBanner(bannerObj);
+      await auditLogger.logBannerChange(
+        currentUser?.name || currentUser?.username || 'Administrator',
+        bannerObj.title || 'Hero Banner',
+        editingBanner ? 'updated' : 'created'
+      );
       showToast(editingBanner ? "Hero banner image updated successfully!" : "New hero banner image published!", "success");
       setBannerModalOpen(false);
       const updated = await firestoreService.getBanners();
@@ -1393,37 +1414,66 @@ export const AdminDashboard: React.FC = () => {
     if (!id) return;
     setDeleteConfirm(prev => ({ ...prev, isDeleting: true }));
     try {
+      const actingAdmin = currentUser?.name || currentUser?.username || 'Administrator';
       if (type === 'student') {
         await firestoreService.deleteUserProfile(id);
         setUsers(prev => prev.filter(u => u.uid !== id));
+        await auditLogger.logUserDeletion(actingAdmin, deleteConfirm.title || id, 'student');
         showToast("Student profile successfully deleted.", "success");
       } else if (type === 'tutor') {
         await firestoreService.deleteUserProfile(id);
         setUsers(prev => prev.filter(u => u.uid !== id));
+        await auditLogger.logUserDeletion(actingAdmin, deleteConfirm.title || id, 'tutor');
         showToast("Tutor faculty profile successfully deleted.", "success");
       } else if (type === 'class') {
         await firestoreService.deleteClass(id);
         setClassesList(prev => prev.filter(c => c.id !== id));
+        await auditLogger.logClassDeleted(actingAdmin, deleteConfirm.title || id);
         showToast("Course curriculum successfully deleted.", "success");
         await refreshClasses();
       } else if (type === 'payment') {
         await firestoreService.deletePayment(id);
         setPaymentsList(prev => prev.filter(p => p.id !== id));
+        await auditLogger.log({
+          username: actingAdmin,
+          action: 'DELETE_PAYMENT',
+          details: `Deleted ledger transaction: "${deleteConfirm.title || id}".`,
+          category: 'payment',
+        });
         showToast("Ledger transaction record deleted successfully.", "success");
       } else if (type === 'review') {
         await deleteReview(id);
+        await auditLogger.log({
+          username: actingAdmin,
+          action: 'DELETE_REVIEW',
+          details: `Purged testimonial review record ID "${id}".`,
+          category: 'course',
+        });
         showToast("Review deleted successfully.", "success");
       } else if (type === 'banner') {
         await firestoreService.deleteBanner(id);
         setBannersList(prev => prev.filter(b => b.id !== id));
+        await auditLogger.logBannerChange(actingAdmin, deleteConfirm.title || id, 'deleted');
         showToast("Hero banner image deleted successfully.", "success");
       } else if (type === 'pathway') {
         await firestoreService.deletePathway(id);
         setPathwaysList(prev => prev.filter(p => p.id !== id));
+        await auditLogger.log({
+          username: actingAdmin,
+          action: 'DELETE_PATHWAY',
+          details: `Removed curriculum pathway "${deleteConfirm.title || id}".`,
+          category: 'course',
+        });
         showToast("Course pathway deleted successfully.", "success");
       } else if (type === 'subject') {
         await firestoreService.deleteSubject(id);
         setSubjectsList(prev => prev.filter(s => s.id !== id));
+        await auditLogger.log({
+          username: actingAdmin,
+          action: 'DELETE_SUBJECT',
+          details: `Deleted academic subject category "${deleteConfirm.title || id}".`,
+          category: 'course',
+        });
         showToast("Subject category removed from database.", "info");
       }
       setDeleteConfirm({ isOpen: false, type: 'student', id: '', title: '', isDeleting: false });
@@ -2292,9 +2342,16 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Dynamic Inner displays */}
         {loading && users.length === 0 ? (
-          <div className="text-center py-20 text-gray-400 text-xs">
-            Querying server administrative clusters...
-          </div>
+          <OrbitalLoader
+            label="Querying server administrative clusters..."
+            sublabel="Synchronizing admin schemas and active database records..."
+            statuses={[
+              "Querying server administrative clusters...",
+              "Auditing permissions and credentials...",
+              "Loading management registries...",
+              "Connecting live ledger nodes..."
+            ]}
+          />
         ) : (
           <div className="animate-fade-in text-xs">
             

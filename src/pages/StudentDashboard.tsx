@@ -21,6 +21,7 @@ import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardMod
 import { DashboardWidgetCustomizer } from '../components/DashboardWidgetCustomizer';
 import { StudentAcademicHistory } from '../components/StudentAcademicHistory';
 import { EducationalNewsWidget } from '../components/EducationalNewsWidget';
+import { OrbitalLoader } from '../components/OrbitalLoader';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   BookOpen, 
@@ -536,25 +537,28 @@ export const StudentDashboard: React.FC = () => {
                 <button 
                   type="button"
                   onClick={() => setIsMobileSidebarOpen(true)}
-                  className="md:hidden text-xs text-indigo-700 dark:text-indigo-300 font-extrabold flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+                  className="md:hidden text-xs text-indigo-700 dark:text-indigo-300 font-extrabold flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 px-3 py-2 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 min-h-[38px] shrink-0 whitespace-nowrap"
                   id="btn_student_mobile_sections"
                   title="Access Student Sections Menu"
                 >
-                  <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Sections
+                  <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>Sections</span>
                 </button>
                 <button 
                   onClick={() => setShowIdCardModal(true)}
-                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-2 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95 min-h-[38px]"
+                  className="text-xs text-white font-black flex items-center gap-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-950 hover:to-indigo-950 px-3.5 py-2 rounded-xl transition-all shadow-sm border border-slate-700/50 cursor-pointer active:scale-95 min-h-[38px] shrink-0 whitespace-nowrap"
                   id="btn_student_view_id_card"
                 >
-                  <Contact2 className="w-3.5 h-3.5 text-amber-400" /> My ID
+                  <Contact2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>My ID</span>
                 </button>
                 <button 
                   onClick={() => setShowQrModal(true)}
-                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+                  className="text-xs text-indigo-700 font-bold flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95 min-h-[38px] shrink-0 whitespace-nowrap"
                   id="btn_student_view_my_qr"
                 >
-                  <QrCode className="w-3.5 h-3.5 text-indigo-600" /> QR Pass
+                  <QrCode className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>QR Pass</span>
                 </button>
               </div>
             </div>
@@ -711,9 +715,16 @@ export const StudentDashboard: React.FC = () => {
 
         {/* Dynamic Display boards */}
         {loading ? (
-          <div className="text-center py-20 text-gray-400 text-sm">
-            Synchronizing student dashboard states...
-          </div>
+          <OrbitalLoader
+            label="Synchronizing student dashboard states..."
+            sublabel="Preparing schedule, enrolled classes and study progress..."
+            statuses={[
+              "Synchronizing student dashboard states...",
+              "Auditing enrolled subjects...",
+              "Organizing class timetables...",
+              "Loading interactive resources..."
+            ]}
+          />
         ) : (
           <div className="space-y-8">
             

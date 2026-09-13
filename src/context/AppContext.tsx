@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { firestoreService, safeStringify } from '../lib/firestoreService';
+import { auditLogger } from '../lib/auditLogger';
 import { genericFirestoreService } from '../lib/genericFirestore';
 import { checkAndMarkAutoAbsentStudents } from '../lib/classScheduleUtils';
 import { start24HourClassReminderCronInterval, stop24HourClassReminderCronInterval } from '../lib/classReminderCronTrigger';
@@ -575,6 +576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (_) {}
     }
 
+    const previousRole = viewAsRole || 'admin';
     const targetRole = role || 'admin';
     setViewAsRoleState(targetRole === 'admin' ? null : targetRole);
 
@@ -584,11 +586,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem('local_running_session', safeStringify(admin));
       } catch (_) {}
+      auditLogger.logViewAsSession(admin.name || admin.username, previousRole, 'exited');
       showToast("Returned to Administrator view.", "success");
     } else if (targetRole === 'guest') {
       localStorage.setItem('local_view_as_role', 'guest');
       setCurrentUser(null);
       localStorage.removeItem('local_running_session');
+      auditLogger.logViewAsSession(admin.name || admin.username, 'guest', 'entered');
       showToast("Viewing system as Guest (Visitor mode). Click 'Leave' at top to return.", "info");
     } else if (targetRole === 'tutor') {
       localStorage.setItem('local_view_as_role', 'tutor');
@@ -609,6 +613,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem('local_running_session', safeStringify(tutorPersona));
       } catch (_) {}
+      auditLogger.logViewAsSession(admin.name || admin.username, 'tutor', 'entered');
       showToast("Viewing system as Faculty Tutor.", "info");
     } else if (targetRole === 'student') {
       localStorage.setItem('local_view_as_role', 'student');
@@ -627,6 +632,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem('local_running_session', safeStringify(studentPersona));
       } catch (_) {}
+      auditLogger.logViewAsSession(admin.name || admin.username, 'student', 'entered');
       showToast("Viewing system as Scholar Student.", "info");
     }
   };
@@ -641,6 +647,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (admin) {
       setViewAsRole('admin');
+    } else {
+      localStorage.removeItem('local_view_as_role');
+      setViewAsRoleState(null);
+      showToast("Reset view to default.", "info");
     }
   };
 

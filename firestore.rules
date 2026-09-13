@@ -169,6 +169,9 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read, write: if true;
     }
+    match /auditLogs/{logId} {
+      allow read, write: if true;
+    }
 
     // System Settings & Email Outbox
     match /system_settings/{settingId} {

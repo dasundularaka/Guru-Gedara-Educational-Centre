@@ -15,6 +15,7 @@ import { ChatWidget } from '../components/ChatWidget';
 import { ClassProfileModal } from '../components/ClassProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { ResourceEmbedViewerModal } from '../components/ResourceEmbedViewerModal';
+import { OrbitalLoader } from '../components/OrbitalLoader';
 import { 
   Users, 
   Calendar, 
@@ -1208,24 +1209,26 @@ export const TutorDashboard: React.FC = () => {
             </div>
 
             {/* Class Creator trigger, QR Pass Trigger & Faculty ID Card */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 max-w-full">
               {/* Dedicated Mobile Section View Icon Trigger */}
               <button
                 id="tutor_btn_mobile_sections"
                 type="button"
                 onClick={() => setIsMobileSidebarOpen(true)}
-                className="md:hidden px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 min-h-[38px]"
+                className="md:hidden px-3 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 min-h-[38px] shrink-0 whitespace-nowrap"
                 title="Access Faculty Sections Menu"
               >
-                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Sections
+                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>Sections</span>
               </button>
               <button
                 id="tutor_btn_id_card"
                 onClick={() => setShowIdCardModal(true)}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-100 cursor-pointer"
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
                 title="View, print and export official Faculty Digital ID Card"
               >
-                <BadgeCheck className="w-4 h-4" /> Faculty ID Card
+                <Contact2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Faculty ID</span>
               </button>
               <button
                 id="tutor_btn_launch_class"
@@ -1238,25 +1241,19 @@ export const TutorDashboard: React.FC = () => {
                   setNewLimit("15");
                   setShowAddClass(true);
                 }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer"
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-100 cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <Plus className="w-4 h-4" /> Launch Tuition Class
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>Launch Class</span>
               </button>
               <button
                 id="tutor_btn_launch_qr_pass"
                 onClick={() => setShowQrModal(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer"
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-100 cursor-pointer shrink-0 whitespace-nowrap"
                 title="Display live QR Code for class attendance check-ins"
               >
-                <QrCode className="w-4 h-4" /> Live Session QR Code
-              </button>
-              <button
-                id="tutor_btn_my_id"
-                onClick={() => setShowIdCardModal(true)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
-                title="Display digital faculty ID pass"
-              >
-                <Contact2 className="w-4 h-4 text-amber-400" /> My ID
+                <QrCode className="w-4 h-4 shrink-0" />
+                <span>Live QR Code</span>
               </button>
             </div>
 
@@ -1385,9 +1382,16 @@ export const TutorDashboard: React.FC = () => {
 
         {/* Dynamic Screens */}
         {loading ? (
-          <div className="text-center py-20 text-gray-400 text-sm">
-            Fetching faculty dashboard parameters...
-          </div>
+          <OrbitalLoader
+            label="Fetching faculty dashboard parameters..."
+            sublabel="Loading classes, attendance registries and study resources..."
+            statuses={[
+              "Fetching faculty dashboard parameters...",
+              "Auditing curriculum slots...",
+              "Synchronizing attendance registries...",
+              "Connecting live classroom feeds..."
+            ]}
+          />
         ) : (
           <div className="space-y-8 animate-fade-in">
             

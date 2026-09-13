@@ -484,33 +484,33 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   return (
     <>
       <nav className="bg-white/80 dark:bg-slate-100/85 backdrop-blur-md border-b border-slate-250 dark:border-slate-200/50 sticky top-0 z-50 shadow-[0_1px_2px_rgba(0,0,0,0.01)]" id="main_navigation">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16 gap-2">
+          <div className="flex items-center min-w-0">
             {/* Logo */}
             <div 
-              className="flex-shrink-0 flex items-center gap-2.5 cursor-pointer" 
+              className="flex-shrink-0 flex items-center gap-2 cursor-pointer select-none" 
               onClick={() => onChangeTab('home')}
               id="brand_logo"
             >
-              <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center text-white font-extrabold shadow-sm">
-                <BookOpen className="w-4.5 h-4.5 text-indigo-400" />
+              <div className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-slate-900 flex items-center justify-center text-white font-extrabold shadow-sm shrink-0">
+                <BookOpen className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-400" />
               </div>
-              <div>
-                <span className="text-sm font-extrabold font-sans tracking-tight text-slate-900 block leading-tight">
+              <div className="min-w-0">
+                <span className="text-sm font-extrabold font-sans tracking-tight text-slate-900 block leading-tight truncate">
                   Guru<span className="text-indigo-600">Gedara</span>
                 </span>
-                <span className="text-[9px] font-mono font-semibold text-slate-400 uppercase tracking-widest block leading-none mt-0.5">
+                <span className="hidden sm:block text-[9px] font-mono font-semibold text-slate-400 uppercase tracking-widest leading-none mt-0.5 truncate">
                   Educational Centre
                 </span>
               </div>
             </div>
 
             {/* Desktop Nav Links */}
-            <div className="hidden md:flex md:ml-10 md:space-x-2">
+            <div className="hidden md:flex md:ml-4 lg:ml-8 items-center space-x-1 lg:space-x-2 shrink min-w-0">
               <button
                 onClick={() => onChangeTab('home')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   currentTab === 'home' 
                     ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
@@ -523,7 +523,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 <>
                   <button
                     onClick={() => onChangeTab('classes')}
-                    className={`relative px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`relative px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                       currentTab === 'classes' 
                         ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
@@ -533,13 +533,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                     <span>Classes</span>
                     {unviewedStudyMaterials.length > 0 && currentUser?.role === 'student' && (
                       <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-black bg-indigo-600 text-white rounded-full animate-pulse shadow-2xs">
-                        {unviewedStudyMaterials.length} new
+                        {unviewedStudyMaterials.length}
                       </span>
                     )}
                   </button>
                   <button
                     onClick={() => onChangeTab('tutors')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                       currentTab === 'tutors' 
                         ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
@@ -555,15 +555,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               {currentUser && (currentUser.role === 'student' || currentUser.role === 'tutor' || currentUser.role === 'admin') && (
                 <button
                   onClick={() => onChangeTab('announcements')}
-                  className={`relative px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`relative px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                     currentTab === 'announcements' 
                       ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                   }`}
                   id="tab_announcements_btn"
                 >
-                  <Megaphone className="w-3.5 h-3.5" />
-                  <span>Announcements</span>
+                  <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden xl:inline">Announcements</span>
+                  <span className="xl:hidden">Alerts</span>
                   {userAudienceAnnouncements.length > 0 && (
                     <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-black bg-indigo-600 text-white rounded-full">
                       {userAudienceAnnouncements.length}
@@ -869,21 +870,21 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
                 {/* Admin View As switcher in desktop header */}
                 {canViewAs && (
-                  <div className="relative flex items-center gap-2 mr-2" ref={viewAsContainerRef}>
+                  <div className="relative flex items-center gap-1.5 shrink-0" ref={viewAsContainerRef}>
                     {isViewAsActive && (
                       <button
                         onClick={handleLeaveViewAs}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                        className="px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm whitespace-nowrap shrink-0"
                         title="Leave preview and return to Administrator view"
                         id="nav_leave_view_as_btn"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                         <span>Leave</span>
                       </button>
                     )}
                     <button
                       onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                      className={`px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         isViewAsActive
                           ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs'
                           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
@@ -891,27 +892,31 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                       id="nav_view_as_dropdown_btn"
                       title="Preview system as different roles"
                     >
-                      <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                       <span>View as: <strong className="capitalize">{activeRoleDisplay}</strong></span>
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showViewAsDropdown ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform shrink-0 ${showViewAsDropdown ? 'rotate-180' : ''}`} />
                     </button>
                     {renderViewAsMenu()}
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 pl-2 border-l border-gray-100">
-                  <div className="text-right">
+                <div className="flex items-center gap-2 lg:gap-3 pl-2 border-l border-gray-100 shrink-0">
+                  <div className="text-right shrink min-w-0 max-w-[110px] lg:max-w-[150px]">
                     <div className="flex items-center justify-end gap-1.5">
-                      <span className="block text-sm font-bold text-gray-800 leading-tight">{currentUser.name}</span>
-                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-wider">Me</span>
+                      <span className="block text-xs lg:text-sm font-bold text-gray-800 leading-tight truncate" title={currentUser.name}>
+                        {currentUser.name}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-wider shrink-0">
+                        Me
+                      </span>
                     </div>
-                    <span className="block">{getRoleBadge(currentUser.role)}</span>
+                    <span className="block shrink-0">{getRoleBadge(currentUser.role)}</span>
                   </div>
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     {currentUser.photoURL ? (
                       <img 
                         referrerPolicy="no-referrer"
-                        className="h-9 w-9 rounded-full object-cover ring-2 ring-blue-100 cursor-pointer hover:scale-105 transition-transform" 
+                        className="h-8.5 w-8.5 lg:h-9 lg:w-9 rounded-full object-cover ring-2 ring-blue-100 cursor-pointer hover:scale-105 transition-transform shrink-0" 
                         src={currentUser.photoURL} 
                         alt={currentUser.name} 
                         onClick={() => setShowProfileDetails(true)}
@@ -919,11 +924,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                       />
                     ) : (
                       <div 
-                        className="h-9 w-9 bg-blue-100 text-blue-700 flex items-center justify-center font-bold rounded-full border border-blue-200 cursor-pointer hover:bg-blue-250 transition-colors"
+                        className="h-8.5 w-8.5 lg:h-9 lg:w-9 bg-blue-100 text-blue-700 flex items-center justify-center font-bold rounded-full border border-blue-200 cursor-pointer hover:bg-blue-250 transition-colors shrink-0"
                         onClick={() => setShowProfileDetails(true)}
                         title="View Profile (Me)"
                       >
-                        <User className="w-5 h-5" />
+                        <User className="w-4.5 h-4.5 lg:w-5 lg:h-5 shrink-0" />
                       </div>
                     )}
                     <span className="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-[8px] font-black px-1 rounded-full ring-1 ring-white shadow-xs">
@@ -932,32 +937,32 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                   </div>
                   <button
                     onClick={() => setShowLogoutConfirm(true)}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
                     title="Log Out"
                     id="nav_logout_btn"
                   >
-                    <LogOut className="w-5 h-5" />
+                    <LogOut className="w-5 h-5 shrink-0" />
                   </button>
                 </div>
               </>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {canViewAs && (
-                  <div className="relative flex items-center gap-2" ref={viewAsContainerRef}>
+                  <div className="relative flex items-center gap-2 shrink-0" ref={viewAsContainerRef}>
                     {isViewAsActive && (
                       <button
                         onClick={handleLeaveViewAs}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                        className="px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm whitespace-nowrap shrink-0"
                         title="Leave preview and return to Administrator view"
                         id="nav_leave_view_as_btn"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                         <span>Leave</span>
                       </button>
                     )}
                     <button
                       onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                      className={`px-2.5 lg:px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         isViewAsActive
                           ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs'
                           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
@@ -965,45 +970,45 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                       id="nav_view_as_dropdown_btn"
                       title="Preview system as different roles"
                     >
-                      <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                       <span>View as: <strong className="capitalize">{activeRoleDisplay}</strong></span>
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showViewAsDropdown ? 'rotate-180' : ''}`} />
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform shrink-0 ${showViewAsDropdown ? 'rotate-180' : ''}`} />
                     </button>
                     {renderViewAsMenu()}
                   </div>
                 )}
                 <button
                   onClick={() => onChangeTab('auth')}
-                  className="inline-flex items-center justify-center px-4.5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md hover:shadow-lg transition-all cursor-pointer gap-1.5"
+                  className="inline-flex items-center justify-center px-3.5 lg:px-4.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md hover:shadow-lg transition-all cursor-pointer gap-1.5 whitespace-nowrap shrink-0"
                   id="nav_login_btn"
                 >
-                  <User className="w-3.5 h-3.5" /> Sign In / Enroll
+                  <User className="w-3.5 h-3.5 shrink-0" /> Sign In / Enroll
                 </button>
               </div>
             )}
           </div>
 
           {/* Mobile actions (Header top-right) */}
-          <div className="flex md:hidden items-center gap-1.5 sm:gap-2">
+          <div className="flex md:hidden items-center gap-1 sm:gap-1.5 shrink-0">
             {currentUser ? (
               <>
                 {/* Admin View As in mobile header */}
                 {canViewAs && (
-                  <div className="relative flex items-center gap-1.5" ref={mobileViewAsContainerRef}>
+                  <div className="relative flex items-center gap-1 shrink-0" ref={mobileViewAsContainerRef}>
                     {isViewAsActive && (
                       <button
                         onClick={handleLeaveViewAs}
-                        className="px-2.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm min-h-[44px] cursor-pointer"
+                        className="px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-[11px] flex items-center gap-1 shadow-sm min-h-[36px] cursor-pointer whitespace-nowrap shrink-0"
                         id="mobile_leave_view_as_btn"
                         title="Leave View As and return to Admin"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
+                        <RotateCcw className="w-3 h-3 shrink-0" />
                         <span>Leave</span>
                       </button>
                     )}
                     <button
                       onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
-                      className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 border min-h-[44px] cursor-pointer ${
+                      className={`px-2 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 border min-h-[36px] cursor-pointer whitespace-nowrap shrink-0 ${
                         isViewAsActive 
                           ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200' 
                           : 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
@@ -1011,28 +1016,28 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                       id="mobile_view_as_btn"
                       title="View system as different roles"
                     >
-                      <Eye className="w-3.5 h-3.5" />
+                      <Eye className="w-3 h-3 shrink-0" />
                       <span className="capitalize">{activeRoleDisplay}</span>
-                      <ChevronDown className="w-3 h-3" />
+                      <ChevronDown className="w-2.5 h-2.5 shrink-0" />
                     </button>
                     {renderViewAsMenu()}
                   </div>
                 )}
 
                 {/* Notification Bell for Logged-In User */}
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     onClick={() => {
                       setShowNotifications(!showNotifications);
                       setShowSettings(false);
                     }}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700 cursor-pointer relative min-h-[44px] min-w-[44px]"
+                    className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700 cursor-pointer relative min-h-[34px] min-w-[34px] sm:min-h-[36px] sm:min-w-[36px] shrink-0"
                     id="mobile_notifications_bell_btn"
                     title="Notifications"
                   >
-                    <Bell className="w-4.5 h-4.5" />
+                    <Bell className="w-4 h-4 shrink-0" />
                     {unreadCount > 0 && (
-                      <span className="absolute 1 -top-0.5 -right-0.5 block h-4 w-4 rounded-full bg-red-500 text-[9px] font-extrabold text-white text-center leading-4 ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                      <span className="absolute -top-0.5 -right-0.5 block h-3.5 w-3.5 rounded-full bg-red-500 text-[8px] font-extrabold text-white text-center leading-3.5 ring-2 ring-white dark:ring-slate-900 animate-pulse">
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                     )}
@@ -1042,11 +1047,11 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 {/* Mobile Top Right Logout Button replacing profile photo */}
                 <button
                   onClick={() => setShowLogoutConfirm(true)}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-900/50 transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+                  className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 border border-red-200 dark:border-red-900/50 transition-colors cursor-pointer min-h-[34px] min-w-[34px] sm:min-h-[36px] sm:min-w-[36px] shrink-0"
                   title="Sign Out / Log Out"
                   id="mobile_header_logout_btn"
                 >
-                  <LogOut className="w-4.5 h-4.5" />
+                  <LogOut className="w-4 h-4 shrink-0" />
                 </button>
               </>
             ) : (

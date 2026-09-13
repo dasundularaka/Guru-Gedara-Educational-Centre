@@ -3139,7 +3139,10 @@ const firestoreServiceRaw = {
     };
     if (isUsingCloud) {
       try {
-        await setDoc(doc(db, 'auditLogs', newLog.id), newLog);
+        await Promise.allSettled([
+          setDoc(doc(db, 'auditLogs', newLog.id), newLog),
+          setDoc(doc(db, 'audit_logs', newLog.id), newLog)
+        ]);
       } catch (e) {
         console.warn("Failed writing audit log online", e);
       }
