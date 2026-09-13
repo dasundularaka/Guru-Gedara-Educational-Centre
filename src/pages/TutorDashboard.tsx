@@ -98,7 +98,8 @@ export const TutorDashboard: React.FC = () => {
     refreshBookings,
     notifications,
     refreshNotifications,
-    executeWriteWithRetry
+    executeWriteWithRetry,
+    isViewAsActive
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
@@ -302,9 +303,14 @@ export const TutorDashboard: React.FC = () => {
   const computeTutorData = (usersList: UserProfile[] = allStudents) => {
     if (!currentUser) return { matchedClasses: [], matchedBookings: [] };
 
-    const matchedClasses = classes.filter(c => 
+    let matchedClasses = classes.filter(c => 
       isTutorMatch(c.tutorId, c.tutorName, (c as any).tutorEmail)
     );
+
+    // If previewing as tutor and admin persona has no specific classes assigned, preview available classes
+    if (matchedClasses.length === 0 && isViewAsActive && classes.length > 0) {
+      matchedClasses = classes;
+    }
 
     const tutorClassIds = new Set(matchedClasses.map(c => c.id));
 
@@ -399,8 +405,14 @@ export const TutorDashboard: React.FC = () => {
     try {
       const records = await firestoreService.getAttendance();
       // Only keep records of classes belonging to this tutor
-      const tutorClassIds = classes.filter(c => c.tutorId === currentUser.uid).map(c => c.id);
-      const filtered = records.filter(r => tutorClassIds.includes(r.classId));
+      let tutorClassIds = classes.filter(c => c.tutorId === currentUser.uid).map(c => c.id);
+      if (tutorClassIds.length === 0 && isViewAsActive && classes.length > 0) {
+        tutorClassIds = classes.map(c => c.id);
+      }
+      let filtered = records.filter(r => tutorClassIds.includes(r.classId));
+      if (filtered.length === 0 && isViewAsActive && records.length > 0) {
+        filtered = records.slice(0, 15);
+      }
       setAttendanceRecords(filtered);
     } catch (e) {
       console.warn("Failed to load attendance records", e);
@@ -420,8 +432,14 @@ export const TutorDashboard: React.FC = () => {
     setLoadingMaterials(true);
     try {
       const list = await firestoreService.getStudyMaterials();
-      const tutorClassIds = classes.filter(c => c.tutorId === currentUser.uid).map(c => c.id);
-      const filtered = list.filter(m => m.tutorId === currentUser.uid || (m.classId && tutorClassIds.includes(m.classId)));
+      let tutorClassIds = classes.filter(c => c.tutorId === currentUser.uid).map(c => c.id);
+      if (tutorClassIds.length === 0 && isViewAsActive && classes.length > 0) {
+        tutorClassIds = classes.map(c => c.id);
+      }
+      let filtered = list.filter(m => m.tutorId === currentUser.uid || (m.classId && tutorClassIds.includes(m.classId)));
+      if (filtered.length === 0 && isViewAsActive && list.length > 0) {
+        filtered = list;
+      }
       setTutorMaterials(filtered);
     } catch (e) {
       console.warn("Failed loading tutor study materials", e);

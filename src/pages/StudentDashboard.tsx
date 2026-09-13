@@ -74,7 +74,8 @@ export const StudentDashboard: React.FC = () => {
     refreshBookings,
     refreshPayments,
     reviews,
-    executeWriteWithRetry
+    executeWriteWithRetry,
+    isViewAsActive
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
   const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'history' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
@@ -272,10 +273,13 @@ export const StudentDashboard: React.FC = () => {
     if (!currentUser) return;
     try {
       const records = await firestoreService.getAttendance();
-      const matched = records.filter(r => 
+      let matched = records.filter(r => 
         isStudentMatch(r.studentId, (r as any).studentEmail) ||
         (r.studentName && currentUser.name && r.studentName.toLowerCase() === currentUser.name.toLowerCase())
       );
+      if (matched.length === 0 && isViewAsActive && records.length > 0) {
+        matched = records.slice(0, 10);
+      }
       setAttendanceRecords(matched);
     } catch (e) {
       console.warn("Failed loading student attendance records", e);
@@ -317,7 +321,10 @@ export const StudentDashboard: React.FC = () => {
     });
 
     // 2. Synthesize enrollment records from selectedClasses
-    const enrolledClassIds = (currentUser.selectedClasses || []).filter(cId => !cancelledClassIds.has(cId));
+    let enrolledClassIds = (currentUser.selectedClasses || []).filter(cId => !cancelledClassIds.has(cId));
+    if (enrolledClassIds.length === 0 && isViewAsActive && classes.length > 0) {
+      enrolledClassIds = classes.map(c => c.id);
+    }
     enrolledClassIds.forEach(cId => {
       if (!classIdToBookingMap.has(cId)) {
         const cls = classes.find(c => c.id === cId);

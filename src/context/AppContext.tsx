@@ -556,7 +556,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // "View As" system impersonation for administrators
   const setViewAsRole = (role: ViewAsRole | null) => {
-    const admin = realAdminUser || (currentUser?.role === 'admin' ? currentUser : null);
+    let admin = realAdminUser || (currentUser?.role === 'admin' ? currentUser : null);
+    if (!admin) {
+      const cached = localStorage.getItem('local_real_admin_user');
+      if (cached) {
+        try { admin = JSON.parse(cached); } catch (_) {}
+      }
+    }
     if (!admin) {
       showToast("View-as mode is only available for system administrators.", "warning");
       return;
@@ -610,6 +616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...admin,
         role: 'student',
         name: admin.name ? `${admin.name} (Student View)` : 'Scholar Student (Preview)',
+        selectedClasses: classes.map(c => c.id),
         studentDetails: {
           grade: '12',
           school: 'Royal College',
@@ -625,7 +632,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const leaveViewAs = () => {
-    if (realAdminUser) {
+    let admin = realAdminUser;
+    if (!admin) {
+      const cached = localStorage.getItem('local_real_admin_user');
+      if (cached) {
+        try { admin = JSON.parse(cached); } catch (_) {}
+      }
+    }
+    if (admin) {
       setViewAsRole('admin');
     }
   };

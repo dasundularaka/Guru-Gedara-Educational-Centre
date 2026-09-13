@@ -77,17 +77,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const viewAsContainerRef = React.useRef<HTMLDivElement>(null);
   const mobileViewAsContainerRef = React.useRef<HTMLDivElement>(null);
 
-  const canViewAs = Boolean(realAdminUser || currentUser?.role === 'admin');
+  const canViewAs = Boolean(
+    currentUser?.role === 'admin' || 
+    (realAdminUser && isViewAsActive)
+  );
   const activeRoleDisplay: ViewAsRole = (viewAsRole || (currentUser ? currentUser.role as ViewAsRole : 'guest'));
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        viewAsContainerRef.current && 
-        !viewAsContainerRef.current.contains(e.target as Node) &&
-        mobileViewAsContainerRef.current &&
-        !mobileViewAsContainerRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as Node;
+      const insideDesktop = viewAsContainerRef.current?.contains(target);
+      const insideMobile = mobileViewAsContainerRef.current?.contains(target);
+      if (!insideDesktop && !insideMobile) {
         setShowViewAsDropdown(false);
       }
     };
@@ -102,17 +103,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const handleSelectViewAs = (role: ViewAsRole) => {
     setShowViewAsDropdown(false);
     setViewAsRole(role);
-    if (role === 'admin' || role === 'tutor' || role === 'student') {
-      onChangeTab('dashboard');
-    } else if (role === 'guest') {
-      onChangeTab('home');
-    }
+    onChangeTab('home');
   };
 
   const handleLeaveViewAs = () => {
     setShowViewAsDropdown(false);
     leaveViewAs();
-    onChangeTab('dashboard');
+    onChangeTab('home');
   };
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
@@ -407,7 +404,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
     return (
       <div 
-        className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-[9999] overflow-hidden text-left"
+        className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-[9999] overflow-hidden text-left"
       >
         <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
@@ -1055,8 +1052,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             ) : (
               /* If Not Logged In */
               canViewAs ? (
-                /* In mobile view, replace sign in button from view as button top right corner. If used that button, show leave button to return. */
-                <div className="flex items-center gap-1.5" ref={mobileViewAsContainerRef}>
+                /* In mobile view, if viewing as guest/other simulated role, show leave and role switcher */
+                <div className="relative flex items-center gap-1.5" ref={mobileViewAsContainerRef}>
                   <button
                     onClick={handleLeaveViewAs}
                     className="px-2.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs flex items-center gap-1 shadow-sm min-h-[44px] cursor-pointer"
@@ -1066,22 +1063,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Leave</span>
                   </button>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
-                      className="px-3 py-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 font-bold rounded-xl text-xs flex items-center gap-1.5 min-h-[44px] cursor-pointer"
-                      id="mobile_view_as_btn"
-                      title="View system as different roles"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Guest</span>
-                      <ChevronDown className="w-3 h-3" />
-                    </button>
-                    {renderViewAsMenu()}
-                  </div>
+                  <button
+                    onClick={() => setShowViewAsDropdown(!showViewAsDropdown)}
+                    className="px-3 py-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 font-bold rounded-xl text-xs flex items-center gap-1.5 min-h-[44px] cursor-pointer"
+                    id="mobile_view_as_btn"
+                    title="View system as different roles"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span className="capitalize">{activeRoleDisplay}</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {renderViewAsMenu()}
                 </div>
               ) : (
-                /* And also, don't show that view as button in guest mode(before login). */
+                /* In guest mode (before login), do not show view as button; show Sign In */
                 <button
                   onClick={() => onChangeTab('auth')}
                   className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm min-h-[44px] cursor-pointer"
