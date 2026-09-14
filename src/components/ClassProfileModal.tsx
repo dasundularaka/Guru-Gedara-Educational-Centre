@@ -38,7 +38,8 @@ import {
   CalendarCheck,
   Clock3,
   Maximize2,
-  Minimize2
+  Minimize2,
+  FileQuestion
 } from 'lucide-react';
 import { ClassItem, Booking, UserProfile, Payment, StudyMaterial, AttendanceRecord, ResourceType } from '../types';
 import { firestoreService } from '../lib/firestoreService';
@@ -47,6 +48,7 @@ import { calculateStudentPunctuality } from '../lib/punctualityUtils';
 import { StudentProfileModal } from './StudentProfileModal';
 import { AddStudentToClassModal } from './AddStudentToClassModal';
 import { ResourceEmbedViewerModal } from './ResourceEmbedViewerModal';
+import { QuizListSection } from './QuizListSection';
 import { checkClassAvailability, getTutorAvailabilitySummary, checkTutorAvailability } from '../utils/tutorAvailability';
 import { canUserViewStudyResource, canUserManageStudyResource } from '../utils/accessControl';
 import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
@@ -101,7 +103,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   const canViewMaterials = isAdmin || isRelevantTutor || isEnrolledStudent;
   const canManageMaterials = isAdmin || isRelevantTutor;
 
-  const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'attendance' | 'availability'>(isTutorOrAdmin ? 'roster' : 'materials');
+  const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'quizzes' | 'attendance' | 'availability'>(isTutorOrAdmin ? 'roster' : 'materials');
 
   // Roster Filter & Bulk Selection State
   const [searchQuery, setSearchQuery] = useState('');
@@ -588,6 +590,17 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                 id="tab_class_materials"
               >
                 <BookOpen className="w-4 h-4" /> Course Materials ({materials.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('quizzes')}
+                className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                  activeTab === 'quizzes' 
+                    ? 'bg-slate-900 text-white shadow-xs' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+                id="tab_class_quizzes"
+              >
+                <FileQuestion className="w-4 h-4 text-violet-500" /> Quizzes & Tests
               </button>
               <button
                 onClick={() => setActiveTab('attendance')}
@@ -1315,6 +1328,13 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                 )}
                   </>
                 )}
+              </div>
+            )}
+
+            {/* TAB: QUIZZES & ASSESSMENTS */}
+            {activeTab === 'quizzes' && (
+              <div className="space-y-4">
+                <QuizListSection classId={classItem?.id} showCreateButton={isTutorOrAdmin} />
               </div>
             )}
 

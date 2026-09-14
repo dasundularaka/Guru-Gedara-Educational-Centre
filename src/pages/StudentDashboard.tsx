@@ -52,11 +52,13 @@ import {
   GraduationCap,
   Layers,
   Award,
-  Contact2
+  Contact2,
+  FileQuestion
 } from 'lucide-react';
 import { UserNotificationSettingsPanel } from '../components/UserNotificationSettingsPanel';
 import { emailNotificationService } from '../lib/emailNotificationService';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
+import { QuizListSection } from '../components/QuizListSection';
 
 export const StudentDashboard: React.FC = () => {
   const { 
@@ -79,7 +81,7 @@ export const StudentDashboard: React.FC = () => {
     isViewAsActive
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'history' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'classes' | 'history' | 'quizzes' | 'chat' | 'notifications' | 'performance' | 'roadmap' | 'payments'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
@@ -569,6 +571,7 @@ export const StudentDashboard: React.FC = () => {
             const studentSectionItems: SectionSidebarItem[] = [
               { id: 'schedule', label: 'Timetable & Calendar', icon: <Calendar className="w-4 h-4 text-indigo-500" />, description: 'Your class schedules' },
               { id: 'classes', label: 'Enrolled Classes', icon: <BookOpen className="w-4 h-4 text-blue-500" />, description: 'Class roster & learning materials' },
+              { id: 'quizzes', label: 'Quizzes & Tests', icon: <FileQuestion className="w-4 h-4 text-violet-500" />, description: 'Take online tests & review scores' },
               { id: 'history', label: 'Academic Course History', icon: <Award className="w-4 h-4 text-amber-500" />, description: 'Past & active enrolled class records' },
               { id: 'payments', label: 'Payment Receipts', icon: <FileText className="w-4 h-4 text-emerald-500" />, description: 'Invoices & slips' },
               { id: 'performance', label: 'Progress & Attendance', icon: <TrendingUp className="w-4 h-4 text-amber-500" />, description: 'Marks & attendance history' },
@@ -603,6 +606,7 @@ export const StudentDashboard: React.FC = () => {
                       <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
                         {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
                         {activeSubTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                        {activeSubTab === 'quizzes' && <FileQuestion className="w-4 h-4" />}
                         {activeSubTab === 'history' && <Award className="w-4 h-4" />}
                         {activeSubTab === 'payments' && <FileText className="w-4 h-4" />}
                         {activeSubTab === 'performance' && <TrendingUp className="w-4 h-4" />}
@@ -613,6 +617,7 @@ export const StudentDashboard: React.FC = () => {
                       <span className="capitalize">
                         {activeSubTab === 'schedule' && 'Timetable'}
                         {activeSubTab === 'classes' && 'Enrolled Classes'}
+                        {activeSubTab === 'quizzes' && 'Quizzes & Tests'}
                         {activeSubTab === 'history' && 'Course History'}
                         {activeSubTab === 'payments' && 'Payments'}
                         {activeSubTab === 'performance' && 'Progress & Attendance'}
@@ -670,6 +675,7 @@ export const StudentDashboard: React.FC = () => {
           {[
             { id: 'schedule', label: 'Timetable', icon: <Calendar className="w-3.5 h-3.5" /> },
             { id: 'classes', label: 'Classes', icon: <BookOpen className="w-3.5 h-3.5" /> },
+            { id: 'quizzes', label: 'Quizzes', icon: <FileQuestion className="w-3.5 h-3.5" /> },
             { id: 'history', label: 'History', icon: <Award className="w-3.5 h-3.5" /> },
             { id: 'payments', label: 'Payments', icon: <FileText className="w-3.5 h-3.5" /> },
             { id: 'performance', label: 'Progress', icon: <TrendingUp className="w-3.5 h-3.5" /> },
@@ -897,6 +903,18 @@ export const StudentDashboard: React.FC = () => {
                   </div>
                 </div>
 
+              </motion.div>
+            )}
+
+            {/* Online Quizzes and Test Assessments Tab */}
+            {activeSubTab === 'quizzes' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200 dark:border-slate-800"
+              >
+                <QuizListSection showCreateButton={false} />
               </motion.div>
             )}
 

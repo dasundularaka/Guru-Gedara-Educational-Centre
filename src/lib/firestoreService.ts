@@ -20,7 +20,7 @@ import { db, auth, storage, firebaseConfig } from './firebase';
 import { binaryStore } from './binaryStore';
 import { optimizeImage } from './imageOptimizer';
 import { emailNotificationService } from './emailNotificationService';
-import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, ChatAttachment, ChatTypingStatus, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType } from '../types';
+import { ClassItem, UserProfile, Booking, Payment, NotificationItem, DirectMessage, ChatAttachment, ChatTypingStatus, Review, AttendanceRecord, AuditLog, BannerImage, PathwayItem, SubjectItem, StudyMaterial, ResourceType, AdmissionFeeConfig, AdmissionFeeHistoryItem, Announcement, AnnouncementPriority, AnnouncementTargetType, Quiz, QuizQuestion, QuizSubmission } from '../types';
 import { 
   INITIAL_CLASSES, 
   INITIAL_TUTORS, 
@@ -29,7 +29,9 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_MESSAGES,
   INITIAL_REVIEWS,
-  INITIAL_ANNOUNCEMENTS
+  INITIAL_ANNOUNCEMENTS,
+  INITIAL_QUIZZES,
+  INITIAL_QUIZ_SUBMISSIONS
 } from '../data/mockData';
 
 export const INITIAL_ADMISSION_FEE_CONFIG: AdmissionFeeConfig = {
@@ -1199,6 +1201,22 @@ const firestoreServiceRaw = {
       details: `Created new course "${newItem.title}" (${newItem.schedule}) by ${newItem.tutorName}`
     });
 
+    // Broadcast in-app alert for all students with deep-linking payload
+    try {
+      await this.triggerNotification(
+        'all',
+        `New Class Added: ${newItem.title}`,
+        `${newItem.tutorName} just opened enrollment for ${newItem.title} (${newItem.schedule}). Tap to view full syllabus and enroll.`,
+        'announcement',
+        {
+          classId: newItem.id,
+          targetType: 'class',
+          targetId: newItem.id,
+          link: `class:${newItem.id}`
+        }
+      );
+    } catch (_) {}
+
     return newItem;
   },
 
@@ -2238,7 +2256,19 @@ const firestoreServiceRaw = {
     return mergedList.filter(n => n.userId === userId || n.userId === 'all');
   },
 
-  async triggerNotification(userId: string, title: string, message: string, type: 'reminder' | 'payment' | 'announcement' | 'message'): Promise<NotificationItem> {
+  async triggerNotification(
+    userId: string, 
+    title: string, 
+    message: string, 
+    type: 'reminder' | 'payment' | 'announcement' | 'message',
+    meta?: {
+      classId?: string;
+      quizId?: string;
+      targetType?: 'class' | 'quiz' | 'announcement' | 'payment' | 'messages' | 'dashboard';
+      targetId?: string;
+      link?: string;
+    }
+  ): Promise<NotificationItem> {
     const id = "not_" + Math.random().toString(36).substr(2, 9);
     const newNot: NotificationItem = {
       id,
@@ -2247,7 +2277,8 @@ const firestoreServiceRaw = {
       message,
       type,
       isRead: false,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      ...(meta || {})
     };
 
     if (isUsingCloud) {
@@ -4784,6 +4815,222 @@ const firestoreServiceRaw = {
     }
 
     this.getAnnouncements().then(callback).catch(err => console.warn("Failed fetching announcements fallback:", err));
+    return () => {};
+  },
+
+  // -------------------------------------------------------------
+  // QUIZZES & ASSESSMENTS
+  // -------------------------------------------------------------
+  async getQuizzes(classId?: string, tutorId?: string): Promise<Quiz[]> {
+    let cloudQuizzes: Quiz[] = [];
+    if (isUsingCloud) {
+      try {
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'quizzes')),
+          8000,
+          { docs: [] } as any
+        );
+        cloudQuizzes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Quiz));
+      } catch (e) {
+        console.warn("Cloud quizzes loading fallback.", e);
+      }
+    }
+    const fallbackQuizzes = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const quizMap = new Map<string, Quiz>();
+    fallbackQuizzes.forEach(q => quizMap.set(q.id, q));
+    cloudQuizzes.forEach(q => quizMap.set(q.id, q));
+
+    let list = Array.from(quizMap.values());
+    if (classId) {
+      list = list.filter(q => q.classId === classId);
+    }
+    if (tutorId) {
+      list = list.filter(q => q.tutorId === tutorId);
+    }
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    saveFallback('local_quizzes', Array.from(quizMap.values()));
+    return list;
+  },
+
+  async getQuizById(quizId: string): Promise<Quiz | null> {
+    if (!quizId) return null;
+    if (isUsingCloud) {
+      try {
+        const docSnap = await getDoc(doc(db, 'quizzes', quizId));
+        if (docSnap.exists()) {
+          return { id: docSnap.id, ...docSnap.data() } as Quiz;
+        }
+      } catch (e) {
+        console.warn("Fetching cloud quiz fallback:", e);
+      }
+    }
+    const list = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    return list.find(q => q.id === quizId) || null;
+  },
+
+  async saveQuiz(quizData: Partial<Quiz> & { classId: string; tutorId: string; title: string; questions: QuizQuestion[] }): Promise<Quiz> {
+    const id = quizData.id || "quiz_" + Math.random().toString(36).substr(2, 9);
+    const totalPoints = quizData.questions.reduce((sum, q) => sum + (q.points || 1), 0);
+    const fullQuiz: Quiz = {
+      id,
+      classId: quizData.classId,
+      classTitle: quizData.classTitle || "Tuition Class",
+      tutorId: quizData.tutorId,
+      tutorName: quizData.tutorName || "Faculty Instructor",
+      title: quizData.title,
+      description: quizData.description || "",
+      durationMinutes: quizData.durationMinutes !== undefined ? quizData.durationMinutes : 15,
+      passingScorePercentage: quizData.passingScorePercentage !== undefined ? quizData.passingScorePercentage : 50,
+      status: quizData.status || 'published',
+      questions: quizData.questions,
+      totalPoints,
+      createdAt: quizData.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'quizzes', id), fullQuiz);
+      } catch (e) {
+        console.warn("Could not save cloud quiz:", e);
+      }
+    }
+
+    const currentList = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const existingIndex = currentList.findIndex(q => q.id === id);
+    if (existingIndex >= 0) {
+      currentList[existingIndex] = fullQuiz;
+    } else {
+      currentList.unshift(fullQuiz);
+    }
+    saveFallback('local_quizzes', currentList);
+
+    // Audit log
+    await this.addAuditLog({
+      username: fullQuiz.tutorId,
+      action: quizData.id ? 'QUIZ_UPDATED' : 'QUIZ_CREATED',
+      details: `${quizData.id ? 'Updated' : 'Created'} test "${fullQuiz.title}" with ${fullQuiz.questions.length} questions for class "${fullQuiz.classTitle}"`
+    });
+
+    // Notify enrolled students if published
+    if (fullQuiz.status === 'published') {
+      try {
+        await this.triggerNotification(
+          'all',
+          `New Quiz Available: ${fullQuiz.title}`,
+          `Test your knowledge in "${fullQuiz.classTitle}"! A ${fullQuiz.questions.length}-question assessment is now open.`,
+          'announcement',
+          {
+            classId: fullQuiz.classId,
+            quizId: fullQuiz.id,
+            targetType: 'quiz',
+            targetId: fullQuiz.id
+          }
+        );
+      } catch (_) {}
+    }
+
+    return fullQuiz;
+  },
+
+  async deleteQuiz(quizId: string): Promise<void> {
+    if (isUsingCloud) {
+      try {
+        await deleteDoc(doc(db, 'quizzes', quizId));
+      } catch (e) {
+        console.warn("Could not delete cloud quiz:", e);
+      }
+    }
+    const currentList = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const filtered = currentList.filter(q => q.id !== quizId);
+    saveFallback('local_quizzes', filtered);
+
+    await this.addAuditLog({
+      username: 'Faculty/Admin',
+      action: 'QUIZ_DELETED',
+      details: `Deleted quiz record (${quizId})`
+    });
+  },
+
+  async getQuizSubmissions(quizId?: string, studentId?: string, classId?: string): Promise<QuizSubmission[]> {
+    let cloudSubmissions: QuizSubmission[] = [];
+    if (isUsingCloud) {
+      try {
+        const snap = await promiseWithTimeout(
+          getDocs(collection(db, 'quiz_submissions')),
+          8000,
+          { docs: [] } as any
+        );
+        cloudSubmissions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizSubmission));
+      } catch (e) {
+        console.warn("Cloud quiz submissions fallback loading:", e);
+      }
+    }
+    const fallbackList = handleFallback<QuizSubmission>('local_quiz_submissions', INITIAL_QUIZ_SUBMISSIONS);
+    const submissionMap = new Map<string, QuizSubmission>();
+    fallbackList.forEach(s => submissionMap.set(s.id, s));
+    cloudSubmissions.forEach(s => submissionMap.set(s.id, s));
+
+    let list = Array.from(submissionMap.values());
+    if (quizId) list = list.filter(s => s.quizId === quizId);
+    if (studentId) list = list.filter(s => s.studentId === studentId);
+    if (classId) list = list.filter(s => s.classId === classId);
+
+    list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    saveFallback('local_quiz_submissions', Array.from(submissionMap.values()));
+    return list;
+  },
+
+  async submitQuizAnswers(data: Omit<QuizSubmission, 'id' | 'submittedAt'>): Promise<QuizSubmission> {
+    const id = "sub_" + Math.random().toString(36).substr(2, 9);
+    const submission: QuizSubmission = {
+      ...data,
+      id,
+      submittedAt: new Date().toISOString()
+    };
+
+    if (isUsingCloud) {
+      try {
+        await setDoc(doc(db, 'quiz_submissions', id), submission);
+      } catch (e) {
+        console.warn("Saving cloud quiz submission fallback:", e);
+      }
+    }
+
+    const currentList = handleFallback<QuizSubmission>('local_quiz_submissions', INITIAL_QUIZ_SUBMISSIONS);
+    currentList.unshift(submission);
+    saveFallback('local_quiz_submissions', currentList);
+
+    // Audit log
+    await this.addAuditLog({
+      username: submission.studentId,
+      action: 'QUIZ_SUBMITTED',
+      details: `${submission.studentName} completed "${submission.quizTitle}" with score ${submission.score}/${submission.totalPoints} (${submission.percentage}%)`
+    });
+
+    return submission;
+  },
+
+  subscribeQuizzes(callback: (quizzes: Quiz[]) => void, classId?: string): () => void {
+    if (isUsingCloud) {
+      try {
+        return onSnapshot(collection(db, 'quizzes'), (snap) => {
+          const items: Quiz[] = [];
+          snap.forEach(docSnap => {
+            items.push({ id: docSnap.id, ...docSnap.data() } as Quiz);
+          });
+          const list = classId ? items.filter(q => q.classId === classId) : items;
+          list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          callback(list);
+        }, (err) => {
+          console.warn("Quiz snapshot error:", err);
+          this.getQuizzes(classId).then(callback);
+        });
+      } catch (e) {
+        console.warn("Subscribe quizzes error:", e);
+      }
+    }
+    this.getQuizzes(classId).then(callback);
     return () => {};
   }
 };

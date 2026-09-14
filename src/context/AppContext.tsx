@@ -105,6 +105,11 @@ interface AppContextType {
   lastReconciledAt: Date | null;
   reconcileCloudData: () => Promise<void>;
   resetDatabase: () => Promise<void>;
+  currentAppTab: string;
+  setCurrentAppTab: (tab: string) => void;
+  deepLinkedClassId: string | null;
+  setDeepLinkedClassId: (classId: string | null) => void;
+  navigateToClass: (classId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -124,6 +129,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return !cached;
   });
   const [cloudSync, setCloudSync] = useState(true);
+  const [currentAppTab, setCurrentAppTab] = useState<string>('home');
+  const [deepLinkedClassId, setDeepLinkedClassId] = useState<string | null>(null);
+
+  const navigateToClass = (classId: string) => {
+    setDeepLinkedClassId(classId);
+    setCurrentAppTab('classes');
+  };
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     const cached = localStorage.getItem('local_notifications');
     if (cached) {
@@ -1387,7 +1399,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reconcileStep,
       lastReconciledAt,
       reconcileCloudData,
-      resetDatabase
+      resetDatabase,
+      currentAppTab,
+      setCurrentAppTab,
+      deepLinkedClassId,
+      setDeepLinkedClassId,
+      navigateToClass
     }}>
       {children}
     </AppContext.Provider>

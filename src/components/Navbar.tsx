@@ -63,7 +63,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     darkMode,
     toggleDarkMode,
     classes,
-    bookings
+    bookings,
+    navigateToClass
   } = useApp();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -290,8 +291,28 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     }
   };
 
+  const resolveNotificationClass = (not: NotificationItem): any | undefined => {
+    if (!classes || classes.length === 0) return undefined;
+    if (not.classId) {
+      const byId = classes.find((c: any) => c.id === not.classId);
+      if (byId) return byId;
+    }
+    if (not.targetType === 'class' && not.targetId) {
+      const byTarget = classes.find((c: any) => c.id === not.targetId);
+      if (byTarget) return byTarget;
+    }
+    if (not.link && not.link.startsWith('class:')) {
+      const linkId = not.link.replace('class:', '').trim();
+      const byLink = classes.find((c: any) => c.id === linkId);
+      if (byLink) return byLink;
+    }
+    // Match by class title in title or message (e.g. 'New Class Added: Combined Maths')
+    const combined = `${not.title || ''} ${not.message || ''}`.toLowerCase();
+    const found = classes.find((c: any) => c.title && combined.includes(c.title.toLowerCase()));
+    return found;
+  };
+
   const handleSelectNotification = async (not: NotificationItem) => {
-    setSelectedNotificationModal(not);
     if (!not.isRead) {
       try {
         await firestoreService.markNotificationRead(not.id);
@@ -300,6 +321,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
         console.warn(err);
       }
     }
+
+    const matchedClass = resolveNotificationClass(not);
+    if (matchedClass) {
+      setShowNotifications(false);
+      setSelectedNotificationModal(null);
+      navigateToClass(matchedClass.id);
+      showToast(`Opening class: ${matchedClass.title}`, "info");
+      return;
+    }
+
+    // Default: view in notification detail modal
+    setSelectedNotificationModal(not);
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length + upcomingClasses.length + unviewedStudyMaterials.length;
@@ -755,11 +788,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                                         <button 
                                           onClick={() => {
                                             setShowNotifications(false);
-                                            onChangeTab('dashboard');
+                                            if (u.classId) {
+                                              navigateToClass(u.classId);
+                                            } else {
+                                              onChangeTab('dashboard');
+                                            }
                                           }}
-                                          className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold text-[9px] uppercase tracking-wider cursor-pointer"
+                                          className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-bold text-[9px] uppercase tracking-wider cursor-pointer flex items-center gap-1"
                                         >
-                                          View Schedule
+                                          View Class <ExternalLink className="w-2.5 h-2.5" />
                                         </button>
                                       </div>
                                     </div>
@@ -783,7 +820,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                                   </div>
                                 );
                               }
-                              return filteredNotifs.map((not) => (
+                              return filteredNotifs.map((not) => {
+                                const matchedClass = resolveNotificationClass(not);
+                                return (
                                 <div
                                   key={not.id}
                                   onClick={() => handleSelectNotification(not)}
@@ -798,16 +837,28 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                                     {not.type === 'reminder' && <Bell className="w-4 h-4 text-amber-500" />}
                                   </div>
                                   <div className="flex-1 pr-6">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                       <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 leading-tight">{not.title}</p>
                                       {!not.isRead && (
                                         <span className="h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0"></span>
                                       )}
+                                      {matchedClass && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 flex items-center gap-0.5">
+                                          <BookOpen className="w-2.5 h-2.5" /> Class
+                                        </span>
+                                      )}
                                     </div>
                                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug line-clamp-2">{not.message}</p>
-                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-1.5 block font-mono">
-                                      {new Date(not.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                                    <div className="flex items-center justify-between mt-1.5">
+                                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
+                                        {new Date(not.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                      {matchedClass && (
+                                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5">
+                                          Tap to view class &rarr;
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   {!not.isRead && (
                                     <button
@@ -819,7 +870,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                                     </button>
                                   )}
                                 </div>
-                              ));
+                              );
+                            });
                             })()}
                           </div>
 
@@ -1597,27 +1649,48 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 </div>
 
                 <div className="flex gap-2 justify-end pt-2">
-                  {selectedNotificationModal.type === 'announcement' ? (
-                    <button
-                      onClick={() => {
-                        setSelectedNotificationModal(null);
-                        onChangeTab('announcements');
-                      }}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      Open Announcements Bulletin <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setSelectedNotificationModal(null);
-                        onChangeTab('dashboard');
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      View in Dashboard <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  {(() => {
+                    const modalClass = resolveNotificationClass(selectedNotificationModal);
+                    if (modalClass) {
+                      return (
+                        <button
+                          onClick={() => {
+                            setSelectedNotificationModal(null);
+                            setShowNotifications(false);
+                            navigateToClass(modalClass.id);
+                            showToast(`Navigating to class: ${modalClass.title}`, "info");
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" /> Open Class Page ({modalClass.title}) <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    }
+                    if (selectedNotificationModal.type === 'announcement') {
+                      return (
+                        <button
+                          onClick={() => {
+                            setSelectedNotificationModal(null);
+                            onChangeTab('announcements');
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          Open Announcements Bulletin <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => {
+                          setSelectedNotificationModal(null);
+                          onChangeTab('dashboard');
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        View in Dashboard <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={() => setSelectedNotificationModal(null)}
                     className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"

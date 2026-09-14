@@ -184,6 +184,22 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Quizzes & Tests Created by Tutors / Admins
+    match /quizzes/{quizId} {
+      // Anyone enrolled or browsing can read published quizzes; tutors and admins can read and manage all
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Student Quiz Submissions & Scores
+    match /quiz_submissions/{submissionId} {
+      // Enrolled students can record their submissions; students and relevant tutors/admins can read results
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
     // Fallback document rule for hybrid/local storage parity
     match /{document=**} {
       allow read, write: if true;

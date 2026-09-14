@@ -71,7 +71,8 @@ import {
   Eye,
   Timer,
   BadgeCheck,
-  Contact2
+  Contact2,
+  FileQuestion
 } from 'lucide-react';
 import { AttendanceRecord } from '../types';
 import { TutorAttendanceTracker } from '../components/TutorAttendanceTracker';
@@ -84,6 +85,7 @@ import { UserNotificationSettingsPanel } from '../components/UserNotificationSet
 import { DigitalStudentIDCardModal } from '../components/DigitalStudentIDCardModal';
 import { DashboardWidgetCustomizer } from '../components/DashboardWidgetCustomizer';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
+import { QuizListSection } from '../components/QuizListSection';
 
 export const TutorDashboard: React.FC = () => {
   const { 
@@ -103,7 +105,7 @@ export const TutorDashboard: React.FC = () => {
     isViewAsActive
   } = useApp();
   const { syncField, getFieldStatus, getFieldMessage, syncFieldStart, syncFieldSuccess, syncFieldFailure } = useSyncStatus();
-  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
+  const [activeSubTab, setActiveSubTab] = useState<'schedule' | 'students' | 'resources' | 'quizzes' | 'attendance' | 'chat' | 'alerts' | 'profile' | 'settings'>('schedule');
   const [isNavDropdownOpen, setIsNavDropdownOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'reminders'>('all');
@@ -1263,6 +1265,7 @@ export const TutorDashboard: React.FC = () => {
                 { id: 'schedule', label: 'Teaching Schedules', icon: <Calendar className="w-4 h-4 text-indigo-500" />, description: 'Timetables & sessions' },
                 { id: 'students', label: `Listed Scholars (${rosterBookings.length})`, icon: <Users className="w-4 h-4 text-blue-500" />, description: 'Enrolled students' },
                 { id: 'resources', label: `Course Resources (${tutorMaterials.length})`, icon: <BookOpen className="w-4 h-4 text-emerald-500" />, description: 'Materials & notes' },
+                { id: 'quizzes', label: 'Quizzes & Tests', icon: <FileQuestion className="w-4 h-4 text-violet-500" />, description: 'Design tests & evaluate scores' },
                 { id: 'attendance', label: 'Attendance Tracker', icon: <ClipboardList className="w-4 h-4 text-amber-500" />, description: 'Roll call & QR check-ins' },
                 { id: 'chat', label: 'Students Chat', icon: <MessageSquare className="w-4 h-4 text-purple-500" />, description: 'Student queries' },
                 { id: 'alerts', label: 'Alerts', icon: <Bell className="w-4 h-4 text-rose-500" />, badge: notifications.filter(n => !n.isRead).length, description: 'Notifications' },
@@ -1297,6 +1300,7 @@ export const TutorDashboard: React.FC = () => {
                           {activeSubTab === 'schedule' && <Calendar className="w-4 h-4" />}
                           {activeSubTab === 'students' && <Users className="w-4 h-4" />}
                           {activeSubTab === 'resources' && <BookOpen className="w-4 h-4" />}
+                          {activeSubTab === 'quizzes' && <FileQuestion className="w-4 h-4" />}
                           {activeSubTab === 'attendance' && <ClipboardList className="w-4 h-4" />}
                           {activeSubTab === 'chat' && <MessageSquare className="w-4 h-4" />}
                           {activeSubTab === 'alerts' && <Bell className="w-4 h-4" />}
@@ -1307,6 +1311,7 @@ export const TutorDashboard: React.FC = () => {
                           {activeSubTab === 'schedule' && 'Teaching Schedules'}
                           {activeSubTab === 'students' && `Listed Scholars (${rosterBookings.length})`}
                           {activeSubTab === 'resources' && `Course Resources (${tutorMaterials.length})`}
+                          {activeSubTab === 'quizzes' && 'Quizzes & Tests'}
                           {activeSubTab === 'attendance' && 'Attendance Tracker'}
                           {activeSubTab === 'chat' && 'Students Chat'}
                           {activeSubTab === 'alerts' && 'Alerts & System Notices'}
@@ -2763,6 +2768,18 @@ export const TutorDashboard: React.FC = () => {
                   })()}
 
                 </div>
+              </motion.div>
+            )}
+
+            {/* Tab: Quizzes and Test Assessments */}
+            {activeSubTab === 'quizzes' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200 dark:border-slate-800"
+              >
+                <QuizListSection showCreateButton={true} />
               </motion.div>
             )}
 

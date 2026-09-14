@@ -34,10 +34,34 @@ const DEFAULT_SUBJECT_CATEGORIES = ["All Subjects", "Mathematics", "Physics", "E
 const INITIAL_MATERIALS: StudyMaterial[] = [];
 
 export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
-  const { classes, refreshClasses, currentUser, showToast, bookings, payments, reviews, refreshBookings, refreshUserProfile } = useApp();
+  const { 
+    classes, 
+    refreshClasses, 
+    currentUser, 
+    showToast, 
+    bookings, 
+    payments, 
+    reviews, 
+    refreshBookings, 
+    refreshUserProfile,
+    deepLinkedClassId,
+    setDeepLinkedClassId 
+  } = useApp();
   
   // Tab Switch: 'classes' or 'resources'
   const [activeTab, setActiveTab] = useState<'classes' | 'resources'>('classes');
+
+  // Deep-linking handler for direct notification navigation
+  useEffect(() => {
+    if (deepLinkedClassId && classes.length > 0) {
+      const targetClass = classes.find(c => c.id === deepLinkedClassId);
+      if (targetClass) {
+        setActiveTab('classes');
+        setSelectedClassForProfile(targetClass);
+        setDeepLinkedClassId(null);
+      }
+    }
+  }, [deepLinkedClassId, classes, setDeepLinkedClassId]);
 
   // Dynamic Subjects from DB
   const [subjectCategories, setSubjectCategories] = useState<string[]>(DEFAULT_SUBJECT_CATEGORIES);

@@ -227,6 +227,12 @@ export interface NotificationItem {
   type: 'reminder' | 'payment' | 'announcement' | 'message';
   isRead: boolean;
   createdAt: string;
+  // Deep-linking metadata
+  classId?: string;
+  quizId?: string;
+  targetType?: 'class' | 'quiz' | 'announcement' | 'payment' | 'messages' | 'dashboard';
+  targetId?: string;
+  link?: string;
 }
 
 export interface ChatAttachment {
@@ -549,5 +555,56 @@ export interface StudentSuccessStory {
   reviewedByAdminName?: string;
   adminFeedback?: string;
 }
+
+// -------------------------------------------------------------
+// QUIZZES & ASSESSMENTS
+// -------------------------------------------------------------
+export type QuestionType = 'multiple_choice' | 'true_false';
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  type: QuestionType;
+  options: string[]; // Options array (e.g., ['A', 'B', 'C', 'D'] or ['True', 'False'])
+  correctAnswer: string; // The exact matching string from options
+  points: number; // default 1
+  explanation?: string;
+}
+
+export interface Quiz {
+  id: string;
+  classId: string;
+  classTitle: string;
+  tutorId: string;
+  tutorName: string;
+  title: string;
+  description?: string;
+  durationMinutes: number; // 0 for unlimited, or e.g. 10, 15, 30
+  passingScorePercentage: number; // e.g. 50%
+  status: 'published' | 'draft';
+  questions: QuizQuestion[];
+  totalPoints: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface QuizSubmission {
+  id: string;
+  quizId: string;
+  quizTitle: string;
+  classId: string;
+  classTitle: string;
+  studentId: string;
+  studentName: string;
+  studentEmail?: string;
+  answers: { [questionId: string]: string }; // questionId -> selected answer
+  score: number; // Total points earned
+  totalPoints: number; // Maximum possible points
+  percentage: number; // (score / totalPoints) * 100
+  passed: boolean;
+  submittedAt: string;
+  timeSpentSeconds?: number;
+}
+
 
 

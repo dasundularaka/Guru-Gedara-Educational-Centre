@@ -66,7 +66,6 @@ function CentralLoadingScreen() {
 }
 
 function MainAppContent() {
-  const [currentTab, setCurrentTab] = useState('home');
   const { 
     toast, 
     toasts,
@@ -81,7 +80,9 @@ function MainAppContent() {
     reconcileStep,
     lastReconciledAt,
     reconcileCloudData,
-    syncState
+    syncState,
+    currentAppTab: currentTab,
+    setCurrentAppTab: setCurrentTab
   } = useApp();
 
   const [pingTime, setPingTime] = useState<number | null>(null);

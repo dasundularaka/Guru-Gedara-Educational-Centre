@@ -268,9 +268,62 @@
         "adminFeedback": { "type": "string" }
       },
       "required": ["id", "studentId", "name", "achievement", "quote", "status", "createdAt"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Tuition class quizzes and tests with multiple choice and true/false questions created by tutors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "classTitle": { "type": "string" },
+        "tutorId": { "type": "string" },
+        "tutorName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "passingScorePercentage": { "type": "number" },
+        "status": { "type": "string", "enum": ["published", "draft"] },
+        "questions": { "type": "array" },
+        "totalPoints": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "classId", "tutorId", "title", "status", "questions", "createdAt"]
+    },
+    "QuizSubmission": {
+      "title": "QuizSubmission",
+      "description": "Student quiz attempts and scores for enrolled classes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "quizId": { "type": "string" },
+        "quizTitle": { "type": "string" },
+        "classId": { "type": "string" },
+        "classTitle": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentEmail": { "type": "string" },
+        "answers": { "type": "object" },
+        "score": { "type": "number" },
+        "totalPoints": { "type": "number" },
+        "percentage": { "type": "number" },
+        "passed": { "type": "boolean" },
+        "submittedAt": { "type": "string" },
+        "timeSpentSeconds": { "type": "number" }
+      },
+      "required": ["id", "quizId", "classId", "studentId", "score", "totalPoints", "submittedAt"]
     }
   },
   "firestore": {
+    "/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Class quizzes, exams, and assessments created by tutors"
+    },
+    "/quiz_submissions/{submissionId}": {
+      "schema": "QuizSubmission",
+      "description": "Student quiz submissions, attempts, and evaluation scores"
+    },
     "/student_success_stories/{storyId}": {
       "schema": "StudentSuccessStory",
       "description": "Student success stories moderated by admins and displayed to all users once approved"
