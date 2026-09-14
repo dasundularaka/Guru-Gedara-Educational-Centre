@@ -21,7 +21,7 @@ interface QuizBuilderModalProps {
   onSave: (quizData: Partial<Quiz>) => Promise<void>;
   initialQuiz?: Quiz | null;
   availableClasses: ClassItem[];
-  currentUser: UserProfile;
+  currentUser?: UserProfile | null;
   defaultClassId?: string;
 }
 
@@ -200,8 +200,8 @@ export const QuizBuilderModal: React.FC<QuizBuilderModalProps> = ({
         id: initialQuiz?.id,
         classId: selectedClassId,
         classTitle: targetClass?.title || initialQuiz?.classTitle || 'Tuition Class',
-        tutorId: currentUser.uid,
-        tutorName: currentUser.name || currentUser.displayName || 'Faculty Instructor',
+        tutorId: currentUser?.uid || initialQuiz?.tutorId || 'faculty_tutor',
+        tutorName: currentUser?.name || currentUser?.displayName || initialQuiz?.tutorName || 'Faculty Instructor',
         title: title.trim(),
         description: description.trim(),
         durationMinutes: Math.max(0, durationMinutes),

@@ -6,6 +6,7 @@ import { Home } from './pages/Home';
 import { Classes } from './pages/Classes';
 import { Tutors } from './pages/Tutors';
 import { Announcements } from './pages/Announcements';
+import { Quizzes } from './pages/Quizzes';
 import { Auth } from './pages/Auth';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { TutorDashboard } from './pages/TutorDashboard';
@@ -258,6 +259,7 @@ function MainAppContent() {
                 ? <Announcements onNavigateTab={setCurrentTab} /> 
                 : <Auth onAuthSuccess={() => setCurrentTab('announcements')} />
             )}
+            {currentTab === 'quizzes' && <Quizzes onNavigateTab={setCurrentTab} />}
             {currentTab === 'auth' && <Auth onAuthSuccess={() => setCurrentTab('home')} />}
             {currentTab === 'dashboard' && <DashboardRouter />}
           </motion.div>
@@ -282,6 +284,7 @@ function MainAppContent() {
               <ul className="space-y-2 text-xs text-blue-200">
                 <li><button onClick={() => setCurrentTab('home')} className="hover:text-white transition-colors cursor-pointer">Homepage</button></li>
                 <li><button onClick={() => setCurrentTab('classes')} className="hover:text-white transition-colors cursor-pointer">Explore Classes</button></li>
+                <li><button onClick={() => setCurrentTab('quizzes')} className="hover:text-white transition-colors cursor-pointer">Quizzes & Tests</button></li>
                 <li><button onClick={() => setCurrentTab('tutors')} className="hover:text-white transition-colors cursor-pointer font-sans">Verified Faculty</button></li>
               </ul>
             </div>

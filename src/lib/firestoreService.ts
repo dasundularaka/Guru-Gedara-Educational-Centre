@@ -5011,26 +5011,110 @@ const firestoreServiceRaw = {
     return submission;
   },
 
-  subscribeQuizzes(callback: (quizzes: Quiz[]) => void, classId?: string): () => void {
+  subscribeQuizzes(arg1?: any, arg2?: any): () => void {
+    let callback: (quizzes: Quiz[]) => void = () => {};
+    let classId: string | undefined = undefined;
+
+    if (typeof arg1 === 'function') {
+      callback = arg1;
+      classId = typeof arg2 === 'string' ? arg2 : undefined;
+    } else {
+      classId = typeof arg1 === 'string' ? arg1 : undefined;
+      callback = typeof arg2 === 'function' ? arg2 : () => {};
+    }
+
+    // Immediately emit cached/fallback data so UI renders instantly
+    const initialList = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const filteredInitial = classId ? initialList.filter(q => q.classId === classId) : initialList;
+    filteredInitial.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    callback(filteredInitial);
+
     if (isUsingCloud) {
       try {
-        return onSnapshot(collection(db, 'quizzes'), (snap) => {
+        const unsub = onSnapshot(collection(db, 'quizzes'), (snap) => {
           const items: Quiz[] = [];
           snap.forEach(docSnap => {
             items.push({ id: docSnap.id, ...docSnap.data() } as Quiz);
           });
-          const list = classId ? items.filter(q => q.classId === classId) : items;
+          const quizMap = new Map<string, Quiz>();
+          initialList.forEach(q => quizMap.set(q.id, q));
+          items.forEach(q => quizMap.set(q.id, q));
+
+          let list = Array.from(quizMap.values());
+          if (classId) {
+            list = list.filter(q => q.classId === classId);
+          }
           list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          saveFallback('local_quizzes', Array.from(quizMap.values()));
           callback(list);
         }, (err) => {
           console.warn("Quiz snapshot error:", err);
           this.getQuizzes(classId).then(callback);
         });
+        return unsub;
       } catch (e) {
         console.warn("Subscribe quizzes error:", e);
       }
     }
     this.getQuizzes(classId).then(callback);
+    return () => {};
+  },
+
+  subscribeQuizSubmissions(arg1?: any, arg2?: any, arg3?: any): () => void {
+    let callback: (subs: QuizSubmission[]) => void = () => {};
+    let quizId: string | undefined = undefined;
+    let studentId: string | undefined = undefined;
+
+    if (typeof arg1 === 'function') {
+      callback = arg1;
+      quizId = typeof arg2 === 'string' ? arg2 : undefined;
+      studentId = typeof arg3 === 'string' ? arg3 : undefined;
+    } else {
+      quizId = typeof arg1 === 'string' ? arg1 : undefined;
+      if (typeof arg2 === 'function') {
+        callback = arg2;
+        studentId = typeof arg3 === 'string' ? arg3 : undefined;
+      } else {
+        studentId = typeof arg2 === 'string' ? arg2 : undefined;
+        callback = typeof arg3 === 'function' ? arg3 : () => {};
+      }
+    }
+
+    // Initial emit
+    const initialList = handleFallback<QuizSubmission>('local_quiz_submissions', INITIAL_QUIZ_SUBMISSIONS);
+    let filtered = initialList;
+    if (quizId) filtered = filtered.filter(s => s.quizId === quizId);
+    if (studentId) filtered = filtered.filter(s => s.studentId === studentId);
+    filtered.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    callback(filtered);
+
+    if (isUsingCloud) {
+      try {
+        const unsub = onSnapshot(collection(db, 'quiz_submissions'), (snap) => {
+          const items: QuizSubmission[] = [];
+          snap.forEach(docSnap => {
+            items.push({ id: docSnap.id, ...docSnap.data() } as QuizSubmission);
+          });
+          const subMap = new Map<string, QuizSubmission>();
+          initialList.forEach(s => subMap.set(s.id, s));
+          items.forEach(s => subMap.set(s.id, s));
+
+          let list = Array.from(subMap.values());
+          if (quizId) list = list.filter(s => s.quizId === quizId);
+          if (studentId) list = list.filter(s => s.studentId === studentId);
+          list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          saveFallback('local_quiz_submissions', Array.from(subMap.values()));
+          callback(list);
+        }, (err) => {
+          console.warn("Quiz submissions snapshot error:", err);
+          this.getQuizSubmissions(quizId, studentId).then(callback);
+        });
+        return unsub;
+      } catch (e) {
+        console.warn("Subscribe quiz submissions error:", e);
+      }
+    }
+    this.getQuizSubmissions(quizId, studentId).then(callback);
     return () => {};
   }
 };

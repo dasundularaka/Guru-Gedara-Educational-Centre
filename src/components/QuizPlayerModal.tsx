@@ -23,7 +23,7 @@ interface QuizPlayerModalProps {
   quiz: Quiz;
   isOpen: boolean;
   onClose: () => void;
-  currentUser: UserProfile;
+  currentUser?: UserProfile | null;
   onSubmissionSuccess?: (submission: QuizSubmission) => void;
   initialSubmission?: QuizSubmission | null;
 }
@@ -140,9 +140,9 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
         quizTitle: quiz.title,
         classId: quiz.classId,
         classTitle: quiz.classTitle,
-        studentId: currentUser.uid,
-        studentName: currentUser.name || currentUser.displayName || 'Enrolled Scholar',
-        studentEmail: currentUser.email || '',
+        studentId: currentUser?.uid || 'guest_scholar',
+        studentName: currentUser?.name || currentUser?.displayName || 'Enrolled Scholar',
+        studentEmail: currentUser?.email || '',
         answers,
         score: earnedPoints,
         totalPoints,
@@ -156,12 +156,12 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
       setShowConfirmSubmit(false);
 
       // Trigger notification for the tutor
-      if (quiz.tutorId && quiz.tutorId !== currentUser.uid) {
+      if (quiz.tutorId && currentUser?.uid && quiz.tutorId !== currentUser.uid) {
         try {
           await firestoreService.triggerNotification(
             quiz.tutorId,
             `Quiz Completed: ${quiz.title}`,
-            `${currentUser.name || 'A student'} completed "${quiz.title}" with a score of ${percentage}% (${earnedPoints}/${totalPoints} pts).`,
+            `${currentUser.name || currentUser.displayName || 'A student'} completed "${quiz.title}" with a score of ${percentage}% (${earnedPoints}/${totalPoints} pts).`,
             'announcement',
             {
               classId: quiz.classId,

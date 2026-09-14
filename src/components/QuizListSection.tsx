@@ -67,31 +67,30 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
   // Load quizzes and real-time subscription
   useEffect(() => {
     setLoading(true);
-    const unsub = firestoreService.subscribeQuizzes(classId, (data) => {
+    const unsub = firestoreService.subscribeQuizzes((data) => {
       setQuizzes(data || []);
       setLoading(false);
-    });
+    }, classId);
 
     return () => {
       if (unsub) unsub();
     };
   }, [classId]);
 
-  // Load submissions for student
+  // Load submissions for student with real-time subscription
   useEffect(() => {
     if (!currentUser) return;
-    const fetchSubmissions = async () => {
-      try {
-        const subs = await firestoreService.getQuizSubmissions(
-          undefined,
-          isStudent ? currentUser.uid : undefined
-        );
+    const unsub = firestoreService.subscribeQuizSubmissions(
+      (subs) => {
         setSubmissions(subs || []);
-      } catch (err) {
-        console.warn("Could not fetch quiz submissions", err);
-      }
+      },
+      undefined,
+      isStudent ? currentUser.uid : undefined
+    );
+
+    return () => {
+      if (unsub) unsub();
     };
-    fetchSubmissions();
   }, [currentUser, isStudent]);
 
   // Map submissions by quizId for instant access
@@ -101,7 +100,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     
     // Sort so latest submission wins
     const userSubs = submissions
-      .filter(s => s.studentId === currentUser.uid)
+      .filter(s => s.studentId === currentUser.uid || s.studentId === currentUser.username || (currentUser.email && s.studentEmail === currentUser.email))
       .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
     userSubs.forEach(s => {
@@ -113,18 +112,21 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
   }, [submissions, currentUser]);
 
   // Check enrollment for student
-  const isStudentEnrolledInClass = (targetClassId: string) => {
+  const isStudentEnrolledInClass = (targetClassId?: string) => {
     if (!currentUser) return false;
     if (currentUser.role !== 'student') return true;
+    if (!targetClassId) return true;
 
     // Check direct selectedClasses
     if (currentUser.selectedClasses?.includes(targetClassId)) return true;
 
-    // Check bookings
+    // Check bookings with all student identifier matches and valid statuses
     const activeBooking = (bookings || []).find(b => 
       b.classId === targetClassId &&
-      (b.studentId === currentUser.uid || b.studentEmail === currentUser.email) &&
-      (b.status === 'active' || b.status === 'approved')
+      (b.studentId === currentUser.uid || 
+       b.studentId === currentUser.username || 
+       (currentUser.email && b.studentEmail && b.studentEmail.toLowerCase() === currentUser.email.toLowerCase())) &&
+      (b.status === 'active' || b.status === 'approved' || b.status === 'pending_approval')
     );
     return Boolean(activeBooking);
   };
@@ -133,7 +135,14 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
   const availableClassesForTutor: ClassItem[] = useMemo(() => {
     if (!currentUser) return classes || [];
     if (currentUser.role === 'admin') return classes || [];
-    return (classes || []).filter(c => c.tutorId === currentUser.uid || c.tutorName === currentUser.name);
+    const matched = (classes || []).filter(c => 
+      c.tutorId === currentUser.uid || 
+      c.tutorId === currentUser.username ||
+      (c.tutorName && currentUser.name && c.tutorName.toLowerCase() === currentUser.name.toLowerCase()) ||
+      ((c as any).tutorEmail && currentUser.email && (c as any).tutorEmail.toLowerCase() === currentUser.email.toLowerCase())
+    );
+    if (matched.length > 0) return matched;
+    return classes || [];
   }, [classes, currentUser]);
 
   // Handle save quiz from builder
@@ -444,18 +453,32 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                           <Play className="w-3.5 h-3.5 fill-current" /> Take Assessment Now
                         </button>
                       ) : (
-                        <button
-                          onClick={() => {
-                            if (onNavigateToClass) {
-                              onNavigateToClass(quiz.classId);
-                            } else {
-                              showToast('Please enroll in this class to access its assessments.', 'info');
-                            }
-                          }}
-                          className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700"
-                        >
-                          <Lock className="w-3.5 h-3.5" /> Enroll in Class to Take Quiz
-                        </button>
+                        <div className="flex items-center gap-2 w-full">
+                          <button
+                            onClick={() => {
+                              setActiveQuizForPlayer(quiz);
+                              setInitialSubmissionForPlayer(null);
+                              setPlayerOpen(true);
+                            }}
+                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" /> Take Practice Test
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (onNavigateToClass) {
+                                onNavigateToClass(quiz.classId);
+                              } else {
+                                window.dispatchEvent(new CustomEvent('app_navigate_tab', { detail: { tab: 'classes', classId: quiz.classId } }));
+                                showToast(`Navigate to ${quiz.classTitle} to view course details and enroll.`, 'info');
+                              }
+                            }}
+                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                            title="View Class Details"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" /> Class Info
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -538,7 +561,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
           onSave={handleSaveQuiz}
           initialQuiz={editingQuiz}
           availableClasses={availableClassesForTutor}
-          currentUser={currentUser!}
+          currentUser={currentUser}
           defaultClassId={classId}
         />
       )}
@@ -553,7 +576,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
             setActiveQuizForPlayer(null);
             setInitialSubmissionForPlayer(null);
           }}
-          currentUser={currentUser!}
+          currentUser={currentUser}
           initialSubmission={initialSubmissionForPlayer}
           onSubmissionSuccess={async (newSub) => {
             setSubmissions(prev => [newSub, ...prev]);

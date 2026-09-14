@@ -18,7 +18,8 @@ import {
   Image as ImageIcon,
   Shield,
   Star,
-  Users
+  Users,
+  FileQuestion
 } from 'lucide-react';
 import { getAudienceFilteredAnnouncements } from '../lib/announcementUtils';
 
@@ -90,6 +91,16 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onChangeTab('tutors');
           },
           isActive: currentTab === 'tutors'
+        },
+        {
+          id: 'quizzes',
+          label: 'Quizzes',
+          icon: FileQuestion,
+          action: () => {
+            setActiveSubSection('');
+            onChangeTab('quizzes');
+          },
+          isActive: currentTab === 'quizzes'
         }
       ];
     }
@@ -117,6 +128,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onChangeTab('classes');
           },
           isActive: currentTab === 'classes'
+        },
+        {
+          id: 'student_quizzes',
+          label: 'Quizzes',
+          icon: FileQuestion,
+          action: () => {
+            setActiveSubSection('quizzes');
+            onChangeTab('home');
+            window.dispatchEvent(new CustomEvent('app_navigate_student_subtab', { detail: { studentTab: 'quizzes' } }));
+          },
+          isActive: currentTab === 'home' && activeSubSection === 'quizzes'
         },
         {
           id: 'tutors',
@@ -209,6 +231,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onChangeTab('classes');
           },
           isActive: currentTab === 'classes'
+        },
+        {
+          id: 'tutor_quizzes',
+          label: 'Quizzes',
+          icon: FileQuestion,
+          action: () => {
+            setActiveSubSection('quizzes');
+            onChangeTab('home');
+            window.dispatchEvent(new CustomEvent('app_navigate_tutor_subtab', { detail: { tutorTab: 'quizzes' } }));
+          },
+          isActive: currentTab === 'home' && activeSubSection === 'quizzes'
         },
         {
           id: 'tutors',

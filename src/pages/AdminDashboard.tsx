@@ -26,6 +26,7 @@ import { AdminUsersAndApprovals } from '../components/AdminUsersAndApprovals';
 import { AdminDirectMessageModal } from '../components/AdminDirectMessageModal';
 import { AdminMessagingSection } from '../components/AdminMessagingSection';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
+import { QuizListSection } from '../components/QuizListSection';
 import { OrbitalLoader } from '../components/OrbitalLoader';
 import { auditLogger } from '../lib/auditLogger';
 import { initializeApp, deleteApp } from 'firebase/app';
@@ -98,6 +99,7 @@ import {
   ChevronDown,
   User,
   Award,
+  FileQuestion,
   Percent,
   QrCode,
   Camera,
@@ -130,7 +132,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'quizzes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
   const [previousTab, setPreviousTab] = useState<typeof activeTab>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
@@ -2033,6 +2035,7 @@ export const AdminDashboard: React.FC = () => {
                 { id: 'progress', label: 'Student Progress', icon: <GraduationCap className="w-4 h-4 text-purple-500" />, description: 'Grades & attendance' },
                 { id: 'tutors', label: 'Faculty & Tutors', icon: <UserCheck className="w-4 h-4 text-amber-500" />, description: 'Instructor roster' },
                 { id: 'classes', label: 'Curriculums & Classes', icon: <BookOpen className="w-4 h-4 text-sky-500" />, description: 'Courses & schedules' },
+                { id: 'quizzes', label: 'Quizzes & Assessments', icon: <FileQuestion className="w-4 h-4 text-violet-500" />, description: 'Academy tests & quizzes' },
                 { id: 'pathways', label: 'Course Pathways', icon: <Layers className="w-4 h-4 text-cyan-500" />, description: 'Streams & subjects' },
                 { id: 'banners', label: 'Hero Banners', icon: <ImageIcon className="w-4 h-4 text-teal-500" />, description: 'Promotional banners' },
                 { id: 'notices', label: 'Notices & Alerts', icon: <Bell className="w-4 h-4 text-amber-500" />, badge: notifications.filter(n => !n.isRead).length, description: 'Broadcast messages' },
@@ -2076,6 +2079,7 @@ export const AdminDashboard: React.FC = () => {
                           {activeTab === 'progress' && <GraduationCap className="w-4 h-4" />}
                           {activeTab === 'tutors' && <UserCheck className="w-4 h-4" />}
                           {activeTab === 'classes' && <BookOpen className="w-4 h-4" />}
+                          {activeTab === 'quizzes' && <FileQuestion className="w-4 h-4 text-violet-500" />}
                           {activeTab === 'pathways' && <Layers className="w-4 h-4" />}
                           {activeTab === 'banners' && <ImageIcon className="w-4 h-4" />}
                           {activeTab === 'notices' && <Bell className="w-4 h-4" />}
@@ -2092,6 +2096,7 @@ export const AdminDashboard: React.FC = () => {
                           {activeTab === 'progress' && 'Student Progress & Attendance'}
                           {activeTab === 'tutors' && 'Faculty & Tutors'}
                           {activeTab === 'classes' && 'Curriculums & Classes'}
+                          {activeTab === 'quizzes' && 'Quizzes & Assessments'}
                           {activeTab === 'pathways' && 'Course Pathways & Subjects'}
                           {activeTab === 'banners' && 'Hero Banners'}
                           {activeTab === 'notices' && 'Notices & System Alerts'}
@@ -4646,6 +4651,17 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </motion.div>
+            )}
+
+            {/* QUIZZES & ASSESSMENTS MANAGEMENT */}
+            {activeTab === 'quizzes' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 dark:border-slate-800"
+              >
+                <QuizListSection showCreateButton={true} />
               </motion.div>
             )}
 
