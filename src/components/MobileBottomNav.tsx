@@ -91,16 +91,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onChangeTab('tutors');
           },
           isActive: currentTab === 'tutors'
-        },
-        {
-          id: 'quizzes',
-          label: 'Quizzes',
-          icon: FileQuestion,
-          action: () => {
-            setActiveSubSection('');
-            onChangeTab('quizzes');
-          },
-          isActive: currentTab === 'quizzes'
         }
       ];
     }

@@ -582,20 +582,23 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                   >
                     Tutors
                   </button>
-
-                  <button
-                    onClick={() => onChangeTab('quizzes')}
-                    className={`relative px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                      currentTab === 'quizzes' 
-                        ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                    }`}
-                    id="tab_quizzes_btn"
-                  >
-                    <FileQuestion className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                    <span>Quizzes</span>
-                  </button>
                 </>
+              )}
+
+              {/* Quizzes Tab - Only for authenticated users (students, tutors, admins). Never in guest mode */}
+              {currentUser && (
+                <button
+                  onClick={() => onChangeTab('quizzes')}
+                  className={`relative px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                    currentTab === 'quizzes' 
+                      ? 'bg-slate-900 text-white shadow-md font-black ring-1 ring-slate-800' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  }`}
+                  id="tab_quizzes_btn"
+                >
+                  <FileQuestion className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                  <span>Quizzes</span>
+                </button>
               )}
 
               {/* Announcements Tab - Only for authenticated students and tutors (and admins). Never in guest mode */}

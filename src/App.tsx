@@ -259,7 +259,11 @@ function MainAppContent() {
                 ? <Announcements onNavigateTab={setCurrentTab} /> 
                 : <Auth onAuthSuccess={() => setCurrentTab('announcements')} />
             )}
-            {currentTab === 'quizzes' && <Quizzes onNavigateTab={setCurrentTab} />}
+            {currentTab === 'quizzes' && (
+              currentUser 
+                ? <Quizzes onNavigateTab={setCurrentTab} /> 
+                : <Auth onAuthSuccess={() => setCurrentTab('quizzes')} />
+            )}
             {currentTab === 'auth' && <Auth onAuthSuccess={() => setCurrentTab('home')} />}
             {currentTab === 'dashboard' && <DashboardRouter />}
           </motion.div>
@@ -284,7 +288,9 @@ function MainAppContent() {
               <ul className="space-y-2 text-xs text-blue-200">
                 <li><button onClick={() => setCurrentTab('home')} className="hover:text-white transition-colors cursor-pointer">Homepage</button></li>
                 <li><button onClick={() => setCurrentTab('classes')} className="hover:text-white transition-colors cursor-pointer">Explore Classes</button></li>
-                <li><button onClick={() => setCurrentTab('quizzes')} className="hover:text-white transition-colors cursor-pointer">Quizzes & Tests</button></li>
+                {currentUser && (
+                  <li><button onClick={() => setCurrentTab('quizzes')} className="hover:text-white transition-colors cursor-pointer">Quizzes & Tests</button></li>
+                )}
                 <li><button onClick={() => setCurrentTab('tutors')} className="hover:text-white transition-colors cursor-pointer font-sans">Verified Faculty</button></li>
               </ul>
             </div>

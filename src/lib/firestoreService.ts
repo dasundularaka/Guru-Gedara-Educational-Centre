@@ -4822,7 +4822,6 @@ const firestoreServiceRaw = {
   // QUIZZES & ASSESSMENTS
   // -------------------------------------------------------------
   async getQuizzes(classId?: string, tutorId?: string): Promise<Quiz[]> {
-    let cloudQuizzes: Quiz[] = [];
     if (isUsingCloud) {
       try {
         const snap = await promiseWithTimeout(
@@ -4830,17 +4829,31 @@ const firestoreServiceRaw = {
           8000,
           { docs: [] } as any
         );
-        cloudQuizzes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Quiz));
+        const cloudQuizzes: Quiz[] = [];
+        snap.docs.forEach(docSnap => {
+          if (docSnap.id !== 'quiz_math_calc_1' && docSnap.id !== 'quiz_phys_mech_1') {
+            cloudQuizzes.push({ id: docSnap.id, ...docSnap.data() } as Quiz);
+          }
+        });
+        cloudQuizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        saveFallback('local_quizzes', cloudQuizzes);
+
+        let list = cloudQuizzes;
+        if (classId) {
+          list = list.filter(q => q.classId === classId);
+        }
+        if (tutorId) {
+          list = list.filter(q => q.tutorId === tutorId);
+        }
+        return list;
       } catch (e) {
         console.warn("Cloud quizzes loading fallback.", e);
       }
     }
-    const fallbackQuizzes = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
-    const quizMap = new Map<string, Quiz>();
-    fallbackQuizzes.forEach(q => quizMap.set(q.id, q));
-    cloudQuizzes.forEach(q => quizMap.set(q.id, q));
-
-    let list = Array.from(quizMap.values());
+    const fallbackQuizzes = handleFallback<Quiz>('local_quizzes', []).filter(
+      q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1'
+    );
+    let list = fallbackQuizzes;
     if (classId) {
       list = list.filter(q => q.classId === classId);
     }
@@ -4848,12 +4861,11 @@ const firestoreServiceRaw = {
       list = list.filter(q => q.tutorId === tutorId);
     }
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    saveFallback('local_quizzes', Array.from(quizMap.values()));
     return list;
   },
 
   async getQuizById(quizId: string): Promise<Quiz | null> {
-    if (!quizId) return null;
+    if (!quizId || quizId === 'quiz_math_calc_1' || quizId === 'quiz_phys_mech_1') return null;
     if (isUsingCloud) {
       try {
         const docSnap = await getDoc(doc(db, 'quizzes', quizId));
@@ -4864,7 +4876,9 @@ const firestoreServiceRaw = {
         console.warn("Fetching cloud quiz fallback:", e);
       }
     }
-    const list = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const list = handleFallback<Quiz>('local_quizzes', []).filter(
+      q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1'
+    );
     return list.find(q => q.id === quizId) || null;
   },
 
@@ -4896,7 +4910,9 @@ const firestoreServiceRaw = {
       }
     }
 
-    const currentList = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const currentList = handleFallback<Quiz>('local_quizzes', []).filter(
+      q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1'
+    );
     const existingIndex = currentList.findIndex(q => q.id === id);
     if (existingIndex >= 0) {
       currentList[existingIndex] = fullQuiz;
@@ -4941,7 +4957,9 @@ const firestoreServiceRaw = {
         console.warn("Could not delete cloud quiz:", e);
       }
     }
-    const currentList = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
+    const currentList = handleFallback<Quiz>('local_quizzes', []).filter(
+      q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1'
+    );
     const filtered = currentList.filter(q => q.id !== quizId);
     saveFallback('local_quizzes', filtered);
 
@@ -4953,7 +4971,6 @@ const firestoreServiceRaw = {
   },
 
   async getQuizSubmissions(quizId?: string, studentId?: string, classId?: string): Promise<QuizSubmission[]> {
-    let cloudSubmissions: QuizSubmission[] = [];
     if (isUsingCloud) {
       try {
         const snap = await promiseWithTimeout(
@@ -4961,23 +4978,26 @@ const firestoreServiceRaw = {
           8000,
           { docs: [] } as any
         );
-        cloudSubmissions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizSubmission));
+        const cloudSubmissions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizSubmission));
+        cloudSubmissions.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+        saveFallback('local_quiz_submissions', cloudSubmissions);
+
+        let list = cloudSubmissions;
+        if (quizId) list = list.filter(s => s.quizId === quizId);
+        if (studentId) list = list.filter(s => s.studentId === studentId);
+        if (classId) list = list.filter(s => s.classId === classId);
+        return list;
       } catch (e) {
         console.warn("Cloud quiz submissions fallback loading:", e);
       }
     }
-    const fallbackList = handleFallback<QuizSubmission>('local_quiz_submissions', INITIAL_QUIZ_SUBMISSIONS);
-    const submissionMap = new Map<string, QuizSubmission>();
-    fallbackList.forEach(s => submissionMap.set(s.id, s));
-    cloudSubmissions.forEach(s => submissionMap.set(s.id, s));
-
-    let list = Array.from(submissionMap.values());
+    const fallbackList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
+    let list = fallbackList;
     if (quizId) list = list.filter(s => s.quizId === quizId);
     if (studentId) list = list.filter(s => s.studentId === studentId);
     if (classId) list = list.filter(s => s.classId === classId);
 
     list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-    saveFallback('local_quiz_submissions', Array.from(submissionMap.values()));
     return list;
   },
 
@@ -4997,7 +5017,7 @@ const firestoreServiceRaw = {
       }
     }
 
-    const currentList = handleFallback<QuizSubmission>('local_quiz_submissions', INITIAL_QUIZ_SUBMISSIONS);
+    const currentList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
     currentList.unshift(submission);
     saveFallback('local_quiz_submissions', currentList);
 
@@ -5023,9 +5043,11 @@ const firestoreServiceRaw = {
       callback = typeof arg2 === 'function' ? arg2 : () => {};
     }
 
-    // Immediately emit cached/fallback data so UI renders instantly
-    const initialList = handleFallback<Quiz>('local_quizzes', INITIAL_QUIZZES);
-    const filteredInitial = classId ? initialList.filter(q => q.classId === classId) : initialList;
+    // Immediately emit cached data (excluding any legacy demo items)
+    const cachedList = handleFallback<Quiz>('local_quizzes', []).filter(
+      q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1'
+    );
+    const filteredInitial = classId ? cachedList.filter(q => q.classId === classId) : cachedList;
     filteredInitial.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(filteredInitial);
 
@@ -5034,18 +5056,14 @@ const firestoreServiceRaw = {
         const unsub = onSnapshot(collection(db, 'quizzes'), (snap) => {
           const items: Quiz[] = [];
           snap.forEach(docSnap => {
-            items.push({ id: docSnap.id, ...docSnap.data() } as Quiz);
+            if (docSnap.id !== 'quiz_math_calc_1' && docSnap.id !== 'quiz_phys_mech_1') {
+              items.push({ id: docSnap.id, ...docSnap.data() } as Quiz);
+            }
           });
-          const quizMap = new Map<string, Quiz>();
-          initialList.forEach(q => quizMap.set(q.id, q));
-          items.forEach(q => quizMap.set(q.id, q));
+          items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          saveFallback('local_quizzes', items);
 
-          let list = Array.from(quizMap.values());
-          if (classId) {
-            list = list.filter(q => q.classId === classId);
-          }
-          list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          saveFallback('local_quizzes', Array.from(quizMap.values()));
+          const list = classId ? items.filter(q => q.classId === classId) : items;
           callback(list);
         }, (err) => {
           console.warn("Quiz snapshot error:", err);
@@ -5080,9 +5098,9 @@ const firestoreServiceRaw = {
       }
     }
 
-    // Initial emit
-    const initialList = handleFallback<QuizSubmission>('local_quiz_submissions', INITIAL_QUIZ_SUBMISSIONS);
-    let filtered = initialList;
+    // Initial emit from local cache
+    const cachedList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
+    let filtered = cachedList;
     if (quizId) filtered = filtered.filter(s => s.quizId === quizId);
     if (studentId) filtered = filtered.filter(s => s.studentId === studentId);
     filtered.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
@@ -5095,15 +5113,12 @@ const firestoreServiceRaw = {
           snap.forEach(docSnap => {
             items.push({ id: docSnap.id, ...docSnap.data() } as QuizSubmission);
           });
-          const subMap = new Map<string, QuizSubmission>();
-          initialList.forEach(s => subMap.set(s.id, s));
-          items.forEach(s => subMap.set(s.id, s));
+          items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          saveFallback('local_quiz_submissions', items);
 
-          let list = Array.from(subMap.values());
+          let list = items;
           if (quizId) list = list.filter(s => s.quizId === quizId);
           if (studentId) list = list.filter(s => s.studentId === studentId);
-          list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-          saveFallback('local_quiz_submissions', Array.from(subMap.values()));
           callback(list);
         }, (err) => {
           console.warn("Quiz submissions snapshot error:", err);
@@ -5126,3 +5141,37 @@ export const firestoreService = new Proxy(firestoreServiceRaw, {
     return Reflect.get(target, prop, receiver);
   }
 });
+
+// Clean up legacy demo quizzes from localStorage and Firestore to ensure real data only
+if (typeof window !== 'undefined') {
+  try {
+    // 1. Clean localStorage caches
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('local_quizzes')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              const cleaned = list.filter((q: any) => q && q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1');
+              if (cleaned.length !== list.length) {
+                localStorage.setItem(key, JSON.stringify(cleaned));
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    });
+
+    // 2. Remove demo records from cloud if present
+    if (isUsingCloud && db) {
+      setTimeout(() => {
+        try {
+          deleteDoc(doc(db, 'quizzes', 'quiz_math_calc_1')).catch(() => {});
+          deleteDoc(doc(db, 'quizzes', 'quiz_phys_mech_1')).catch(() => {});
+        } catch (_) {}
+      }, 1000);
+    }
+  } catch (_) {}
+}
+

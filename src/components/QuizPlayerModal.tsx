@@ -13,11 +13,70 @@ import {
   AlertTriangle, 
   Check, 
   HelpCircle,
-  Sparkles
+  Sparkles,
+  PartyPopper
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 import { Quiz, QuizSubmission, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+
+// Celebratory particle confetti animation helper
+const fireQuizSubmissionConfetti = (passed: boolean, percentage: number) => {
+  try {
+    // 1. Initial burst
+    confetti({
+      particleCount: passed ? 120 : 60,
+      spread: passed ? 85 : 55,
+      origin: { y: 0.6 },
+      zIndex: 99999,
+      colors: passed 
+        ? ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308'] 
+        : ['#3b82f6', '#60a5fa', '#93c5fd', '#a7f3d0']
+    });
+
+    if (passed) {
+      // 2. Multi-stage celebratory cannons
+      setTimeout(() => {
+        confetti({
+          particleCount: 50,
+          angle: 60,
+          spread: 65,
+          origin: { x: 0.08, y: 0.7 },
+          zIndex: 99999,
+          colors: ['#10b981', '#3b82f6', '#f59e0b', '#ec4899']
+        });
+      }, 250);
+
+      setTimeout(() => {
+        confetti({
+          particleCount: 50,
+          angle: 120,
+          spread: 65,
+          origin: { x: 0.92, y: 0.7 },
+          zIndex: 99999,
+          colors: ['#8b5cf6', '#10b981', '#3b82f6', '#06b6d4']
+        });
+      }, 450);
+
+      // Star & circle confetti burst if high mark (>= 80%)
+      if (percentage >= 80) {
+        setTimeout(() => {
+          confetti({
+            particleCount: 45,
+            spread: 110,
+            origin: { y: 0.45 },
+            shapes: ['star', 'circle'] as any,
+            zIndex: 99999,
+            colors: ['#fbbf24', '#f59e0b', '#eab308', '#fde047', '#fff']
+          });
+        }, 700);
+      }
+    }
+  } catch (err) {
+    console.warn("Confetti particle trigger failed:", err);
+  }
+};
 
 interface QuizPlayerModalProps {
   quiz: Quiz;
@@ -154,6 +213,9 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
       setSubmission(newSubmission);
       setPhase('results');
       setShowConfirmSubmit(false);
+
+      // Trigger celebratory particle animation effect (confetti)
+      fireQuizSubmissionConfetti(passed, percentage);
 
       // Trigger notification for the tutor
       if (quiz.tutorId && currentUser?.uid && quiz.tutorId !== currentUser.uid) {
@@ -511,6 +573,19 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                   Passing requirement: {quiz.passingScorePercentage || 50}% • Completed on{' '}
                   {new Date(submission.submittedAt).toLocaleDateString()}
                 </p>
+
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fireQuizSubmissionConfetti(submission.passed, submission.percentage)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 shadow-2xs transition-all hover:scale-105 cursor-pointer"
+                    id="replay_confetti_btn"
+                    title="Trigger celebratory confetti particles"
+                  >
+                    <PartyPopper className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Celebrate 🎉</span>
+                  </button>
+                </div>
               </div>
             </div>
 
