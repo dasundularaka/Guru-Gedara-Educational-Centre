@@ -82,9 +82,12 @@ function MainAppContent() {
     lastReconciledAt,
     reconcileCloudData,
     syncState,
+    viewAsRole,
     currentAppTab: currentTab,
     setCurrentAppTab: setCurrentTab
   } = useApp();
+
+  const isGuest = !currentUser || viewAsRole === 'guest';
 
   const [pingTime, setPingTime] = useState<number | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'stable' | 'unstable' | 'reconnecting'>('stable');
@@ -260,7 +263,7 @@ function MainAppContent() {
                 : <Auth onAuthSuccess={() => setCurrentTab('announcements')} />
             )}
             {currentTab === 'quizzes' && (
-              currentUser 
+              !isGuest 
                 ? <Quizzes onNavigateTab={setCurrentTab} /> 
                 : <Auth onAuthSuccess={() => setCurrentTab('quizzes')} />
             )}
@@ -288,7 +291,7 @@ function MainAppContent() {
               <ul className="space-y-2 text-xs text-blue-200">
                 <li><button onClick={() => setCurrentTab('home')} className="hover:text-white transition-colors cursor-pointer">Homepage</button></li>
                 <li><button onClick={() => setCurrentTab('classes')} className="hover:text-white transition-colors cursor-pointer">Explore Classes</button></li>
-                {currentUser && (
+                {!isGuest && (
                   <li><button onClick={() => setCurrentTab('quizzes')} className="hover:text-white transition-colors cursor-pointer">Quizzes & Tests</button></li>
                 )}
                 <li><button onClick={() => setCurrentTab('tutors')} className="hover:text-white transition-colors cursor-pointer font-sans">Verified Faculty</button></li>

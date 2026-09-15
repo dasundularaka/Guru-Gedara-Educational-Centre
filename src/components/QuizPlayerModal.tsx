@@ -24,10 +24,13 @@ import { firestoreService } from '../lib/firestoreService';
 // Celebratory particle confetti animation helper
 const fireQuizSubmissionConfetti = (passed: boolean, percentage: number) => {
   try {
+    const runner = (confetti as any)?.default || confetti;
+    if (typeof runner !== 'function') return;
+
     // 1. Initial burst
-    confetti({
-      particleCount: passed ? 120 : 60,
-      spread: passed ? 85 : 55,
+    runner({
+      particleCount: passed ? 140 : 70,
+      spread: passed ? 90 : 60,
       origin: { y: 0.6 },
       zIndex: 99999,
       colors: passed 
@@ -38,22 +41,22 @@ const fireQuizSubmissionConfetti = (passed: boolean, percentage: number) => {
     if (passed) {
       // 2. Multi-stage celebratory cannons
       setTimeout(() => {
-        confetti({
-          particleCount: 50,
+        runner({
+          particleCount: 60,
           angle: 60,
-          spread: 65,
-          origin: { x: 0.08, y: 0.7 },
+          spread: 70,
+          origin: { x: 0.05, y: 0.7 },
           zIndex: 99999,
           colors: ['#10b981', '#3b82f6', '#f59e0b', '#ec4899']
         });
       }, 250);
 
       setTimeout(() => {
-        confetti({
-          particleCount: 50,
+        runner({
+          particleCount: 60,
           angle: 120,
-          spread: 65,
-          origin: { x: 0.92, y: 0.7 },
+          spread: 70,
+          origin: { x: 0.95, y: 0.7 },
           zIndex: 99999,
           colors: ['#8b5cf6', '#10b981', '#3b82f6', '#06b6d4']
         });
@@ -62,9 +65,9 @@ const fireQuizSubmissionConfetti = (passed: boolean, percentage: number) => {
       // Star & circle confetti burst if high mark (>= 80%)
       if (percentage >= 80) {
         setTimeout(() => {
-          confetti({
-            particleCount: 45,
-            spread: 110,
+          runner({
+            particleCount: 50,
+            spread: 120,
             origin: { y: 0.45 },
             shapes: ['star', 'circle'] as any,
             zIndex: 99999,

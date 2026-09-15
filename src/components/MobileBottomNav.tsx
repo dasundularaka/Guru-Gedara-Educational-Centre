@@ -35,7 +35,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onChangeTab,
   onOpenProfile
 }) => {
-  const { currentUser, notifications, announcements, classes, bookings } = useApp();
+  const { currentUser, notifications, announcements, classes, bookings, viewAsRole } = useApp();
   const [activeSubSection, setActiveSubSection] = useState<string>('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +47,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   }, [announcements, currentUser, bookings, classes]);
 
   const announcementCount = audienceAnnouncements.length;
-  const isGuest = !currentUser;
+  const isGuest = !currentUser || viewAsRole === 'guest';
 
   // Clear activeSubSection when leaving home/dashboard tab
   useEffect(() => {

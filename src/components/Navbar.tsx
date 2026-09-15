@@ -586,7 +586,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               )}
 
               {/* Quizzes Tab - Only for authenticated users (students, tutors, admins). Never in guest mode */}
-              {currentUser && (
+              {currentUser && viewAsRole !== 'guest' && (
                 <button
                   onClick={() => onChangeTab('quizzes')}
                   className={`relative px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
