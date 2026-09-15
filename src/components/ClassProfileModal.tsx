@@ -49,6 +49,7 @@ import { StudentProfileModal } from './StudentProfileModal';
 import { AddStudentToClassModal } from './AddStudentToClassModal';
 import { ResourceEmbedViewerModal } from './ResourceEmbedViewerModal';
 import { QuizListSection } from './QuizListSection';
+import { useApp } from '../context/AppContext';
 import { checkClassAvailability, getTutorAvailabilitySummary, checkTutorAvailability } from '../utils/tutorAvailability';
 import { canUserViewStudyResource, canUserManageStudyResource } from '../utils/accessControl';
 import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
@@ -80,22 +81,24 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
   onUpdateData,
   showToast
 }) => {
-  const isAdmin = currentUser.role === 'admin';
-  const isRelevantTutor = currentUser.role === 'tutor' && (
+  const { viewAsRole } = useApp();
+  const isGuest = !currentUser || (currentUser as any).role === 'guest' || viewAsRole === 'guest';
+  const isAdmin = currentUser?.role === 'admin';
+  const isRelevantTutor = currentUser?.role === 'tutor' && (
     classItem?.tutorId === currentUser.uid || 
     classItem?.tutorName === currentUser.name || 
     currentUser.username === classItem?.tutorId ||
     (Boolean(currentUser.email) && Boolean((classItem as any)?.tutorEmail) && currentUser.email?.toLowerCase() === (classItem as any)?.tutorEmail?.toLowerCase())
   );
-  const isTutorOrAdmin = isAdmin || isRelevantTutor;
+  const isTutorOrAdmin = !isGuest && (isAdmin || isRelevantTutor);
 
   // Check if current user is a student and suspended for this class
-  const isCurrentStudentSuspended = currentUser.role === 'student' && (
+  const isCurrentStudentSuspended = currentUser?.role === 'student' && (
     currentUser.classEnrollmentStatus?.[classItem?.id || ''] === 'suspended' || 
     currentUser.status === 'suspended'
   );
 
-  const isEnrolledStudent = currentUser.role === 'student' && (
+  const isEnrolledStudent = !isGuest && currentUser?.role === 'student' && (
     (currentUser.selectedClasses || []).includes(classItem?.id || '') || 
     bookings.some(b => b.classId === classItem?.id && (b.studentId === currentUser.uid || (b as any).studentEmail === currentUser.email) && b.status === 'active')
   ) && !isCurrentStudentSuspended;
@@ -140,8 +143,11 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
       if (!isTutorOrAdmin && activeTab === 'roster') {
         setActiveTab('materials');
       }
+      if (isGuest && activeTab === 'quizzes') {
+        setActiveTab('materials');
+      }
     }
-  }, [classItem?.id, classItem?.gracePeriod, isTutorOrAdmin, activeTab]);
+  }, [classItem?.id, classItem?.gracePeriod, isTutorOrAdmin, isGuest, activeTab]);
 
   const handleSaveGracePeriod = async (newGrace: number) => {
     if (!classItem) return;
@@ -591,17 +597,19 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
               >
                 <BookOpen className="w-4 h-4" /> Course Materials ({materials.length})
               </button>
-              <button
-                onClick={() => setActiveTab('quizzes')}
-                className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
-                  activeTab === 'quizzes' 
-                    ? 'bg-slate-900 text-white shadow-xs' 
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
-                id="tab_class_quizzes"
-              >
-                <FileQuestion className="w-4 h-4 text-violet-500" /> Quizzes & Tests
-              </button>
+              {!isGuest && (
+                <button
+                  onClick={() => setActiveTab('quizzes')}
+                  className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                    activeTab === 'quizzes' 
+                      ? 'bg-slate-900 text-white shadow-xs' 
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                  id="tab_class_quizzes"
+                >
+                  <FileQuestion className="w-4 h-4 text-violet-500" /> Quizzes & Tests
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('attendance')}
                 className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
@@ -1332,7 +1340,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             )}
 
             {/* TAB: QUIZZES & ASSESSMENTS */}
-            {activeTab === 'quizzes' && (
+            {!isGuest && activeTab === 'quizzes' && (
               <div className="space-y-4">
                 <QuizListSection classId={classItem?.id} showCreateButton={isTutorOrAdmin} />
               </div>

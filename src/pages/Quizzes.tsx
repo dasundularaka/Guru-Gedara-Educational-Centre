@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { QuizListSection } from '../components/QuizListSection';
-import { FileQuestion, GraduationCap, CheckCircle2, Award, Sparkles, BookOpen } from 'lucide-react';
+import { FileQuestion, GraduationCap, CheckCircle2, Award, Sparkles, BookOpen, Lock } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface QuizzesProps {
@@ -9,8 +9,31 @@ interface QuizzesProps {
 }
 
 export const Quizzes: React.FC<QuizzesProps> = ({ onNavigateTab }) => {
-  const { currentUser } = useApp();
-  const isTutorOrAdmin = currentUser?.role === 'tutor' || currentUser?.role === 'admin';
+  const { currentUser, viewAsRole } = useApp();
+  const isGuest = !currentUser || (currentUser as any).role === 'guest' || viewAsRole === 'guest';
+  const isTutorOrAdmin = !isGuest && (currentUser?.role === 'tutor' || currentUser?.role === 'admin');
+
+  if (isGuest) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-16 px-4 flex items-center justify-center">
+        <div className="max-w-md w-full text-center bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white">Scholar Login Required</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Interactive quizzes, assessments, and score certifications are reserved for registered academy scholars and faculty.
+          </p>
+          <button
+            onClick={() => onNavigateTab ? onNavigateTab('classes') : window.location.reload()}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md transition-all cursor-pointer"
+          >
+            Explore Academy Classes
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 px-4 sm:px-6 lg:px-8 transition-colors">

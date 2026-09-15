@@ -5043,21 +5043,20 @@ const firestoreServiceRaw = {
       callback = typeof arg2 === 'function' ? arg2 : () => {};
     }
 
-    // Immediately emit cached data (excluding any legacy demo items)
-    const cachedList = handleFallback<Quiz>('local_quizzes', []).filter(
-      q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1'
-    );
-    const filteredInitial = classId ? cachedList.filter(q => q.classId === classId) : cachedList;
-    filteredInitial.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    callback(filteredInitial);
-
     if (isUsingCloud) {
       try {
         const unsub = onSnapshot(collection(db, 'quizzes'), (snap) => {
           const items: Quiz[] = [];
           snap.forEach(docSnap => {
-            if (docSnap.id !== 'quiz_math_calc_1' && docSnap.id !== 'quiz_phys_mech_1') {
-              items.push({ id: docSnap.id, ...docSnap.data() } as Quiz);
+            const data = docSnap.data() as Quiz;
+            // Strict filtering to ensure only real database quizzes are shown
+            if (
+              docSnap.id !== 'quiz_math_calc_1' && 
+              docSnap.id !== 'quiz_phys_mech_1' &&
+              !(data as any)?.isDemo &&
+              data?.tutorId !== 'tutor_demo'
+            ) {
+              items.push({ id: docSnap.id, ...data } as Quiz);
             }
           });
           items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -5073,6 +5072,14 @@ const firestoreServiceRaw = {
       } catch (e) {
         console.warn("Subscribe quizzes error:", e);
       }
+    } else {
+      // Offline fallback only when cloud is not enabled
+      const cachedList = handleFallback<Quiz>('local_quizzes', []).filter(
+        q => q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1' && !(q as any)?.isDemo && q.tutorId !== 'tutor_demo'
+      );
+      const filteredInitial = classId ? cachedList.filter(q => q.classId === classId) : cachedList;
+      filteredInitial.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      callback(filteredInitial);
     }
     this.getQuizzes(classId).then(callback);
     return () => {};
@@ -5098,14 +5105,6 @@ const firestoreServiceRaw = {
       }
     }
 
-    // Initial emit from local cache
-    const cachedList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
-    let filtered = cachedList;
-    if (quizId) filtered = filtered.filter(s => s.quizId === quizId);
-    if (studentId) filtered = filtered.filter(s => s.studentId === studentId);
-    filtered.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-    callback(filtered);
-
     if (isUsingCloud) {
       try {
         const unsub = onSnapshot(collection(db, 'quiz_submissions'), (snap) => {
@@ -5128,6 +5127,13 @@ const firestoreServiceRaw = {
       } catch (e) {
         console.warn("Subscribe quiz submissions error:", e);
       }
+    } else {
+      const cachedList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
+      let filtered = cachedList;
+      if (quizId) filtered = filtered.filter(s => s.quizId === quizId);
+      if (studentId) filtered = filtered.filter(s => s.studentId === studentId);
+      filtered.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+      callback(filtered);
     }
     this.getQuizSubmissions(quizId, studentId).then(callback);
     return () => {};
@@ -5145,18 +5151,24 @@ export const firestoreService = new Proxy(firestoreServiceRaw, {
 // Clean up legacy demo quizzes from localStorage and Firestore to ensure real data only
 if (typeof window !== 'undefined') {
   try {
-    // 1. Clean localStorage caches
+    // 1. Clean localStorage caches of any demo data
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('local_quizzes')) {
+      if (key.startsWith('local_quizzes') || key.startsWith('local_quiz_submissions')) {
         try {
           const raw = localStorage.getItem(key);
           if (raw) {
             const list = JSON.parse(raw);
             if (Array.isArray(list)) {
-              const cleaned = list.filter((q: any) => q && q.id !== 'quiz_math_calc_1' && q.id !== 'quiz_phys_mech_1');
-              if (cleaned.length !== list.length) {
-                localStorage.setItem(key, JSON.stringify(cleaned));
-              }
+              const cleaned = list.filter((item: any) => 
+                item && 
+                item.id !== 'quiz_math_calc_1' && 
+                item.id !== 'quiz_phys_mech_1' &&
+                !item.isDemo &&
+                item.tutorId !== 'tutor_demo' &&
+                item.quizId !== 'quiz_math_calc_1' &&
+                item.quizId !== 'quiz_phys_mech_1'
+              );
+              localStorage.setItem(key, JSON.stringify(cleaned));
             }
           }
         } catch (_) {}
@@ -5170,7 +5182,7 @@ if (typeof window !== 'undefined') {
           deleteDoc(doc(db, 'quizzes', 'quiz_math_calc_1')).catch(() => {});
           deleteDoc(doc(db, 'quizzes', 'quiz_phys_mech_1')).catch(() => {});
         } catch (_) {}
-      }, 1000);
+      }, 500);
     }
   } catch (_) {}
 }
