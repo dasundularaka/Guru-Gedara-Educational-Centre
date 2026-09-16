@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { Quiz, QuizSubmission, ClassItem } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { canUserViewQuiz, canUserManageQuiz } from '../utils/accessControl';
 import { QuizBuilderModal } from './QuizBuilderModal';
 import { QuizPlayerModal } from './QuizPlayerModal';
 import { QuizSubmissionsModal } from './QuizSubmissionsModal';
@@ -133,17 +134,57 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
 
   // Available classes for tutor to assign quizzes to
   const availableClassesForTutor: ClassItem[] = useMemo(() => {
-    if (!currentUser) return classes || [];
+    if (!currentUser) return [];
     if (currentUser.role === 'admin') return classes || [];
-    const matched = (classes || []).filter(c => 
-      c.tutorId === currentUser.uid || 
-      c.tutorId === currentUser.username ||
-      (c.tutorName && currentUser.name && c.tutorName.toLowerCase() === currentUser.name.toLowerCase()) ||
-      ((c as any).tutorEmail && currentUser.email && (c as any).tutorEmail.toLowerCase() === currentUser.email.toLowerCase())
-    );
-    if (matched.length > 0) return matched;
-    return classes || [];
+    
+    const userUid = (currentUser.uid || '')?.toLowerCase();
+    const userName = (currentUser.name || '')?.toLowerCase();
+    const userUsername = (currentUser.username || '')?.toLowerCase();
+    const userDisplayName = (currentUser.displayName || '')?.toLowerCase();
+    const userEmail = (currentUser.email || '')?.toLowerCase();
+
+    return (classes || []).filter(c => {
+      const cTutorId = (c.tutorId || '')?.toLowerCase();
+      const cTutorName = (c.tutorName || '')?.toLowerCase();
+      const cTutorEmail = ((c as any).tutorEmail || '')?.toLowerCase();
+
+      return (
+        (cTutorId && (cTutorId === userUid || cTutorId === userUsername)) ||
+        (cTutorName && (cTutorName === userName || (userDisplayName && cTutorName === userDisplayName))) ||
+        (cTutorEmail && userEmail && cTutorEmail === userEmail)
+      );
+    });
   }, [classes, currentUser]);
+
+  // Count of enrolled classes for student
+  const studentEnrolledClassesCount = useMemo(() => {
+    if (!currentUser || currentUser.role !== 'student') return 0;
+    const enrolledIds = new Set<string>();
+    (currentUser.selectedClasses || []).forEach(cid => {
+      if (currentUser.classEnrollmentStatus?.[cid] !== 'suspended') {
+        enrolledIds.add(cid);
+      }
+    });
+
+    const userUid = (currentUser.uid || '')?.toLowerCase();
+    const userUsername = (currentUser.username || '')?.toLowerCase();
+    const userEmail = (currentUser.email || '')?.toLowerCase();
+
+    (bookings || []).forEach(b => {
+      if (b.status === 'active' || b.status === 'approved') {
+        const bStudentId = (b.studentId || '')?.toLowerCase();
+        const bStudentEmail = ((b as any).studentEmail || '')?.toLowerCase();
+        const isMatch =
+          (userUid && bStudentId === userUid) ||
+          (userUsername && bStudentId === userUsername) ||
+          (userEmail && bStudentEmail === userEmail);
+        if (isMatch && currentUser.classEnrollmentStatus?.[b.classId] !== 'suspended') {
+          enrolledIds.add(b.classId);
+        }
+      }
+    });
+    return enrolledIds.size;
+  }, [currentUser, bookings]);
 
   // Handle save quiz from builder
   const handleSaveQuiz = async (quizData: Partial<Quiz>) => {
@@ -169,13 +210,24 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     }
   };
 
-  // Filtered quizzes
+  // Filtered quizzes strictly adhering to authorization rules:
+  // - Admins can see all quizzes (draft & published, all tutors and all classes)
+  // - Tutors can ONLY see quizzes for classes they teach / are assigned to, or created by them
+  // - Students can ONLY see published quizzes for classes they are actively enrolled in
+  // - Non-enrolled students and unassigned tutors cannot see any quizzes
   const filteredQuizzes = useMemo(() => {
     return quizzes.filter(q => {
-      // If student or public, only show published quizzes (tutors see drafts too)
-      if (!isTutorOrAdmin && q.status !== 'published') return false;
+      // 1. Core Role and Enrollment Permission Check
+      if (!canUserViewQuiz(q, currentUser, classes, bookings)) {
+        return false;
+      }
 
-      // Search match
+      // 2. Class scope filter if a specific classId is provided
+      if (classId && q.classId !== classId) {
+        return false;
+      }
+
+      // 3. Search query match
       const matchSearch =
         q.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         q.classTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -183,7 +235,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
 
       if (!matchSearch) return false;
 
-      // Status filter
+      // 4. Status filter
       if (statusFilter === 'published' && q.status !== 'published') return false;
       if (statusFilter === 'completed') {
         const sub = latestSubmissionsByQuiz.get(q.id);
@@ -196,7 +248,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
 
       return true;
     });
-  }, [quizzes, searchTerm, statusFilter, isTutorOrAdmin, latestSubmissionsByQuiz]);
+  }, [quizzes, currentUser, classes, bookings, classId, searchTerm, statusFilter, latestSubmissionsByQuiz]);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -306,20 +358,50 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
       ) : filteredQuizzes.length === 0 ? (
         <div className="py-12 text-center bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 p-8 space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
-            <FileQuestion className="w-6 h-6" />
+            {isStudent && studentEnrolledClassesCount === 0 ? (
+              <Lock className="w-6 h-6 text-amber-500" />
+            ) : (
+              <FileQuestion className="w-6 h-6" />
+            )}
           </div>
           <div>
             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              No quizzes available
+              {searchTerm
+                ? 'No matching quizzes found'
+                : isStudent && studentEnrolledClassesCount === 0
+                ? 'No Enrolled Classes Found'
+                : isStudent
+                ? 'No Quizzes Available for Your Enrolled Classes'
+                : currentUser?.role === 'tutor'
+                ? 'No Quizzes for Your Assigned Classes'
+                : 'No Quizzes Available'}
             </h4>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
               {searchTerm
                 ? 'No quizzes match your search criteria. Try a different query.'
-                : isTutorOrAdmin
-                ? 'You have not created any quizzes for this subject yet. Click "+ Create Test / Quiz" to design questions and mark answer keys.'
-                : 'Your instructor has not published any quizzes yet for this course. Please check back later.'}
+                : isStudent && studentEnrolledClassesCount === 0
+                ? 'Quizzes, mock exams, and assessments are only shown for classes you are actively enrolled in. Enroll in a class to access quizzes.'
+                : isStudent
+                ? 'Your instructors have not published any quizzes yet for your enrolled classes. Please check back later.'
+                : currentUser?.role === 'tutor'
+                ? 'You do not have any quizzes assigned to your classes yet. Click "+ Create Test / Quiz" to design assessments for your students.'
+                : 'No quizzes have been created yet in the academy. Click "+ Create Test / Quiz" to design assessments.'}
             </p>
           </div>
+          {isStudent && studentEnrolledClassesCount === 0 && (
+            <button
+              onClick={() => {
+                if (onNavigateToClass) {
+                  onNavigateToClass('');
+                } else {
+                  window.dispatchEvent(new CustomEvent('app_navigate_tab', { detail: { tab: 'classes' } }));
+                }
+              }}
+              className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <BookOpen className="w-3.5 h-3.5" /> Explore Classes to Enroll
+            </button>
+          )}
           {isTutorOrAdmin && showCreateButton && (
             <button
               onClick={() => {
@@ -441,7 +523,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                             <RotateCcw className="w-3.5 h-3.5" /> Retake
                           </button>
                         </>
-                      ) : isEnrolled ? (
+                      ) : (
                         <button
                           onClick={() => {
                             setActiveQuizForPlayer(quiz);
@@ -452,33 +534,6 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                         >
                           <Play className="w-3.5 h-3.5 fill-current" /> Take Assessment Now
                         </button>
-                      ) : (
-                        <div className="flex items-center gap-2 w-full">
-                          <button
-                            onClick={() => {
-                              setActiveQuizForPlayer(quiz);
-                              setInitialSubmissionForPlayer(null);
-                              setPlayerOpen(true);
-                            }}
-                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current" /> Take Practice Test
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (onNavigateToClass) {
-                                onNavigateToClass(quiz.classId);
-                              } else {
-                                window.dispatchEvent(new CustomEvent('app_navigate_tab', { detail: { tab: 'classes', classId: quiz.classId } }));
-                                showToast(`Navigate to ${quiz.classTitle} to view course details and enroll.`, 'info');
-                              }
-                            }}
-                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-slate-200 dark:border-slate-700 whitespace-nowrap"
-                            title="View Class Details"
-                          >
-                            <BookOpen className="w-3.5 h-3.5" /> Class Info
-                          </button>
-                        </div>
                       )}
                     </div>
                   )}
@@ -511,26 +566,28 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingQuiz(quiz);
-                            setBuilderOpen(true);
-                          }}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
-                          title="Edit Quiz"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
+                      {canUserManageQuiz(quiz, currentUser, classes) && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingQuiz(quiz);
+                              setBuilderOpen(true);
+                            }}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Quiz"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
 
-                        <button
-                          onClick={() => setDeleteConfirmQuiz(quiz)}
-                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Quiz"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => setDeleteConfirmQuiz(quiz)}
+                            className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Quiz"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

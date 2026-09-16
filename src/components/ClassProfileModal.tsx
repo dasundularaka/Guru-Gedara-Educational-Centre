@@ -100,11 +100,12 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
 
   const isEnrolledStudent = !isGuest && currentUser?.role === 'student' && (
     (currentUser.selectedClasses || []).includes(classItem?.id || '') || 
-    bookings.some(b => b.classId === classItem?.id && (b.studentId === currentUser.uid || (b as any).studentEmail === currentUser.email) && b.status === 'active')
+    bookings.some(b => b.classId === classItem?.id && (b.studentId === currentUser.uid || b.studentId === currentUser.username || (b as any).studentEmail?.toLowerCase() === currentUser.email?.toLowerCase()) && (b.status === 'active' || b.status === 'approved'))
   ) && !isCurrentStudentSuspended;
 
   const canViewMaterials = isAdmin || isRelevantTutor || isEnrolledStudent;
   const canManageMaterials = isAdmin || isRelevantTutor;
+  const canAccessClassQuizzes = !isGuest && (isAdmin || isRelevantTutor || isEnrolledStudent);
 
   const [activeTab, setActiveTab] = useState<'roster' | 'materials' | 'quizzes' | 'attendance' | 'availability'>(isTutorOrAdmin ? 'roster' : 'materials');
 
@@ -143,7 +144,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
       if (!isTutorOrAdmin && activeTab === 'roster') {
         setActiveTab('materials');
       }
-      if (isGuest && activeTab === 'quizzes') {
+      if (!canAccessClassQuizzes && activeTab === 'quizzes') {
         setActiveTab('materials');
       }
     }
@@ -597,7 +598,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
               >
                 <BookOpen className="w-4 h-4" /> Course Materials ({materials.length})
               </button>
-              {!isGuest && (
+              {canAccessClassQuizzes && (
                 <button
                   onClick={() => setActiveTab('quizzes')}
                   className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
@@ -1340,7 +1341,7 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
             )}
 
             {/* TAB: QUIZZES & ASSESSMENTS */}
-            {!isGuest && activeTab === 'quizzes' && (
+            {canAccessClassQuizzes && activeTab === 'quizzes' && (
               <div className="space-y-4">
                 <QuizListSection classId={classItem?.id} showCreateButton={isTutorOrAdmin} />
               </div>

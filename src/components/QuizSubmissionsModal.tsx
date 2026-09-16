@@ -11,11 +11,14 @@ import {
   ChevronUp, 
   FileText,
   Search,
-  BookOpen
+  BookOpen,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Quiz, QuizSubmission } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { useApp } from '../context/AppContext';
+import { canUserManageQuiz } from '../utils/accessControl';
 
 interface QuizSubmissionsModalProps {
   quiz: Quiz;
@@ -28,13 +31,16 @@ export const QuizSubmissionsModal: React.FC<QuizSubmissionsModalProps> = ({
   isOpen,
   onClose
 }) => {
+  const { currentUser, classes } = useApp();
+  const isAuthorized = canUserManageQuiz(quiz, currentUser, classes);
+
   const [submissions, setSubmissions] = useState<QuizSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !isAuthorized) return;
     const fetchSubmissions = async () => {
       setLoading(true);
       try {
@@ -47,9 +53,37 @@ export const QuizSubmissionsModal: React.FC<QuizSubmissionsModalProps> = ({
       }
     };
     fetchSubmissions();
-  }, [quiz.id, isOpen]);
+  }, [quiz.id, isOpen, isAuthorized]);
 
   if (!isOpen) return null;
+
+  if (!isAuthorized) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-8 text-center space-y-4"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white">
+            Faculty Access Required
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Only the assigned instructor or academy administrator may review student test submissions.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Close
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   const totalSubmissions = submissions.length;
   const passedCount = submissions.filter(s => s.passed).length;

@@ -14,12 +14,15 @@ import {
   Check, 
   HelpCircle,
   Sparkles,
-  PartyPopper
+  PartyPopper,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { Quiz, QuizSubmission, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
+import { useApp } from '../context/AppContext';
+import { canUserViewQuiz } from '../utils/accessControl';
 
 // Celebratory particle confetti animation helper
 const fireQuizSubmissionConfetti = (passed: boolean, percentage: number) => {
@@ -98,6 +101,10 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
   onSubmissionSuccess,
   initialSubmission
 }) => {
+  const { classes, bookings, currentUser: appUser } = useApp();
+  const effectiveUser = currentUser || appUser;
+  const isAuthorized = canUserViewQuiz(quiz, effectiveUser, classes, bookings);
+
   // Phase: 'briefing' | 'taking' | 'results'
   const [phase, setPhase] = useState<'briefing' | 'taking' | 'results'>(
     initialSubmission ? 'results' : 'briefing'
@@ -254,6 +261,36 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (!isOpen) return null;
+
+  if (!isAuthorized) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-8 text-center space-y-4"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white">
+            Access Restricted
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            This assessment is reserved exclusively for scholars actively enrolled in <strong className="text-slate-800 dark:text-slate-200">{quiz.classTitle}</strong> or the assigned faculty tutor.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Close Assessment
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
