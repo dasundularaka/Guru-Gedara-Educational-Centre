@@ -24,7 +24,7 @@ import { Quiz, QuizSubmission, ClassItem } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 import { canUserViewQuiz, canUserManageQuiz } from '../utils/accessControl';
 import { QuizBuilderModal } from './QuizBuilderModal';
-import { QuizPlayerModal } from './QuizPlayerModal';
+import { QuizPlayerModal, fireQuizSubmissionConfetti } from './QuizPlayerModal';
 import { QuizSubmissionsModal } from './QuizSubmissionsModal';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -506,10 +506,14 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                               setActiveQuizForPlayer(quiz);
                               setInitialSubmissionForPlayer(studentSubmission);
                               setPlayerOpen(true);
+                              if (studentSubmission.passed) {
+                                fireQuizSubmissionConfetti(true, studentSubmission.percentage);
+                              }
                             }}
                             className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            id={`view_result_btn_${quiz.id}`}
                           >
-                            <Eye className="w-3.5 h-3.5" /> View Solutions & Review
+                            <Eye className="w-3.5 h-3.5" /> View Result
                           </button>
 
                           <button
