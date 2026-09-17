@@ -4898,6 +4898,7 @@ const firestoreServiceRaw = {
       status: quizData.status || 'published',
       questions: quizData.questions,
       totalPoints,
+      difficulty: quizData.difficulty || 'intermediate',
       createdAt: quizData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

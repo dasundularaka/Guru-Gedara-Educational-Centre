@@ -27,6 +27,7 @@ import { QuizBuilderModal } from './QuizBuilderModal';
 import { QuizPlayerModal, fireQuizSubmissionConfetti } from './QuizPlayerModal';
 import { QuizSubmissionsModal } from './QuizSubmissionsModal';
 import { ConfirmModal } from './ConfirmModal';
+import { DifficultyBadge } from './DifficultyBadge';
 
 interface QuizListSectionProps {
   classId?: string;
@@ -48,6 +49,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'completed' | 'not_taken'>('all');
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'beginner' | 'intermediate' | 'advanced'>('all');
 
   // Modals state
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -246,9 +248,15 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
         if (sub) return false;
       }
 
+      // 5. Difficulty level filter
+      if (difficultyFilter !== 'all') {
+        const quizDiff = (q.difficulty || 'beginner').toLowerCase();
+        if (quizDiff !== difficultyFilter) return false;
+      }
+
       return true;
     });
-  }, [quizzes, currentUser, classes, bookings, classId, searchTerm, statusFilter, latestSubmissionsByQuiz]);
+  }, [quizzes, currentUser, classes, bookings, classId, searchTerm, statusFilter, difficultyFilter, latestSubmissionsByQuiz]);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -297,8 +305,25 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
           />
         </div>
 
-        {/* Filter pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-bold">
+        {/* Filter pills & Difficulty selector */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+          {/* Difficulty Dropdown */}
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+            <span className="text-[10px] text-slate-400 uppercase font-mono">Level:</span>
+            <select
+              value={difficultyFilter}
+              onChange={(e) => setDifficultyFilter(e.target.value as any)}
+              className="bg-transparent text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
+              id="filter_difficulty_select"
+              title="Filter by Difficulty Level"
+            >
+              <option value="all">All Levels</option>
+              <option value="beginner">🟢 Beginner</option>
+              <option value="intermediate">🟡 Intermediate</option>
+              <option value="advanced">🟣 Advanced</option>
+            </select>
+          </div>
+
           <button
             onClick={() => setStatusFilter('all')}
             className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
@@ -428,9 +453,13 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                 {/* Top Row: Class tag, Status & Metadata */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold truncate max-w-[200px]">
-                      {quiz.classTitle}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold truncate max-w-[180px]">
+                        {quiz.classTitle}
+                      </span>
+                      {/* Difficulty Level Badge on Quiz Cards */}
+                      <DifficultyBadge quiz={quiz} size="xs" />
+                    </div>
 
                     {/* Status badge for Tutors */}
                     {isTutorOrAdmin ? (

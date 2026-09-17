@@ -13,7 +13,8 @@ import {
   BookOpen 
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Quiz, QuizQuestion, QuestionType, ClassItem, UserProfile } from '../types';
+import { Quiz, QuizQuestion, QuestionType, ClassItem, UserProfile, QuizDifficulty } from '../types';
+import { DifficultyBadge } from './DifficultyBadge';
 
 interface QuizBuilderModalProps {
   isOpen: boolean;
@@ -44,6 +45,9 @@ export const QuizBuilderModal: React.FC<QuizBuilderModalProps> = ({
   );
   const [passingScorePercentage, setPassingScorePercentage] = useState<number>(
     initialQuiz?.passingScorePercentage !== undefined ? initialQuiz.passingScorePercentage : 60
+  );
+  const [difficulty, setDifficulty] = useState<QuizDifficulty>(
+    initialQuiz?.difficulty || 'intermediate'
   );
   const [status, setStatus] = useState<'published' | 'draft'>(initialQuiz?.status || 'published');
 
@@ -207,6 +211,7 @@ export const QuizBuilderModal: React.FC<QuizBuilderModalProps> = ({
         durationMinutes: Math.max(0, durationMinutes),
         passingScorePercentage: Math.min(100, Math.max(10, passingScorePercentage)),
         status: submitStatus,
+        difficulty,
         questions,
         totalPoints: questions.reduce((sum, q) => sum + (q.points || 1), 0),
         createdAt: initialQuiz?.createdAt
@@ -307,8 +312,8 @@ export const QuizBuilderModal: React.FC<QuizBuilderModalProps> = ({
             />
           </div>
 
-          {/* Assessment Parameters: Duration & Passing Score */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800">
+          {/* Assessment Parameters: Duration, Passing Score & Difficulty */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-indigo-500" /> Time Limit (Minutes)
@@ -323,14 +328,14 @@ export const QuizBuilderModal: React.FC<QuizBuilderModalProps> = ({
                   className="w-24 text-xs font-bold px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-600 dark:text-white"
                 />
                 <span className="text-[11px] text-slate-500 font-medium">
-                  {durationMinutes === 0 ? 'Unlimited time' : 'mins (timed countdown)'}
+                  {durationMinutes === 0 ? 'Unlimited' : 'mins'}
                 </span>
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5 text-amber-500" /> Passing Score Requirement (%)
+                <Award className="w-3.5 h-3.5 text-amber-500" /> Passing Score (%)
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -342,9 +347,26 @@ export const QuizBuilderModal: React.FC<QuizBuilderModalProps> = ({
                   className="w-24 text-xs font-bold px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-600 dark:text-white"
                 />
                 <span className="text-[11px] text-slate-500 font-medium">
-                  Score needed to pass the test
+                  Pass mark
                 </span>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                <span>Difficulty Level</span>
+                <DifficultyBadge difficulty={difficulty} size="xs" />
+              </label>
+              <select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as QuizDifficulty)}
+                className="w-full text-xs font-bold px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-600 dark:text-white"
+                id="quiz_difficulty_select"
+              >
+                <option value="beginner">Beginner (Foundational)</option>
+                <option value="intermediate">Intermediate (Standard)</option>
+                <option value="advanced">Advanced (Mastery)</option>
+              </select>
             </div>
           </div>
 

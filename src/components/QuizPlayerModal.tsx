@@ -14,7 +14,10 @@ import {
   Check, 
   HelpCircle,
   Sparkles,
-  Lock
+  Lock,
+  CheckSquare,
+  Lightbulb,
+  Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -22,6 +25,7 @@ import { Quiz, QuizSubmission, UserProfile } from '../types';
 import { firestoreService } from '../lib/firestoreService';
 import { useApp } from '../context/AppContext';
 import { canUserViewQuiz } from '../utils/accessControl';
+import { DifficultyBadge } from './DifficultyBadge';
 
 // Celebratory particle confetti animation helper - strictly ONLY runs when passed is true
 export const fireQuizSubmissionConfetti = (passed: boolean, percentage: number) => {
@@ -99,7 +103,7 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
   onSubmissionSuccess,
   initialSubmission
 }) => {
-  const { classes, bookings, currentUser: appUser } = useApp();
+  const { classes, bookings, currentUser: appUser, showToast } = useApp();
   const effectiveUser = currentUser || appUser;
   const isAuthorized = canUserViewQuiz(quiz, effectiveUser, classes, bookings);
 
@@ -116,11 +120,40 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState<boolean>(false);
 
+  // Review Answers filter state
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'correct' | 'wrong'>('all');
+
   // Timer states
   const [secondsRemaining, setSecondsRemaining] = useState<number>(
     quiz.durationMinutes && quiz.durationMinutes > 0 ? quiz.durationMinutes * 60 : 0
   );
   const startTimeRef = useRef<number>(Date.now());
+  const lowTimeToastFiredRef = useRef<boolean>(false);
+  const [showInModalToast, setShowInModalToast] = useState<boolean>(false);
+
+  const totalDurationSeconds = quiz.durationMinutes && quiz.durationMinutes > 0 ? quiz.durationMinutes * 60 : 0;
+  const isTimed = totalDurationSeconds > 0;
+  // Threshold is 10% of total allotted time (e.g. for 15 mins = 900s, 10% = 90s)
+  const lowTimeThreshold = isTimed ? Math.max(10, Math.floor(totalDurationSeconds * 0.10)) : 0;
+  const isLowTime = isTimed && phase === 'taking' && secondsRemaining > 0 && secondsRemaining <= lowTimeThreshold;
+
+  // Trigger subtle notification toast when less than 10% of time remaining
+  useEffect(() => {
+    if (isLowTime && !lowTimeToastFiredRef.current) {
+      lowTimeToastFiredRef.current = true;
+      setShowInModalToast(true);
+      if (showToast) {
+        showToast(
+          `⏱️ Time Alert: Less than 10% time remaining! ${Math.floor(secondsRemaining / 60)}m ${secondsRemaining % 60}s left. Please review and finalize your answers.`,
+          'warning'
+        );
+      }
+      const hideTimer = setTimeout(() => {
+        setShowInModalToast(false);
+      }, 7000);
+      return () => clearTimeout(hideTimer);
+    }
+  }, [isLowTime, secondsRemaining, showToast]);
 
   useEffect(() => {
     if (initialSubmission) {
@@ -324,14 +357,19 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
             {/* Countdown timer if in taking phase */}
             {phase === 'taking' && quiz.durationMinutes && quiz.durationMinutes > 0 && (
               <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-black shadow-inner transition-colors ${
-                  secondsRemaining < 120
-                    ? 'bg-red-500 text-white animate-pulse'
+                id="quiz_countdown_timer"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-black shadow-inner transition-all duration-300 ${
+                  isLowTime
+                    ? 'bg-red-600 text-white animate-pulse ring-2 ring-red-400 ring-offset-2 ring-offset-blue-900 shadow-lg shadow-red-500/50 scale-105'
                     : 'bg-white/20 text-white backdrop-blur-md'
                 }`}
+                title={isLowTime ? 'Less than 10% of time remaining! Please review your answers.' : 'Remaining test time'}
               >
-                <Clock className="w-3.5 h-3.5" />
+                <Clock className={`w-3.5 h-3.5 ${isLowTime ? 'animate-spin' : ''}`} />
                 <span>{formatTimer(secondsRemaining)}</span>
+                {isLowTime && (
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping ml-0.5" />
+                )}
               </div>
             )}
 
@@ -343,6 +381,63 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Subtle In-Modal Floating Toast for Low Time (< 10%) */}
+        <AnimatePresence>
+          {showInModalToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -16, scale: 0.96 }}
+              className="px-4 py-3 bg-slate-900/95 dark:bg-slate-800/95 text-white border border-red-500/60 shadow-xl flex items-center justify-between gap-3 shrink-0"
+              id="quiz_low_time_floating_toast"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 text-red-400 animate-pulse" />
+                </div>
+                <div>
+                  <span className="text-xs font-extrabold text-red-300 flex items-center gap-1.5">
+                    <span>⏱️ Time Alert: Less than 10% Time Remaining</span>
+                  </span>
+                  <p className="text-[11px] text-slate-300">
+                    Only <span className="font-mono font-bold text-white underline">{formatTimer(secondsRemaining)}</span> remaining! Please review and finalize your answers.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInModalToast(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-md hover:bg-white/10 cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Visual Pulse Banner when in Taking Phase and Time < 10% */}
+        {phase === 'taking' && isLowTime && (
+          <div
+            id="quiz_timer_pulse_banner"
+            className="px-4 py-2 bg-red-500/15 dark:bg-red-950/70 border-b border-red-500/30 flex items-center justify-between gap-3 text-red-700 dark:text-red-300 text-xs font-bold animate-pulse shrink-0"
+          >
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+              </span>
+              <Clock className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+              <span>
+                Final Countdown: Less than 10% remaining (<span className="font-mono font-black">{formatTimer(secondsRemaining)}</span> left)
+              </span>
+            </div>
+            <span className="text-[10px] uppercase font-mono tracking-wider font-extrabold px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-900/80 text-red-700 dark:text-red-200">
+              Review Answers
+            </span>
+          </div>
+        )}
 
         {/* ------------------------------------------------------------- */}
         {/* PHASE 1: BRIEFING SCREEN                                      */}
@@ -363,8 +458,8 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
               )}
             </div>
 
-            {/* Assessment Details Metric Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mx-auto">
+            {/* Assessment Details Metric Grid with Difficulty Badge */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-2xl mx-auto">
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">Questions</span>
                 <span className="text-base font-black text-blue-600 dark:text-blue-400 font-mono">
@@ -391,6 +486,11 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                 <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">
                   {quiz.passingScorePercentage || 50}%
                 </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-between col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Difficulty</span>
+                <DifficultyBadge quiz={quiz} size="xs" />
               </div>
             </div>
 
@@ -587,161 +687,333 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* PHASE 3: RESULTS & DIAGNOSTIC REVIEW SCREEN                   */}
+        {/* PHASE 3: RESULTS & REVIEW ANSWERS SCREEN                      */}
         {/* ------------------------------------------------------------- */}
-        {phase === 'results' && submission && (
-          <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-grow">
-            {/* Top Score Banner */}
-            <div
-              className={`p-6 rounded-3xl text-center border space-y-3 ${
-                submission.passed
-                  ? 'bg-gradient-to-b from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-gradient-to-b from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 border-amber-200 dark:border-amber-800'
-              }`}
-            >
+        {phase === 'results' && submission && (() => {
+          // Pre-compute questions evaluation for Review Answers
+          const evaluations = quiz.questions.map((q, idx) => {
+            const studentAns = submission.answers[q.id];
+            const isCorrect = Boolean(studentAns && studentAns.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase());
+            const pts = q.points || 1;
+            return {
+              question: q,
+              index: idx,
+              studentAns,
+              isCorrect,
+              pts
+            };
+          });
+
+          const correctQuestions = evaluations.filter(e => e.isCorrect);
+          const wrongQuestions = evaluations.filter(e => !e.isCorrect);
+
+          const displayedEvaluations = evaluations.filter(e => {
+            if (reviewFilter === 'correct') return e.isCorrect;
+            if (reviewFilter === 'wrong') return !e.isCorrect;
+            return true;
+          });
+
+          return (
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-grow" id="quiz_results_and_review_screen">
+              {/* Top Score Banner */}
               <div
-                className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center text-white font-mono text-2xl font-black shadow-lg ${
-                  submission.passed ? 'bg-emerald-600 shadow-emerald-500/30' : 'bg-amber-600 shadow-amber-500/30'
+                className={`p-6 rounded-3xl text-center border space-y-3.5 relative overflow-hidden ${
+                  submission.passed
+                    ? 'bg-gradient-to-b from-emerald-50 to-emerald-100/60 dark:from-emerald-950/40 dark:to-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-gradient-to-b from-amber-50 to-amber-100/60 dark:from-amber-950/40 dark:to-amber-900/20 border-amber-200 dark:border-amber-800'
                 }`}
               >
-                {submission.percentage}%
-              </div>
+                <div className="flex items-center justify-center gap-2">
+                  <DifficultyBadge quiz={quiz} size="xs" />
+                  <span className="text-[11px] font-mono text-slate-500 font-semibold">
+                    {quiz.classTitle}
+                  </span>
+                </div>
 
-              <div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider font-mono ${
-                    submission.passed
-                      ? 'bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200'
-                      : 'bg-amber-200 dark:bg-amber-900 text-amber-800 dark:text-amber-200'
+                <div
+                  className={`w-20 h-20 rounded-full mx-auto flex flex-col items-center justify-center text-white font-mono shadow-lg ${
+                    submission.passed ? 'bg-emerald-600 shadow-emerald-500/30' : 'bg-amber-600 shadow-amber-500/30'
                   }`}
                 >
-                  {submission.passed ? 'Passed Assessment 🎉' : 'Needs Practice (Did Not Meet Pass Score)'}
-                </span>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white mt-2">
-                  You scored {submission.score} out of {submission.totalPoints} points
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                  Passing requirement: {quiz.passingScorePercentage || 50}% • Completed on{' '}
-                  {new Date(submission.submittedAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
+                  <span className="text-2xl font-black leading-none">{submission.percentage}%</span>
+                  <span className="text-[9px] uppercase tracking-wider font-extrabold opacity-80 mt-0.5">Score</span>
+                </div>
 
-            {/* Detailed Question Review Breakdown */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider font-mono">
-                  Question Breakdown & Solution Review
-                </h4>
-                <span className="text-xs font-bold text-slate-500">
-                  {quiz.questions.length} Questions Evaluated
-                </span>
-              </div>
-
-              {quiz.questions.map((q, idx) => {
-                const studentAns = submission.answers[q.id];
-                const isCorrect = studentAns && studentAns.trim().toLowerCase() === q.correctAnswer.trim().toLowerCase();
-                const pts = q.points || 1;
-
-                return (
-                  <div
-                    key={q.id || idx}
-                    className={`p-4 rounded-2xl border space-y-3 transition-all ${
-                      isCorrect
-                        ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60'
-                        : 'bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-800/60'
+                <div>
+                  <span
+                    className={`px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider font-mono inline-flex items-center gap-1.5 ${
+                      submission.passed
+                        ? 'bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200'
+                        : 'bg-amber-200 dark:bg-amber-900 text-amber-800 dark:text-amber-200'
                     }`}
                   >
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        {isCorrect ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
-                        )}
-                        <span className="text-xs font-extrabold text-slate-900 dark:text-white">
-                          Question {idx + 1}
-                        </span>
-                      </div>
-                      <span
-                        className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                    {submission.passed ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Passed Assessment 🎉
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-3.5 h-3.5" /> Needs Practice (Below {quiz.passingScorePercentage || 50}% pass mark)
+                      </>
+                    )}
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-2">
+                    You earned {submission.score} out of {submission.totalPoints} points
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                    Pass requirement: {quiz.passingScorePercentage || 50}% • Submitted on{' '}
+                    {new Date(submission.submittedAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Review Answers Control Bar & Quick Stats */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span>Review Answers</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      See which questions you got right or wrong and view brief explanations for correct answers.
+                    </p>
+                  </div>
+
+                  {/* Filter Tabs: All, Got Right, Got Wrong */}
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setReviewFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        reviewFilter === 'all'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      All ({quiz.questions.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewFilter('correct')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        reviewFilter === 'correct'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                      }`}
+                      id="filter_got_right_btn"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Got Right ({correctQuestions.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewFilter('wrong')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        reviewFilter === 'wrong'
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                      }`}
+                      id="filter_got_wrong_btn"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Got Wrong ({wrongQuestions.length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Question Jump Buttons */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                  <span className="text-[10px] font-mono uppercase font-bold text-slate-400 mr-1 shrink-0">
+                    Jump to:
+                  </span>
+                  {evaluations.map((e) => (
+                    <a
+                      key={e.question.id || e.index}
+                      href={`#review_question_${e.index + 1}`}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
+                        e.isCorrect
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:scale-105'
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 hover:scale-105'
+                      }`}
+                      title={`Question ${e.index + 1}: ${e.isCorrect ? 'Got Right' : 'Got Wrong'}`}
+                    >
+                      <span>Q{e.index + 1}</span>
+                      {e.isCorrect ? (
+                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <X className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </div>
+
+              {/* Detailed Question Review List */}
+              <div className="space-y-4">
+                {displayedEvaluations.length === 0 ? (
+                  <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      No questions match the "{reviewFilter === 'correct' ? 'Got Right' : 'Got Wrong'}" filter.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setReviewFilter('all')}
+                      className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      View all questions
+                    </button>
+                  </div>
+                ) : (
+                  displayedEvaluations.map(({ question: q, index: idx, studentAns, isCorrect, pts }) => {
+                    return (
+                      <div
+                        key={q.id || idx}
+                        id={`review_question_${idx + 1}`}
+                        className={`p-4 sm:p-5 rounded-3xl border space-y-4 transition-all ${
                           isCorrect
-                            ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200'
-                            : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
+                            ? 'bg-emerald-50/30 dark:bg-emerald-950/15 border-emerald-200/80 dark:border-emerald-800/60 shadow-2xs'
+                            : 'bg-rose-50/30 dark:bg-rose-950/15 border-rose-200/80 dark:border-rose-800/60 shadow-2xs'
                         }`}
                       >
-                        {isCorrect ? `+${pts} / ${pts} Pts` : `0 / ${pts} Pts`}
-                      </span>
-                    </div>
+                        {/* Header: Question Number, Got Right / Got Wrong badge, Points */}
+                        <div className="flex flex-wrap items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-black px-2.5 py-1 rounded-xl bg-slate-900 text-white dark:bg-slate-800">
+                              Question {idx + 1}
+                            </span>
 
-                    {/* Question prompt */}
-                    <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
-                      {q.question}
-                    </p>
+                            {/* Prominent Got Right or Got Wrong Badge */}
+                            {isCorrect ? (
+                              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 shadow-2xs">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>Got Right</span>
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1.5 shadow-2xs">
+                                <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                                <span>Got Wrong</span>
+                              </span>
+                            )}
+                          </div>
 
-                    {/* Answers compare */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase font-mono">
-                          Your Answer:
-                        </span>
-                        <span
-                          className={`font-bold mt-0.5 block ${
-                            isCorrect ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                          }`}
-                        >
-                          {studentAns || 'No Answer Chosen'}
-                        </span>
-                      </div>
-
-                      {!isCorrect && (
-                        <div className="p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block uppercase font-mono">
-                            Correct Answer:
-                          </span>
-                          <span className="font-bold text-emerald-800 dark:text-emerald-200 mt-0.5 block">
-                            {q.correctAnswer}
+                          <span
+                            className={`text-xs font-mono font-black px-2.5 py-1 rounded-xl border ${
+                              isCorrect
+                                ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border-emerald-300'
+                                : 'bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200 border-rose-300'
+                            }`}
+                          >
+                            {isCorrect ? `+${pts} / ${pts} Pts` : `0 / ${pts} Pts`}
                           </span>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Explanation */}
-                    {q.explanation && (
-                      <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-700 dark:text-slate-300 flex items-start gap-2">
-                        <HelpCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">Faculty Explanation: </span>
-                          <span>{q.explanation}</span>
+                        {/* Question Prompt */}
+                        <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 leading-relaxed font-sans">
+                          {q.question}
+                        </p>
+
+                        {/* Options Breakdown with student answer vs correct answer */}
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-mono uppercase tracking-wider font-extrabold text-slate-400 block">
+                            Options & Answer Choices:
+                          </span>
+                          <div className="space-y-2">
+                            {(q.type === 'multiple_choice' ? q.options : ['True', 'False']).map((opt, optIdx) => {
+                              const isStudentPick = studentAns === opt;
+                              const isCorrectAnswer = q.correctAnswer === opt;
+
+                              let cardStyle = 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300';
+                              if (isCorrectAnswer) {
+                                cardStyle = 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-100 ring-2 ring-emerald-500/20';
+                              } else if (isStudentPick && !isCorrect) {
+                                cardStyle = 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-900 dark:text-rose-100 ring-2 ring-rose-500/20';
+                              }
+
+                              const letter = q.type === 'multiple_choice' ? String.fromCharCode(65 + optIdx) : opt[0];
+
+                              return (
+                                <div
+                                  key={optIdx}
+                                  className={`p-3 rounded-2xl border text-xs flex items-center justify-between gap-3 transition-colors ${cardStyle}`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <span
+                                      className={`w-6 h-6 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 ${
+                                        isCorrectAnswer
+                                          ? 'bg-emerald-600 text-white'
+                                          : isStudentPick
+                                          ? 'bg-rose-600 text-white'
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                      }`}
+                                    >
+                                      {letter}
+                                    </span>
+                                    <span className="font-semibold text-xs sm:text-sm font-sans">{opt}</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {isStudentPick && (
+                                      <span
+                                        className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold uppercase ${
+                                          isCorrect
+                                            ? 'bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100'
+                                            : 'bg-rose-200 dark:bg-rose-800 text-rose-900 dark:text-rose-100'
+                                        }`}
+                                      >
+                                        Your Choice {isCorrect ? '(Correct)' : '(Incorrect)'}
+                                      </span>
+                                    )}
+
+                                    {isCorrectAnswer && (
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-extrabold uppercase bg-emerald-600 text-white flex items-center gap-1">
+                                        <Check className="w-3 h-3 stroke-[3]" /> Correct Answer
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Brief Explanation for the Correct Answer */}
+                        <div className="p-3.5 sm:p-4 rounded-2xl bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/90 dark:border-blue-900/60 space-y-1.5 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-blue-800 dark:text-blue-300 font-mono text-[11px] uppercase tracking-wider">
+                            <Lightbulb className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span>Brief Explanation for Correct Answer:</span>
+                          </div>
+                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans pl-5 font-medium">
+                            {q.explanation && q.explanation.trim().length > 0
+                              ? q.explanation
+                              : `The correct answer is "${q.correctAnswer}". This question assesses the fundamental principles taught in ${quiz.classTitle}.`}
+                          </p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })
+                )}
+              </div>
 
-            {/* Results Bottom Action */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={handleStartQuiz}
-                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Retake Test
-              </button>
+              {/* Results Bottom Action Bar */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={handleStartQuiz}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Retake Test
+                </button>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
-              >
-                Done / Close
-              </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
+                >
+                  Done / Close
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Confirmation Modal when submitting */}
         <AnimatePresence>

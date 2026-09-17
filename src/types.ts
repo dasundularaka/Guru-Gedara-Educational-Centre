@@ -560,6 +560,7 @@ export interface StudentSuccessStory {
 // QUIZZES & ASSESSMENTS
 // -------------------------------------------------------------
 export type QuestionType = 'multiple_choice' | 'true_false';
+export type QuizDifficulty = 'beginner' | 'intermediate' | 'advanced';
 
 export interface QuizQuestion {
   id: string;
@@ -584,6 +585,7 @@ export interface Quiz {
   status: 'published' | 'draft';
   questions: QuizQuestion[];
   totalPoints: number;
+  difficulty?: QuizDifficulty;
   createdAt: string;
   updatedAt?: string;
 }
