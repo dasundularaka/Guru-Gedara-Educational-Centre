@@ -26,7 +26,9 @@ import {
   ToastType,
   ToastAction,
   Announcement,
-  ViewAsRole
+  ViewAsRole,
+  SavedItem,
+  SavedItemType
 } from '../types';
 import { INITIAL_CLASSES, INITIAL_REVIEWS, INITIAL_NOTIFICATIONS, INITIAL_BOOKINGS, INITIAL_PAYMENTS } from '../data/mockData';
 
@@ -110,6 +112,19 @@ interface AppContextType {
   deepLinkedClassId: string | null;
   setDeepLinkedClassId: (classId: string | null) => void;
   navigateToClass: (classId: string) => void;
+  isBookmarked: (itemId: string) => boolean;
+  toggleBookmark: (item: {
+    itemId: string;
+    itemType: SavedItemType;
+    title: string;
+    description?: string;
+    categoryOrSubject?: string;
+    sourceTitle?: string;
+    referenceUrl?: string;
+    fileType?: string;
+    createdAt?: string;
+  }) => Promise<boolean>;
+  removeBookmark: (itemId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1328,6 +1343,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const isBookmarked = (itemId: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.bookmarkedItemIds?.includes(itemId)) return true;
+    return (currentUser.savedItems || []).some(item => item.itemId === itemId || item.id === itemId);
+  };
+
+  const toggleBookmark = async (itemData: {
+    itemId: string;
+    itemType: SavedItemType;
+    title: string;
+    description?: string;
+    categoryOrSubject?: string;
+    sourceTitle?: string;
+    referenceUrl?: string;
+    fileType?: string;
+    createdAt?: string;
+  }): Promise<boolean> => {
+    if (!currentUser) {
+      showToast("Please sign in to bookmark items to your profile.", "warning");
+      return false;
+    }
+
+    const currentSaved = currentUser.savedItems || [];
+    const currentIds = currentUser.bookmarkedItemIds || currentSaved.map(s => s.itemId);
+    const existingIndex = currentSaved.findIndex(s => s.itemId === itemData.itemId || s.id === itemData.itemId);
+
+    if (existingIndex >= 0) {
+      // Un-bookmark
+      const updatedSaved = currentSaved.filter((_, idx) => idx !== existingIndex);
+      const updatedIds = currentIds.filter(id => id !== itemData.itemId);
+      await updateProfile({
+        savedItems: updatedSaved,
+        bookmarkedItemIds: updatedIds
+      });
+      showToast(`Removed "${itemData.title}" from Saved Items.`, "info");
+      return false;
+    } else {
+      // Bookmark
+      const newItem: SavedItem = {
+        id: `saved_${Date.now()}_${itemData.itemId.slice(-6)}`,
+        itemId: itemData.itemId,
+        itemType: itemData.itemType,
+        title: itemData.title,
+        description: itemData.description,
+        categoryOrSubject: itemData.categoryOrSubject,
+        sourceTitle: itemData.sourceTitle,
+        referenceUrl: itemData.referenceUrl,
+        fileType: itemData.fileType,
+        createdAt: itemData.createdAt,
+        savedAt: new Date().toISOString()
+      };
+      const updatedSaved = [newItem, ...currentSaved];
+      const updatedIds = Array.from(new Set([...currentIds, itemData.itemId]));
+      await updateProfile({
+        savedItems: updatedSaved,
+        bookmarkedItemIds: updatedIds
+      });
+      showToast(`Saved to your profile!`, "success", {
+        action: {
+          label: "View Saved Items",
+          onClick: () => {
+            window.dispatchEvent(new CustomEvent('open_saved_items'));
+          }
+        }
+      });
+      return true;
+    }
+  };
+
+  const removeBookmark = async (itemId: string): Promise<void> => {
+    if (!currentUser) return;
+    const currentSaved = currentUser.savedItems || [];
+    const currentIds = currentUser.bookmarkedItemIds || currentSaved.map(s => s.itemId);
+    const updatedSaved = currentSaved.filter(s => s.itemId !== itemId && s.id !== itemId);
+    const updatedIds = currentIds.filter(id => id !== itemId);
+    await updateProfile({
+      savedItems: updatedSaved,
+      bookmarkedItemIds: updatedIds
+    });
+    showToast("Item removed from Saved Items.", "info");
+  };
+
   const resetDatabase = async () => {
     try {
       await firestoreService.resetDatabaseToDefault();
@@ -1404,7 +1501,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentAppTab,
       deepLinkedClassId,
       setDeepLinkedClassId,
-      navigateToClass
+      navigateToClass,
+      isBookmarked,
+      toggleBookmark,
+      removeBookmark
     }}>
       {children}
     </AppContext.Provider>

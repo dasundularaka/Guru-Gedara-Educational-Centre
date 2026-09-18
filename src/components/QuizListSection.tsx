@@ -444,11 +444,44 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
           {filteredQuizzes.map((quiz) => {
             const studentSubmission = latestSubmissionsByQuiz.get(quiz.id);
             const isEnrolled = isStudentEnrolledInClass(quiz.classId);
+            const isPendingAssignment = Boolean(isStudent && !studentSubmission && isEnrolled);
 
             return (
-              <div
+              <motion.div
                 key={quiz.id}
-                className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                id={`quiz_card_${quiz.id}`}
+                animate={
+                  isPendingAssignment
+                    ? {
+                        boxShadow: [
+                          '0 0 0 0 rgba(99, 102, 241, 0)',
+                          '0 0 0 3px rgba(99, 102, 241, 0.22)',
+                          '0 0 20px 4px rgba(99, 102, 241, 0.2)',
+                          '0 0 0 0 rgba(99, 102, 241, 0)'
+                        ],
+                        borderColor: [
+                          'rgba(226, 232, 240, 1)',
+                          'rgba(129, 140, 248, 0.85)',
+                          'rgba(99, 102, 241, 0.95)',
+                          'rgba(226, 232, 240, 1)'
+                        ]
+                      }
+                    : {}
+                }
+                transition={
+                  isPendingAssignment
+                    ? {
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: 'easeInOut'
+                      }
+                    : undefined
+                }
+                className={`bg-white dark:bg-slate-900 rounded-3xl border p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative ${
+                  isPendingAssignment
+                    ? 'border-indigo-400 dark:border-indigo-500'
+                    : 'border-slate-200/80 dark:border-slate-800'
+                }`}
               >
                 {/* Top Row: Class tag, Status & Metadata */}
                 <div className="space-y-2">
@@ -488,8 +521,12 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                         <Lock className="w-3 h-3 text-slate-400" /> Enrollment Required
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
-                        Ready to Take
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold uppercase bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 flex items-center gap-1.5 shadow-2xs">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+                        </span>
+                        Pending Assignment
                       </span>
                     )}
                   </div>
@@ -634,7 +671,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                     </button>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

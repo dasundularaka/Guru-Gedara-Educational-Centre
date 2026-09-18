@@ -97,6 +97,10 @@ export interface UserProfile {
     note?: string;
   }[];
 
+  // Saved & Bookmarked Items
+  savedItems?: SavedItem[];
+  bookmarkedItemIds?: string[];
+
   // Study Resource Access & Audit
   viewedMaterialIds?: string[];
   materialAccessLog?: { [materialId: string]: string }; // materialId -> ISO timestamp of last view
@@ -606,6 +610,22 @@ export interface QuizSubmission {
   passed: boolean;
   submittedAt: string;
   timeSpentSeconds?: number;
+}
+
+export type SavedItemType = 'resource' | 'announcement';
+
+export interface SavedItem {
+  id: string;
+  itemId: string;
+  itemType: SavedItemType;
+  title: string;
+  description?: string;
+  categoryOrSubject?: string;
+  sourceTitle?: string;
+  referenceUrl?: string;
+  fileType?: string;
+  createdAt?: string;
+  savedAt: string;
 }
 
 

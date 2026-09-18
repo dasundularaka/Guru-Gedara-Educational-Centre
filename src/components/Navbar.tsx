@@ -28,13 +28,16 @@ import {
   RotateCcw,
   GraduationCap,
   Globe,
-  FileQuestion
+  FileQuestion,
+  Bookmark,
+  Edit3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { firestoreService } from '../lib/firestoreService';
 import { Booking, NotificationItem, StudyMaterial, ViewAsRole } from '../types';
 import { EmailNotificationLogsModal } from './EmailNotificationLogsModal';
 import { Class15MinReminderBanner } from './Class15MinReminderBanner';
+import { SavedItemsSection } from './SavedItemsSection';
 import { genericFirestoreService } from '../lib/genericFirestore';
 import { canUserViewStudyResource } from '../utils/accessControl';
 import { getAudienceFilteredAnnouncements } from '../lib/announcementUtils';
@@ -73,7 +76,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
+  const [profileModalTab, setProfileModalTab] = useState<'info' | 'saved_items' | 'edit'>('info');
   const [upcomingClasses, setUpcomingClasses] = useState<Booking[]>([]);
+
+  useEffect(() => {
+    const handleOpenSaved = () => {
+      setProfileModalTab('saved_items');
+      setShowProfileDetails(true);
+    };
+    window.addEventListener('open_saved_items', handleOpenSaved);
+    return () => window.removeEventListener('open_saved_items', handleOpenSaved);
+  }, []);
   const [unviewedStudyMaterials, setUnviewedStudyMaterials] = useState<StudyMaterial[]>([]);
   const [showViewAsDropdown, setShowViewAsDropdown] = useState(false);
   const viewAsContainerRef = React.useRef<HTMLDivElement>(null);
@@ -625,9 +638,28 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-3 lg:space-x-4">
             {currentUser ? (
               <>
+                {/* Saved Items & Bookmarks Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileModalTab('saved_items');
+                    setShowProfileDetails(true);
+                  }}
+                  className="p-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors relative cursor-pointer"
+                  id="nav_saved_items_btn"
+                  title={`Saved Items (${currentUser.savedItems?.length || 0})`}
+                >
+                  <Bookmark className={`w-5.5 h-5.5 ${(currentUser.savedItems?.length || 0) > 0 ? 'fill-amber-500/20 text-amber-500' : ''}`} />
+                  {(currentUser.savedItems?.length || 0) > 0 && (
+                    <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-[10px] font-bold text-white text-center leading-4 shadow-xs">
+                      {currentUser.savedItems!.length}
+                    </span>
+                  )}
+                </button>
+
                 {/* Notification Bell */}
                 <div className="relative">
                   <button
@@ -1093,6 +1125,25 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                   </div>
                 )}
 
+                {/* Mobile Saved Items Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileModalTab('saved_items');
+                    setShowProfileDetails(true);
+                  }}
+                  className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition-colors relative cursor-pointer min-h-[34px] min-w-[34px] sm:min-h-[36px] sm:min-w-[36px] shrink-0"
+                  id="mobile_header_saved_items_btn"
+                  title="Saved Items"
+                >
+                  <Bookmark className={`w-4 h-4 ${(currentUser.savedItems?.length || 0) > 0 ? 'fill-amber-500/20 text-amber-500' : ''}`} />
+                  {(currentUser.savedItems?.length || 0) > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[15px] h-3.5 px-0.5 rounded-full bg-amber-500 text-[8px] font-extrabold text-white text-center leading-3.5 ring-1 ring-white dark:ring-slate-900">
+                      {currentUser.savedItems!.length}
+                    </span>
+                  )}
+                </button>
+
                 {/* Notification Bell for Logged-In User */}
                 <div className="relative shrink-0">
                   <button
@@ -1295,7 +1346,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl max-w-lg w-full p-6 border border-slate-150 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 sm:p-7 border border-slate-150 dark:border-slate-800 shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button 
                 onClick={() => setShowProfileDetails(false)}
@@ -1343,6 +1394,83 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 </div>
               </div>
 
+              {/* Profile Sub-Tabs */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-5 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setProfileModalTab('info')}
+                  className={`flex-1 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    profileModalTab === 'info'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-extrabold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Profile Info</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileModalTab('saved_items')}
+                  id="btn_profile_tab_saved_items"
+                  className={`flex-1 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    profileModalTab === 'saved_items'
+                      ? 'bg-amber-500 text-white shadow-xs font-extrabold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Bookmark className="w-3.5 h-3.5 fill-current" />
+                  <span>Saved Items</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    profileModalTab === 'saved_items' 
+                      ? 'bg-amber-600 text-white' 
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {currentUser.savedItems?.length || 0}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileModalTab('edit')}
+                  className={`flex-1 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    profileModalTab === 'edit'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-extrabold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Avatar & Settings</span>
+                </button>
+              </div>
+
+              {/* TAB 1: SAVED ITEMS & BOOKMARKS */}
+              {profileModalTab === 'saved_items' && (
+                <div className="py-1">
+                  <SavedItemsSection
+                    onNavigateToClasses={() => {
+                      setShowProfileDetails(false);
+                      onChangeTab('classes');
+                    }}
+                    onNavigateToAnnouncements={() => {
+                      setShowProfileDetails(false);
+                      onChangeTab('announcements');
+                    }}
+                    onCloseParentModal={() => setShowProfileDetails(false)}
+                  />
+                  <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileDetails(false)}
+                      className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Close Profile
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: PROFILE INFO & PARTICULARS */}
+              {profileModalTab === 'info' && (
+                <>
               <div className="space-y-4 text-xs font-sans">
                 {/* Profile fields */}
                 <div className="grid grid-cols-2 gap-4">
@@ -1490,85 +1618,109 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
                 )}
               </div>
 
-              {/* Save & Profile Editing form section */}
-              <div className="pt-4 border-t border-slate-150 space-y-3 mt-4">
-                <h3 className="font-extrabold text-slate-900 text-xs tracking-tight text-indigo-755 uppercase">Modify Identity & Display Settings</h3>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Full Legal Name</label>
-                    <input 
-                      type="text"
-                      value={profileName}
-                      onChange={(e) => setProfileName(e.target.value)}
-                      className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-sans text-xs"
-                    />
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileDetails(false)}
+                      className="w-1/2 text-center py-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Close Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProfileModalTab('edit')}
+                      className="w-1/2 text-center py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 font-sans"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Avatar & Settings</span>
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Account Display Name</label>
-                    <input 
-                      type="text"
-                      value={profileDisplayName}
-                      onChange={(e) => setProfileDisplayName(e.target.value)}
-                      className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-sans text-xs"
-                    />
-                  </div>
-                </div>
+                </>
+              )}
 
-                {/* Profile pictures updates */}
-                <div>
-                  <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Select Profile Photo Avatar</label>
-                  <div className="grid grid-cols-4 gap-2 mb-2">
-                    {PRESET_PHOTOS.map(ph => (
-                      <button
-                        key={ph.url}
-                        type="button"
-                        onClick={() => setProfilePhoto(ph.url)}
-                        className={`relative rounded-xl overflow-hidden border-2 transition-all p-0.5 cursor-pointer h-11 ${
-                          profilePhoto === ph.url ? 'border-indigo-650 scale-102 shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={ph.url} alt={ph.name} className="w-full h-full object-cover rounded-lg" />
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <label className="block text-[9px] text-slate-400">Or Paste Image URL Address:</label>
-                    <input 
-                      type="text"
-                      value={profilePhoto}
-                      onChange={(e) => setProfilePhoto(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="w-full p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-mono text-[10px] lowercase"
-                    />
+              {/* TAB 3: EDIT PHOTO & AVATAR */}
+              {profileModalTab === 'edit' && (
+                <>
+                  <div className="pt-2 space-y-3">
+                    <h3 className="font-extrabold text-slate-900 dark:text-white text-xs tracking-tight text-indigo-755 uppercase">Modify Identity & Display Settings</h3>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Full Legal Name</label>
+                        <input 
+                          type="text"
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          className="w-full p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg outline-none focus:border-indigo-500 font-sans text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Account Display Name</label>
+                        <input 
+                          type="text"
+                          value={profileDisplayName}
+                          onChange={(e) => setProfileDisplayName(e.target.value)}
+                          className="w-full p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg outline-none focus:border-indigo-500 font-sans text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Profile pictures updates */}
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase tracking-wider font-mono mb-1">Select Profile Photo Avatar</label>
+                      <div className="grid grid-cols-4 gap-2 mb-2">
+                        {PRESET_PHOTOS.map(ph => (
+                          <button
+                            key={ph.url}
+                            type="button"
+                            onClick={() => setProfilePhoto(ph.url)}
+                            className={`relative rounded-xl overflow-hidden border-2 transition-all p-0.5 cursor-pointer h-11 ${
+                              profilePhoto === ph.url ? 'border-indigo-650 scale-102 shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={ph.url} alt={ph.name} className="w-full h-full object-cover rounded-lg" />
+                          </button>
+                        ))}
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="block text-[9px] text-slate-400">Or Paste Image URL Address:</label>
+                        <input 
+                          type="text"
+                          value={profilePhoto}
+                          onChange={(e) => setProfilePhoto(e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-..."
+                          className="w-full p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg outline-none focus:border-indigo-500 font-mono text-[10px] lowercase"
+                        />
+                      </div>
+
+                      {currentUser.role === 'student' && profilePhoto !== currentUser.photoURL && (
+                        <p className="mt-2 text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 rounded-lg p-2 leading-tight border border-amber-200/50 dark:border-amber-800/50">
+                          ⚠️ <strong>Verification Notice:</strong> Image updates for students require administrative audit & approval prior to displaying publicly.
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  {currentUser.role === 'student' && profilePhoto !== currentUser.photoURL && (
-                    <p className="mt-2 text-[10px] text-amber-700 bg-amber-50 rounded-lg p-2 leading-tight border border-amber-200/50">
-                      ⚠️ <strong>Verification Notice:</strong> Image updates for students require administrative audit & approval prior to displaying publicly.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowProfileDetails(false)}
-                  className="w-1/2 text-center py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                >
-                  Close Profile
-                </button>
-                <button
-                  type="button"
-                  disabled={isSavingProfile}
-                  onClick={handleSaveProfile}
-                  className="w-1/2 text-center py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50 font-sans"
-                >
-                  {isSavingProfile ? 'Saving...' : 'Save Profile'}
-                </button>
-              </div>
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setProfileModalTab('info')}
+                      className="w-1/2 text-center py-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Back to Info
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSavingProfile}
+                      onClick={handleSaveProfile}
+                      className="w-1/2 text-center py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50 font-sans"
+                    >
+                      {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}

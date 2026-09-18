@@ -49,6 +49,7 @@ import { StudentProfileModal } from './StudentProfileModal';
 import { AddStudentToClassModal } from './AddStudentToClassModal';
 import { ResourceEmbedViewerModal } from './ResourceEmbedViewerModal';
 import { QuizListSection } from './QuizListSection';
+import { BookmarkButton } from './BookmarkButton';
 import { useApp } from '../context/AppContext';
 import { checkClassAvailability, getTutorAvailabilitySummary, checkTutorAvailability } from '../utils/tutorAvailability';
 import { canUserViewStudyResource, canUserManageStudyResource } from '../utils/accessControl';
@@ -1301,6 +1302,22 @@ export const ClassProfileModal: React.FC<ClassProfileModalProps> = ({
                                   {mat.storagePath || mat.fileName ? <Download className="w-3 h-3 text-emerald-600 shrink-0" /> : <LinkIcon className="w-3 h-3 text-indigo-500 shrink-0" />}
                                   <span className="truncate">{mat.fileName || (mat.referenceUrl?.startsWith('indexeddb://') ? 'Download Document' : mat.referenceUrl?.replace(/^https?:\/\/(www\.)?/, ''))}</span>
                                 </button>
+
+                                {/* Bookmark & Save to Profile */}
+                                <BookmarkButton
+                                  itemId={mat.id}
+                                  itemType="resource"
+                                  title={mat.title}
+                                  description={mat.description}
+                                  categoryOrSubject={classItem?.subject || 'Class Resource'}
+                                  sourceTitle={classItem?.title}
+                                  referenceUrl={mat.referenceUrl}
+                                  fileType={mat.type}
+                                  createdAt={mat.createdAt}
+                                  variant="button"
+                                  size="sm"
+                                  id={`btn_bookmark_mat_${mat.id}`}
+                                />
                               </div>
                             </div>
                           </div>

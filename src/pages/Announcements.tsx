@@ -32,6 +32,7 @@ import {
   Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { BookmarkButton } from '../components/BookmarkButton';
 
 interface AnnouncementsProps {
   onNavigateTab: (tab: string) => void;
@@ -549,10 +550,24 @@ export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) =
                         )}
                       </div>
 
-                      {/* Date & Author */}
-                      <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>{formatAnnouncementDate(ann.createdAt)}</span>
+                      {/* Date & Bookmark Action */}
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>{formatAnnouncementDate(ann.createdAt)}</span>
+                        </div>
+                        <BookmarkButton
+                          itemId={ann.id}
+                          itemType="announcement"
+                          title={ann.title}
+                          description={ann.content}
+                          categoryOrSubject={ann.category || 'Academy Notice'}
+                          sourceTitle={ann.authorName}
+                          createdAt={ann.createdAt}
+                          variant="button"
+                          size="sm"
+                          id={`btn_bookmark_ann_${ann.id}`}
+                        />
                       </div>
                     </div>
 

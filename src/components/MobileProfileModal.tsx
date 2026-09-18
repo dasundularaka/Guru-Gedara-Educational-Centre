@@ -18,7 +18,8 @@ import {
   AlertCircle,
   BookOpen,
   Clock,
-  Contact2
+  Contact2,
+  Bookmark
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserProfile, Booking, ClassItem } from '../types';
@@ -266,6 +267,28 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
                     </div>
                   </button>
                 )}
+
+                {/* Saved Items Shortcut */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    window.dispatchEvent(new CustomEvent('open_saved_items'));
+                  }}
+                  className="p-3 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center gap-2.5 transition-all active:scale-95 cursor-pointer touch-target col-span-2"
+                  id="btn_mobile_profile_saved_items"
+                >
+                  <Bookmark className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                  <div className="text-left min-w-0 flex-1 flex items-center justify-between">
+                    <div>
+                      <span className="block text-[11px] font-black leading-tight">Saved Items & Resources</span>
+                      <span className="block text-[9px] text-amber-600 dark:text-amber-400 truncate">Bookmarked notes & announcements</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-mono text-[10px] font-bold">
+                      {currentUser.savedItems?.length || 0}
+                    </span>
+                  </div>
+                </button>
               </div>
 
               {/* Details & Information List */}
