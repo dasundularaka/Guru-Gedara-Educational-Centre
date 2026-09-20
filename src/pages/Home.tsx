@@ -32,7 +32,8 @@ interface HomeProps {
 }
 
 export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
-  const { classes, refreshClasses, reviews, showToast, currentUser } = useApp();
+  const { classes, refreshClasses, reviews, showToast, currentUser, viewAsRole } = useApp();
+  const isGuest = !currentUser || (currentUser as any)?.role === 'guest' || viewAsRole === 'guest';
   const [highlightedClasses, setHighlightedClasses] = useState<ClassItem[]>([]);
   const [topTutors, setTopTutors] = useState<UserProfile[]>([]);
   const [banners, setBanners] = useState<BannerImage[]>([]);
@@ -542,11 +543,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigateTab }) => {
       </div>
 
       {/* 4.5 REAL-TIME EDUCATIONAL NEWS & SEARCH-GROUNDED ACADEMIC BRIEFINGS */}
-      <div className="py-6 sm:py-10 bg-slate-50/50 border-t border-slate-200/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <EducationalNewsWidget />
+      {!isGuest && (
+        <div className="py-6 sm:py-10 bg-slate-50/50 border-t border-slate-200/60">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <EducationalNewsWidget />
+          </div>
         </div>
-      </div>
+      )}
 
 
       {/* 5. COMMENTS & TESTIMONIALS CAROUSEL + SUBMISSION BOX */}

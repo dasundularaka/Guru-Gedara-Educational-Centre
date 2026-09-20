@@ -103,7 +103,11 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     
     // Sort so latest submission wins
     const userSubs = submissions
-      .filter(s => s.studentId === currentUser.uid || s.studentId === currentUser.username || (currentUser.email && s.studentEmail === currentUser.email))
+      .filter(s => {
+        if (s.id?.startsWith('preview_')) return false;
+        if (s.studentName?.toLowerCase().includes('preview')) return false;
+        return s.studentId === currentUser.uid || s.studentId === currentUser.username || (currentUser.email && s.studentEmail === currentUser.email);
+      })
       .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
     userSubs.forEach(s => {
@@ -706,6 +710,9 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
           currentUser={currentUser}
           initialSubmission={initialSubmissionForPlayer}
           onSubmissionSuccess={async (newSub) => {
+            if (newSub.id?.startsWith('preview_') || currentUser?.role === 'admin' || currentUser?.role === 'tutor') {
+              return;
+            }
             setSubmissions(prev => [newSub, ...prev]);
             showToast(`Assessment submitted! You scored ${newSub.percentage}% (${newSub.score}/${newSub.totalPoints} pts).`, 'success');
           }}

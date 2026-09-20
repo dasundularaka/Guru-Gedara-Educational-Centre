@@ -4972,6 +4972,16 @@ const firestoreServiceRaw = {
   },
 
   async getQuizSubmissions(quizId?: string, studentId?: string, classId?: string): Promise<QuizSubmission[]> {
+    const isLegitimateStudentSubmission = (s: QuizSubmission) => {
+      if (!s || !s.id) return false;
+      if (s.id.startsWith('preview_')) return false;
+      const sName = (s.studentName || '').toLowerCase();
+      if (sName.includes('preview') || sName.includes('tutor view') || sName.includes('staff preview')) {
+        return false;
+      }
+      return true;
+    };
+
     if (isUsingCloud) {
       try {
         const snap = await promiseWithTimeout(
@@ -4979,7 +4989,8 @@ const firestoreServiceRaw = {
           8000,
           { docs: [] } as any
         );
-        const cloudSubmissions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizSubmission));
+        let cloudSubmissions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuizSubmission));
+        cloudSubmissions = cloudSubmissions.filter(isLegitimateStudentSubmission);
         cloudSubmissions.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
         saveFallback('local_quiz_submissions', cloudSubmissions);
 
@@ -4993,7 +5004,7 @@ const firestoreServiceRaw = {
       }
     }
     const fallbackList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
-    let list = fallbackList;
+    let list = fallbackList.filter(isLegitimateStudentSubmission);
     if (quizId) list = list.filter(s => s.quizId === quizId);
     if (studentId) list = list.filter(s => s.studentId === studentId);
     if (classId) list = list.filter(s => s.classId === classId);
@@ -5003,12 +5014,25 @@ const firestoreServiceRaw = {
   },
 
   async submitQuizAnswers(data: Omit<QuizSubmission, 'id' | 'submittedAt'>): Promise<QuizSubmission> {
-    const id = "sub_" + Math.random().toString(36).substr(2, 9);
+    const sName = (data.studentName || '').toLowerCase();
+    const isPreview = 
+      (data as any).isPreview ||
+      data.studentId?.startsWith('preview_') ||
+      sName.includes('preview') ||
+      sName.includes('tutor view') ||
+      sName.includes('staff member');
+
+    const id = (isPreview ? "preview_" : "sub_") + Math.random().toString(36).substr(2, 9);
     const submission: QuizSubmission = {
       ...data,
       id,
       submittedAt: new Date().toISOString()
     };
+
+    // If it is a preview evaluation from staff/tutor/admin, do NOT persist to database
+    if (isPreview) {
+      return submission;
+    }
 
     if (isUsingCloud) {
       try {
@@ -5106,13 +5130,24 @@ const firestoreServiceRaw = {
       }
     }
 
+    const isLegitimateStudentSubmission = (s: QuizSubmission) => {
+      if (!s || !s.id) return false;
+      if (s.id.startsWith('preview_')) return false;
+      const sName = (s.studentName || '').toLowerCase();
+      if (sName.includes('preview') || sName.includes('tutor view') || sName.includes('staff preview')) {
+        return false;
+      }
+      return true;
+    };
+
     if (isUsingCloud) {
       try {
         const unsub = onSnapshot(collection(db, 'quiz_submissions'), (snap) => {
-          const items: QuizSubmission[] = [];
+          let items: QuizSubmission[] = [];
           snap.forEach(docSnap => {
             items.push({ id: docSnap.id, ...docSnap.data() } as QuizSubmission);
           });
+          items = items.filter(isLegitimateStudentSubmission);
           items.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
           saveFallback('local_quiz_submissions', items);
 
@@ -5129,7 +5164,7 @@ const firestoreServiceRaw = {
         console.warn("Subscribe quiz submissions error:", e);
       }
     } else {
-      const cachedList = handleFallback<QuizSubmission>('local_quiz_submissions', []);
+      const cachedList = handleFallback<QuizSubmission>('local_quiz_submissions', []).filter(isLegitimateStudentSubmission);
       let filtered = cachedList;
       if (quizId) filtered = filtered.filter(s => s.quizId === quizId);
       if (studentId) filtered = filtered.filter(s => s.studentId === studentId);

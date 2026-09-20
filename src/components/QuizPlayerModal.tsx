@@ -17,7 +17,9 @@ import {
   Lock,
   CheckSquare,
   Lightbulb,
-  Filter
+  Filter,
+  ShieldAlert,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -103,9 +105,21 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
   onSubmissionSuccess,
   initialSubmission
 }) => {
-  const { classes, bookings, currentUser: appUser, showToast } = useApp();
+  const { classes, bookings, currentUser: appUser, showToast, realAdminUser, viewAsRole, isViewAsActive } = useApp();
   const effectiveUser = currentUser || appUser;
   const isAuthorized = canUserViewQuiz(quiz, effectiveUser, classes, bookings);
+
+  // Identify whether user is an admin or tutor (or previewing via View-As)
+  // Admins and tutors cannot submit real submissions; their submissions must NOT be saved.
+  const isStaffPreview = Boolean(
+    effectiveUser?.role === 'admin' ||
+    effectiveUser?.role === 'tutor' ||
+    realAdminUser?.role === 'admin' ||
+    viewAsRole === 'admin' ||
+    viewAsRole === 'tutor' ||
+    isViewAsActive ||
+    (typeof window !== 'undefined' && Boolean(localStorage.getItem('local_real_admin_user')))
+  );
 
   // Phase: 'briefing' | 'taking' | 'results'
   const [phase, setPhase] = useState<'briefing' | 'taking' | 'results'>(
@@ -238,6 +252,40 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
       const percentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
       const passPct = quiz.passingScorePercentage !== undefined ? quiz.passingScorePercentage : 50;
       const passed = percentage >= passPct;
+
+      if (isStaffPreview) {
+        // DO NOT save preview submission of admins and tutors logins for quizzes
+        const previewSub: QuizSubmission = {
+          id: `preview_sub_${Date.now()}`,
+          quizId: quiz.id,
+          quizTitle: quiz.title,
+          classId: quiz.classId,
+          classTitle: quiz.classTitle,
+          studentId: effectiveUser?.uid || 'staff_preview',
+          studentName: `${effectiveUser?.name || 'Staff Member'} (Test Preview)`,
+          studentEmail: effectiveUser?.email || '',
+          answers,
+          score: earnedPoints,
+          totalPoints,
+          percentage,
+          passed,
+          timeSpentSeconds: timeSpent,
+          submittedAt: new Date().toISOString()
+        };
+
+        setSubmission(previewSub);
+        setPhase('results');
+        setShowConfirmSubmit(false);
+
+        if (passed) {
+          fireQuizSubmissionConfetti(true, percentage);
+        }
+
+        if (showToast) {
+          showToast("Assessment preview evaluated! Staff/Admin preview submissions are not saved to official student records.", "info");
+        }
+        return;
+      }
 
       const newSubmission = await firestoreService.submitQuizAnswers({
         quizId: quiz.id,
@@ -494,6 +542,19 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
               </div>
             </div>
 
+            {/* Staff / Admin Preview Notice */}
+            {isStaffPreview && (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1 max-w-xl mx-auto">
+                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Staff / Faculty Preview Mode</span>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300/90 leading-relaxed font-normal">
+                  You are evaluating this quiz under faculty/administrator credentials. Real submissions are reserved for students; your answers will be evaluated locally for preview and will <strong>not</strong> be recorded into official academy gradebooks.
+                </p>
+              </div>
+            )}
+
             {/* Rules / Guidance */}
             <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-xs text-blue-900 dark:text-blue-200 space-y-1.5 max-w-xl mx-auto">
               <div className="flex items-center gap-2 font-bold text-blue-800 dark:text-blue-300">
@@ -514,7 +575,7 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                 onClick={handleStartQuiz}
                 className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-extrabold shadow-lg shadow-blue-500/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
               >
-                Start Quiz Now →
+                {isStaffPreview ? 'Start Assessment Preview →' : 'Start Quiz Now →'}
               </button>
             </div>
           </div>
@@ -678,7 +739,7 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                     className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
                     id="finish_and_submit_quiz_btn"
                   >
-                    <Send className="w-3.5 h-3.5" /> Finish & Submit
+                    <Send className="w-3.5 h-3.5" /> {isStaffPreview ? 'Finish & Evaluate Preview' : 'Finish & Submit'}
                   </button>
                 )}
               </div>
@@ -715,6 +776,16 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
 
           return (
             <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-grow" id="quiz_results_and_review_screen">
+              {/* Staff / Admin Preview Mode Alert Notice */}
+              {(isStaffPreview || submission.id?.startsWith('preview_')) && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 text-center shadow-2xs">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>
+                    Staff Preview Evaluation — Evaluated locally for verification; this test preview is <strong>not recorded</strong> in official student gradebooks.
+                  </span>
+                </div>
+              )}
+
               {/* Top Score Banner */}
               <div
                 className={`p-6 rounded-3xl text-center border space-y-3.5 relative overflow-hidden ${
@@ -1000,7 +1071,7 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                   onClick={handleStartQuiz}
                   className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" /> Retake Test
+                  <RotateCcw className="w-3.5 h-3.5" /> {isStaffPreview ? 'Retake Preview' : 'Retake Test'}
                 </button>
 
                 <button
@@ -1030,10 +1101,12 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                 </div>
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Submit Assessment?
+                    {isStaffPreview ? 'Evaluate Assessment Preview?' : 'Submit Assessment?'}
                   </h4>
                   <p className="text-xs text-slate-500 font-medium">
-                    {answeredCount < totalQuestions
+                    {isStaffPreview
+                      ? 'You are logged in with staff credentials. Your answers will be evaluated for preview without recording real student submissions.'
+                      : answeredCount < totalQuestions
                       ? `You answered ${answeredCount} of ${totalQuestions} questions. Are you ready to submit and calculate your score?`
                       : 'All questions have been answered. Ready to submit and receive your score?'}
                   </p>
@@ -1055,7 +1128,7 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                     id="confirm_finish_and_submit_btn"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    {isSubmitting ? 'Grading...' : 'Finish & Submit'}
+                    {isSubmitting ? 'Evaluating...' : isStaffPreview ? 'Finish & Evaluate Preview' : 'Finish & Submit'}
                   </button>
                 </div>
               </motion.div>

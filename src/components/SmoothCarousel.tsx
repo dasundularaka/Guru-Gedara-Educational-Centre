@@ -279,7 +279,7 @@ export function SmoothCarousel<T>({
       {/* Main Track Viewport Container with Smooth Spring & Drag Inertia */}
       <div 
         ref={containerRef}
-        className="overflow-hidden relative w-full py-4 -my-4 px-1 -mx-1 touch-pan-y cursor-grab active:cursor-grabbing"
+        className="overflow-hidden relative w-full py-2 touch-pan-y cursor-grab active:cursor-grabbing"
       >
         <motion.div
           className="flex items-stretch"

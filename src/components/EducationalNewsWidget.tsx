@@ -15,6 +15,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useApp } from '../context/AppContext';
 
 export interface EducationalNewsArticle {
   id: string;
@@ -41,6 +42,9 @@ export const EducationalNewsWidget: React.FC<{
   className?: string;
   compact?: boolean;
 }> = ({ className = '', compact = false }) => {
+  const { currentUser, viewAsRole } = useApp();
+  const isGuest = !currentUser || (currentUser as any)?.role === 'guest' || viewAsRole === 'guest';
+
   const [news, setNews] = useState<EducationalNewsArticle[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -137,6 +141,10 @@ export const EducationalNewsWidget: React.FC<{
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
   };
+
+  if (isGuest) {
+    return null;
+  }
 
   return (
     <div 

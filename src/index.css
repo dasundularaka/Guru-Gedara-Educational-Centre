@@ -26,6 +26,20 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Ensure all elements fit cleanly within their limited layout area */
+img, svg, video, canvas, iframe {
+  max-width: 100%;
+}
+
+pre, code {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+p, h1, h2, h3, h4, h5, h6, span, label {
+  overflow-wrap: break-word;
+}
+
 /* Smooth subtle cross-fade transition for Light and Dark theme switching */
 html {
   color-scheme: light;

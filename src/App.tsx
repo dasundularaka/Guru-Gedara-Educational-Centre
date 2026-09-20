@@ -245,7 +245,7 @@ function MainAppContent() {
       <Navbar currentTab={currentTab} onChangeTab={setCurrentTab} />
 
       {/* Primary tab views selection container */}
-      <main className="flex-grow pb-16 md:pb-0">
+      <main className="flex-grow pb-16 md:pb-0 w-full overflow-x-hidden min-w-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentTab}
