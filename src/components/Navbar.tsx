@@ -94,7 +94,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
 
   const canViewAs = Boolean(
     currentUser?.role === 'admin' || 
-    (realAdminUser && isViewAsActive)
+    realAdminUser?.role === 'admin' || 
+    isViewAsActive ||
+    (typeof window !== 'undefined' && Boolean(localStorage.getItem('local_real_admin_user')))
   );
   const activeRoleDisplay: ViewAsRole = (viewAsRole || (currentUser ? currentUser.role as ViewAsRole : 'guest'));
 
@@ -126,14 +128,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
     leaveViewAs();
     onChangeTab('home');
   };
+
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'upcoming'>('all');
   const [selectedNotificationModal, setSelectedNotificationModal] = useState<NotificationItem | null>(null);
   const [showEmailLogsModal, setShowEmailLogsModal] = useState(false);
 
-  // Filter announcements strictly for current user audience
+  // Filter announcements strictly for current user audience - never in guest mode
   const userAudienceAnnouncements = React.useMemo(() => {
+    if (!currentUser || viewAsRole === 'guest') return [];
     return getAudienceFilteredAnnouncements(announcements || [], currentUser, bookings || [], classes || []);
-  }, [announcements, currentUser, bookings, classes]);
+  }, [announcements, currentUser, bookings, classes, viewAsRole]);
 
   // Editable profile state hooks with default fallback values
   const [profileName, setProfileName] = useState("");
@@ -615,7 +619,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onChangeTab }) => {
               )}
 
               {/* Announcements Tab - Only for authenticated students and tutors (and admins). Never in guest mode */}
-              {currentUser && (currentUser.role === 'student' || currentUser.role === 'tutor' || currentUser.role === 'admin') && (
+              {currentUser && viewAsRole !== 'guest' && (currentUser.role === 'student' || currentUser.role === 'tutor' || currentUser.role === 'admin') && (
                 <button
                   onClick={() => onChangeTab('announcements')}
                   className={`relative px-3 lg:px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${

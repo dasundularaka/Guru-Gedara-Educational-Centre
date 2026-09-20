@@ -81,7 +81,8 @@ const PRIORITY_BADGE_CONFIG: Record<AnnouncementPriority, {
 };
 
 export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) => {
-  const { currentUser, announcements, refreshAnnouncements, classes, bookings, showToast } = useApp();
+  const { currentUser, announcements, refreshAnnouncements, classes, bookings, showToast, viewAsRole } = useApp();
+  const isGuest = !currentUser || (currentUser as any).role === 'guest' || viewAsRole === 'guest';
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
@@ -227,7 +228,7 @@ export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) =
   };
 
   // Requirement: "Don't show announcements in guest view"
-  if (!currentUser) {
+  if (isGuest) {
     return (
       <div className="min-h-[70vh] bg-slate-50/50 dark:bg-slate-950 py-16 px-4 flex items-center justify-center font-sans">
         <div className="max-w-md w-full text-center bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">

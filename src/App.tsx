@@ -258,7 +258,7 @@ function MainAppContent() {
             {currentTab === 'classes' && <Classes onNavigateTab={setCurrentTab} />}
             {currentTab === 'tutors' && <Tutors />}
             {currentTab === 'announcements' && (
-              currentUser 
+              !isGuest && currentUser 
                 ? <Announcements onNavigateTab={setCurrentTab} /> 
                 : <Auth onAuthSuccess={() => setCurrentTab('announcements')} />
             )}

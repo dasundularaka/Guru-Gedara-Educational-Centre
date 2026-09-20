@@ -13,7 +13,7 @@ export function getAudienceFilteredAnnouncements(
   bookings: Booking[] = [],
   classes: ClassItem[] = []
 ): Announcement[] {
-  if (!currentUser) return [];
+  if (!currentUser || (currentUser as any).role === 'guest') return [];
   if (currentUser.role === 'admin') return announcements;
 
   const isStudent = currentUser.role === 'student';
@@ -37,7 +37,7 @@ export function getAudienceFilteredAnnouncements(
     .map(c => c.id);
 
   return announcements.filter(ann => {
-    if (ann.targetType === 'all') return true;
+    if (ann.targetType === 'all') return isStudent || isTutor;
 
     if (isStudent) {
       if (ann.targetType === 'all_students') return true;

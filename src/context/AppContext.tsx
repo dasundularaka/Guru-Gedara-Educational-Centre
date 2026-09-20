@@ -596,19 +596,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    if (!realAdminUser) {
-      setRealAdminUser(admin);
-      try {
-        localStorage.setItem('local_real_admin_user', safeStringify(admin));
-      } catch (_) {}
-    }
+    setRealAdminUser(admin);
+    try {
+      localStorage.setItem('local_real_admin_user', safeStringify(admin));
+    } catch (_) {}
 
     const previousRole = viewAsRole || 'admin';
     const targetRole = role || 'admin';
-    setViewAsRoleState(targetRole === 'admin' ? null : targetRole);
 
     if (targetRole === 'admin') {
       localStorage.removeItem('local_view_as_role');
+      setViewAsRoleState(null);
       setCurrentUser(admin);
       try {
         localStorage.setItem('local_running_session', safeStringify(admin));
@@ -617,12 +615,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast("Returned to Administrator view.", "success");
     } else if (targetRole === 'guest') {
       localStorage.setItem('local_view_as_role', 'guest');
+      setViewAsRoleState('guest');
       setCurrentUser(null);
       localStorage.removeItem('local_running_session');
       auditLogger.logViewAsSession(admin.name || admin.username, 'guest', 'entered');
       showToast("Viewing system as Guest (Visitor mode). Click 'Leave' at top to return.", "info");
     } else if (targetRole === 'tutor') {
       localStorage.setItem('local_view_as_role', 'tutor');
+      setViewAsRoleState('tutor');
       const tutorPersona: UserProfile = {
         ...admin,
         role: 'tutor',
@@ -630,6 +630,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tutorDetails: {
           bio: 'Previewing system features under Faculty Tutor persona.',
           subjects: ['Combined Mathematics', 'Physics'],
+          teachingSpecialty: 'Faculty Instructor & Academic Lead',
           qualification: 'Senior Lecturer, B.Sc. (Hons) Eng.',
           experience: 10,
           rating: 4.9,
@@ -644,6 +645,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast("Viewing system as Faculty Tutor.", "info");
     } else if (targetRole === 'student') {
       localStorage.setItem('local_view_as_role', 'student');
+      setViewAsRoleState('student');
       const studentPersona: UserProfile = {
         ...admin,
         role: 'student',
@@ -681,7 +683,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const isViewAsActive = Boolean(realAdminUser && viewAsRole && viewAsRole !== 'admin');
+  const isViewAsActive = Boolean(viewAsRole && viewAsRole !== 'admin');
+
+  // Keep real admin user cached whenever an admin is active
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'admin') {
+      setRealAdminUser(currentUser);
+      try {
+        localStorage.setItem('local_real_admin_user', safeStringify(currentUser));
+      } catch (_) {}
+    }
+  }, [currentUser]);
 
   const syncAdminSession = (profile: UserProfile | null) => {
     if (!profile) return;
@@ -690,7 +702,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem('local_real_admin_user', safeStringify(profile));
       } catch (_) {}
-    } else {
+    } else if (!isViewAsActive && !localStorage.getItem('local_view_as_role')) {
       setRealAdminUser(null);
       setViewAsRoleState(null);
       localStorage.removeItem('local_real_admin_user');
@@ -904,6 +916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               syncAdminSession(profile);
               const savedViewAs = localStorage.getItem('local_view_as_role') as ViewAsRole | null;
               if (profile.role === 'admin' && savedViewAs && savedViewAs !== 'admin') {
+                setViewAsRoleState(savedViewAs);
                 if (savedViewAs === 'guest') {
                   setCurrentUser(null);
                 } else if (savedViewAs === 'tutor') {
@@ -911,17 +924,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     ...profile,
                     role: 'tutor',
                     name: profile.name ? `${profile.name} (Tutor View)` : 'Faculty Tutor (Preview)',
-                    specialty: 'Faculty Instructor & Academic Lead',
-                    bio: 'Previewing system features under Faculty Tutor persona.',
+                    tutorDetails: {
+                      bio: 'Previewing system features under Faculty Tutor persona.',
+                      subjects: ['Combined Mathematics', 'Physics'],
+                      teachingSpecialty: 'Faculty Instructor & Academic Lead',
+                      qualification: 'Senior Lecturer, B.Sc. (Hons) Eng.',
+                      experience: 10,
+                      rating: 4.9,
+                      availability: [],
+                    }
                   });
                 } else if (savedViewAs === 'student') {
                   setCurrentUser({
                     ...profile,
                     role: 'student',
                     name: profile.name ? `${profile.name} (Student View)` : 'Scholar Student (Preview)',
-                    studentId: profile.uid,
-                    batch: '2026 A/L',
-                    stream: 'Combined Mathematics & Physical Sciences',
+                    selectedClasses: classes.map(c => c.id),
+                    studentDetails: {
+                      grade: '12',
+                      school: 'Royal College',
+                      interests: ['Mathematics', 'Physics', 'Chemistry'],
+                    }
                   });
                 }
               } else {
@@ -1328,6 +1351,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshUserProfile = async () => {
     if (!currentUser) return;
+    // When simulating another role in View-As mode, do not overwrite simulated persona with real database role
+    if (viewAsRole && viewAsRole !== 'admin') {
+      return;
+    }
     try {
       const latestProfile = await firestoreService.getUserProfile(currentUser.uid);
       if (latestProfile) {
