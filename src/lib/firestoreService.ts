@@ -4891,6 +4891,8 @@ const firestoreServiceRaw = {
       classTitle: quizData.classTitle || "Tuition Class",
       tutorId: quizData.tutorId,
       tutorName: quizData.tutorName || "Faculty Instructor",
+      tutorPhoto: quizData.tutorPhoto || "",
+      bannerImage: quizData.bannerImage || "",
       title: quizData.title,
       description: quizData.description || "",
       durationMinutes: quizData.durationMinutes !== undefined ? quizData.durationMinutes : 15,
@@ -4899,6 +4901,8 @@ const firestoreServiceRaw = {
       questions: quizData.questions,
       totalPoints,
       difficulty: quizData.difficulty || 'intermediate',
+      unlimitedAttempts: quizData.unlimitedAttempts !== undefined ? quizData.unlimitedAttempts : (quizData.maxAttempts ? false : true),
+      maxAttempts: quizData.maxAttempts !== undefined ? quizData.maxAttempts : 1,
       createdAt: quizData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

@@ -13,10 +13,14 @@ import {
   Trash2, 
   Users, 
   BookOpen, 
-  Check, 
   Search,
   Filter,
-  Lock
+  Lock,
+  Sparkles,
+  BarChart3,
+  Calendar,
+  Check,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../context/AppContext';
@@ -50,6 +54,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'completed' | 'not_taken'>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'beginner' | 'intermediate' | 'advanced'>('all');
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
 
   // Modals state
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -80,7 +85,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     };
   }, [classId]);
 
-  // Load submissions for student with real-time subscription
+  // Load submissions with real-time subscription
   useEffect(() => {
     if (!currentUser) return;
     const unsub = firestoreService.subscribeQuizSubmissions(
@@ -96,17 +101,20 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     };
   }, [currentUser, isStudent]);
 
-  // Map submissions by quizId for instant access
+  // Map submissions by quizId for instant access (latest submission for current user)
   const latestSubmissionsByQuiz = useMemo(() => {
     const map = new Map<string, QuizSubmission>();
     if (!currentUser) return map;
     
-    // Sort so latest submission wins
     const userSubs = submissions
       .filter(s => {
         if (s.id?.startsWith('preview_')) return false;
         if (s.studentName?.toLowerCase().includes('preview')) return false;
-        return s.studentId === currentUser.uid || s.studentId === currentUser.username || (currentUser.email && s.studentEmail === currentUser.email);
+        return (
+          s.studentId === currentUser.uid ||
+          s.studentId === currentUser.username ||
+          (currentUser.email && s.studentEmail === currentUser.email)
+        );
       })
       .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
@@ -118,16 +126,48 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     return map;
   }, [submissions, currentUser]);
 
+  // Count student submissions per quiz
+  const studentAttemptsCountByQuiz = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!currentUser || !isStudent) return map;
+
+    const userSubs = submissions.filter(s => {
+      if (s.id?.startsWith('preview_')) return false;
+      if (s.studentName?.toLowerCase().includes('preview')) return false;
+      return (
+        s.studentId === currentUser.uid ||
+        s.studentId === currentUser.username ||
+        (currentUser.email && s.studentEmail === currentUser.email)
+      );
+    });
+
+    userSubs.forEach(s => {
+      map.set(s.quizId, (map.get(s.quizId) || 0) + 1);
+    });
+    return map;
+  }, [submissions, currentUser, isStudent]);
+
+  // Count total submissions per quiz for tutors/admins
+  const totalSubmissionsCountByQuiz = useMemo(() => {
+    const map = new Map<string, number>();
+    submissions.forEach(s => {
+      if (s.id?.startsWith('preview_')) return false;
+      if (s.studentName?.toLowerCase().includes('preview')) return false;
+      map.set(s.quizId, (map.get(s.quizId) || 0) + 1);
+    });
+    return map;
+  }, [submissions]);
+
   // Check enrollment for student
   const isStudentEnrolledInClass = (targetClassId?: string) => {
     if (!currentUser) return false;
     if (currentUser.role !== 'student') return true;
     if (!targetClassId) return true;
 
-    // Check direct selectedClasses
+    // Direct selectedClasses
     if (currentUser.selectedClasses?.includes(targetClassId)) return true;
 
-    // Check bookings with all student identifier matches and valid statuses
+    // Active or approved booking
     const activeBooking = (bookings || []).find(b => 
       b.classId === targetClassId &&
       (b.studentId === currentUser.uid || 
@@ -196,7 +236,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
   const handleSaveQuiz = async (quizData: Partial<Quiz>) => {
     try {
       await firestoreService.saveQuiz(quizData);
-      showToast(quizData.id ? 'Quiz updated successfully!' : 'Quiz published successfully!', 'success');
+      showToast(quizData.id ? 'Quiz updated successfully' : 'New quiz created and published', 'success');
       setBuilderOpen(false);
       setEditingQuiz(null);
     } catch (err: any) {
@@ -216,11 +256,44 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     }
   };
 
-  // Filtered quizzes strictly adhering to authorization rules:
-  // - Admins can see all quizzes (draft & published, all tutors and all classes)
-  // - Tutors can ONLY see quizzes for classes they teach / are assigned to, or created by them
-  // - Students can ONLY see published quizzes for classes they are actively enrolled in
-  // - Non-enrolled students and unassigned tutors cannot see any quizzes
+  // Helper to resolve custom banner photo or auto-load relevant class banner image
+  const resolveQuizBanner = (quiz: Quiz): string => {
+    if (quiz.bannerImage && quiz.bannerImage.trim().length > 0) {
+      return quiz.bannerImage.trim();
+    }
+    const targetClass = classes?.find(c => c.id === quiz.classId);
+    if (targetClass?.imageUrl && targetClass.imageUrl.trim().length > 0) {
+      return targetClass.imageUrl.trim();
+    }
+    // High-resolution thematic subject fallbacks
+    const str = `${quiz.classTitle} ${quiz.title}`.toLowerCase();
+    if (str.includes('math') || str.includes('calc') || str.includes('algebra') || str.includes('geometry')) {
+      return 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=1200&q=80';
+    }
+    if (str.includes('physic') || str.includes('chem') || str.includes('science') || str.includes('lab')) {
+      return 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80';
+    }
+    if (str.includes('code') || str.includes('program') || str.includes('tech') || str.includes('comput')) {
+      return 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1200&q=80';
+    }
+    if (str.includes('biolog') || str.includes('dna') || str.includes('medic') || str.includes('health')) {
+      return 'https://images.unsplash.com/photo-1530497610245-94d3c16cda28?auto=format&fit=crop&w=1200&q=80';
+    }
+    if (str.includes('english') || str.includes('lit') || str.includes('write') || str.includes('history')) {
+      return 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80';
+    }
+    return 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1200&q=80';
+  };
+
+  // Helper to resolve relevant tutor profile photo and name automatically
+  const resolveTutorAttribution = (quiz: Quiz) => {
+    const targetClass = classes?.find(c => c.id === quiz.classId);
+    const tutorName = quiz.tutorName || targetClass?.tutorName || 'Faculty Instructor';
+    const tutorPhoto = quiz.tutorPhoto || targetClass?.tutorPhoto || '';
+    return { tutorName, tutorPhoto };
+  };
+
+  // Filtered quizzes
   const filteredQuizzes = useMemo(() => {
     return quizzes.filter(q => {
       // 1. Core Role and Enrollment Permission Check
@@ -233,7 +306,12 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
         return false;
       }
 
-      // 3. Search query match
+      // 3. Class dropdown filter
+      if (selectedClassFilter !== 'all' && q.classId !== selectedClassFilter) {
+        return false;
+      }
+
+      // 4. Search query match
       const matchSearch =
         q.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         q.classTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -241,7 +319,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
 
       if (!matchSearch) return false;
 
-      // 4. Status filter
+      // 5. Status filter
       if (statusFilter === 'published' && q.status !== 'published') return false;
       if (statusFilter === 'completed') {
         const sub = latestSubmissionsByQuiz.get(q.id);
@@ -252,7 +330,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
         if (sub) return false;
       }
 
-      // 5. Difficulty level filter
+      // 6. Difficulty level filter
       if (difficultyFilter !== 'all') {
         const quizDiff = (q.difficulty || 'beginner').toLowerCase();
         if (quizDiff !== difficultyFilter) return false;
@@ -260,106 +338,208 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
 
       return true;
     });
-  }, [quizzes, currentUser, classes, bookings, classId, searchTerm, statusFilter, difficultyFilter, latestSubmissionsByQuiz]);
+  }, [quizzes, currentUser, classes, bookings, classId, selectedClassFilter, searchTerm, statusFilter, difficultyFilter, latestSubmissionsByQuiz]);
+
+  // Overall Statistics for the modernized summary strip
+  const stats = useMemo(() => {
+    const totalVisible = filteredQuizzes.length;
+    let completedCount = 0;
+    let passedCount = 0;
+    let totalScoreSum = 0;
+
+    filteredQuizzes.forEach(q => {
+      const sub = latestSubmissionsByQuiz.get(q.id);
+      if (sub) {
+        completedCount++;
+        totalScoreSum += sub.percentage;
+        if (sub.passed) passedCount++;
+      }
+    });
+
+    const avgScore = completedCount > 0 ? Math.round(totalScoreSum / completedCount) : 0;
+    const pendingCount = isStudent ? totalVisible - completedCount : 0;
+
+    return { totalVisible, completedCount, passedCount, avgScore, pendingCount };
+  }, [filteredQuizzes, latestSubmissionsByQuiz, isStudent]);
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Header & Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-            <FileQuestion className="w-5 h-5 text-blue-600" />
-            <span>Quizzes & Test Assessments</span>
-            <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-mono font-bold">
-              {filteredQuizzes.length}
-            </span>
-          </h3>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Evaluate subject mastery with timed checkpoints and automated scoring.
-          </p>
-        </div>
+    <div className={`space-y-6 ${className}`}>
+      {/* Modern Top Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-slate-800">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-mono font-bold tracking-wide">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+              <span>ACADEMY ASSESSMENT CENTER</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Quizzes & Test Assessments
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans font-normal">
+              Validate subject mastery with timed checkpoints, customizable banner themes, dedicated faculty attributions, and enforced submission limits.
+            </p>
+          </div>
+
+          {/* Action button for tutors / admins */}
           {isTutorOrAdmin && showCreateButton && (
             <button
               onClick={() => {
                 setEditingQuiz(null);
                 setBuilderOpen(true);
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+              className="px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+              id="create_quiz_top_btn"
             >
-              <Plus className="w-4 h-4" /> Create Test / Quiz
+              <Plus className="w-4 h-4 stroke-[3]" /> Create New Assessment
             </button>
           )}
         </div>
-      </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60">
-        {/* Search */}
-        <div className="relative flex-grow max-w-xs">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search assessments..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-600 dark:text-white"
-          />
-        </div>
-
-        {/* Filter pills & Difficulty selector */}
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-          {/* Difficulty Dropdown */}
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
-            <span className="text-[10px] text-slate-400 uppercase font-mono">Level:</span>
-            <select
-              value={difficultyFilter}
-              onChange={(e) => setDifficultyFilter(e.target.value as any)}
-              className="bg-transparent text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
-              id="filter_difficulty_select"
-              title="Filter by Difficulty Level"
-            >
-              <option value="all">All Levels</option>
-              <option value="beginner">🟢 Beginner</option>
-              <option value="intermediate">🟡 Intermediate</option>
-              <option value="advanced">🟣 Advanced</option>
-            </select>
+        {/* Quick Analytics Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 mt-6 border-t border-white/10">
+          <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
+            <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">Available Tests</span>
+            <span className="text-xl sm:text-2xl font-black text-white font-mono mt-0.5 block">
+              {stats.totalVisible}
+            </span>
           </div>
 
+          <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
+            <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">
+              {isStudent ? 'To Complete' : 'Total Submissions'}
+            </span>
+            <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono mt-0.5 block">
+              {isStudent ? stats.pendingCount : submissions.length}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
+            <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">
+              {isStudent ? 'Graded Tests' : 'Graded Assessments'}
+            </span>
+            <span className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-0.5 block">
+              {stats.completedCount}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10">
+            <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">Average Score</span>
+            <span className="text-xl sm:text-2xl font-black text-blue-400 font-mono mt-0.5 block">
+              {stats.avgScore > 0 ? `${stats.avgScore}%` : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Modern Filter & Search Controls */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Bar */}
+          <div className="relative flex-grow max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search assessment titles, subjects, descriptions..."
+              className="w-full pl-10 pr-9 py-2 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl outline-none focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-sans"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Selectors */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Class Filter Dropdown (if not scoped to single class) */}
+            {!classId && classes && classes.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs">
+                <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={selectedClassFilter}
+                  onChange={(e) => setSelectedClassFilter(e.target.value)}
+                  className="bg-transparent text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
+                >
+                  <option value="all">All Classes</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>{c.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Difficulty Level Dropdown */}
+            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs">
+              <span className="text-[10px] text-slate-400 uppercase font-mono font-bold">Level:</span>
+              <select
+                value={difficultyFilter}
+                onChange={(e) => setDifficultyFilter(e.target.value as any)}
+                className="bg-transparent text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
+                id="filter_difficulty_select"
+                title="Filter by Difficulty Level"
+              >
+                <option value="all">All Levels</option>
+                <option value="beginner">🟢 Beginner</option>
+                <option value="intermediate">🟡 Intermediate</option>
+                <option value="advanced">🟣 Advanced</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               statusFilter === 'all'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                ? 'bg-blue-600 text-white shadow-xs font-black'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            All Quizzes
+            <span>All Assessments</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10">
+              {filteredQuizzes.length}
+            </span>
           </button>
 
           {isStudent && (
             <>
               <button
                 onClick={() => setStatusFilter('not_taken')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                   statusFilter === 'not_taken'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                    ? 'bg-blue-600 text-white shadow-xs font-black'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                Pending / To Take
+                <span>Pending / To Take</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10">
+                  {stats.pendingCount}
+                </span>
               </button>
+
               <button
                 onClick={() => setStatusFilter('completed')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                   statusFilter === 'completed'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                    ? 'bg-emerald-600 text-white shadow-xs font-black'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                Completed & Graded
+                <Check className="w-3.5 h-3.5" />
+                <span>Completed & Graded</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10">
+                  {stats.completedCount}
+                </span>
               </button>
             </>
           )}
@@ -367,205 +547,237 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
           {isTutorOrAdmin && (
             <button
               onClick={() => setStatusFilter('published')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                 statusFilter === 'published'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                  ? 'bg-blue-600 text-white shadow-xs font-black'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              Published Only
+              <span>Published Only</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Quizzes List */}
+      {/* Quizzes List Cards */}
       {loading ? (
-        <div className="py-12 text-center text-xs text-slate-400 font-mono">
-          Loading assessments catalog...
+        <div className="py-16 text-center text-xs text-slate-400 font-mono animate-pulse">
+          Loading assessments catalog and submission rules...
         </div>
       ) : filteredQuizzes.length === 0 ? (
-        <div className="py-12 text-center bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 p-8 space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
+        <div className="py-16 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 p-8 space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center shadow-inner">
             {isStudent && studentEnrolledClassesCount === 0 ? (
-              <Lock className="w-6 h-6 text-amber-500" />
+              <Lock className="w-7 h-7 text-amber-500" />
             ) : (
-              <FileQuestion className="w-6 h-6" />
+              <FileQuestion className="w-7 h-7" />
             )}
           </div>
           <div>
-            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+            <h4 className="text-base font-black text-slate-900 dark:text-white">
               {searchTerm
                 ? 'No matching quizzes found'
                 : isStudent && studentEnrolledClassesCount === 0
-                ? 'No Enrolled Classes Found'
-                : isStudent
-                ? 'No Quizzes Available for Your Enrolled Classes'
-                : currentUser?.role === 'tutor'
-                ? 'No Quizzes for Your Assigned Classes'
-                : 'No Quizzes Available'}
+                ? 'No Enrolled Classes Yet'
+                : 'No Assessments Available'}
             </h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1 font-sans">
               {searchTerm
-                ? 'No quizzes match your search criteria. Try a different query.'
+                ? 'Try broadening your search term or adjusting difficulty/class filters.'
                 : isStudent && studentEnrolledClassesCount === 0
-                ? 'Quizzes, mock exams, and assessments are only shown for classes you are actively enrolled in. Enroll in a class to access quizzes.'
-                : isStudent
-                ? 'Your instructors have not published any quizzes yet for your enrolled classes. Please check back later.'
-                : currentUser?.role === 'tutor'
-                ? 'You do not have any quizzes assigned to your classes yet. Click "+ Create Test / Quiz" to design assessments for your students.'
-                : 'No quizzes have been created yet in the academy. Click "+ Create Test / Quiz" to design assessments.'}
+                ? 'Enroll into your active classes to unlock instructor-curated quizzes and tests.'
+                : 'Tutors and administrators will publish new test checkpoints here.'}
             </p>
           </div>
-          {isStudent && studentEnrolledClassesCount === 0 && (
-            <button
-              onClick={() => {
-                if (onNavigateToClass) {
-                  onNavigateToClass('');
-                } else {
-                  window.dispatchEvent(new CustomEvent('app_navigate_tab', { detail: { tab: 'classes' } }));
-                }
-              }}
-              className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              <BookOpen className="w-3.5 h-3.5" /> Explore Classes to Enroll
-            </button>
-          )}
+
           {isTutorOrAdmin && showCreateButton && (
             <button
               onClick={() => {
                 setEditingQuiz(null);
                 setBuilderOpen(true);
               }}
-              className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer"
+              className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20"
             >
-              <Plus className="w-3.5 h-3.5" /> Define First Quiz
+              <Plus className="w-4 h-4 stroke-[3]" /> Define First Quiz
             </button>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredQuizzes.map((quiz) => {
             const studentSubmission = latestSubmissionsByQuiz.get(quiz.id);
             const isEnrolled = isStudentEnrolledInClass(quiz.classId);
             const isPendingAssignment = Boolean(isStudent && !studentSubmission && isEnrolled);
+            const bannerUrl = resolveQuizBanner(quiz);
+            const { tutorName, tutorPhoto } = resolveTutorAttribution(quiz);
+
+            // Attempts calculation
+            const studentAttemptsCount = studentAttemptsCountByQuiz.get(quiz.id) || (studentSubmission ? 1 : 0);
+            const totalStaffSubmissions = totalSubmissionsCountByQuiz.get(quiz.id) || 0;
+            const isUnlimited = quiz.unlimitedAttempts !== false && !quiz.maxAttempts;
+            const maxAttempts = quiz.maxAttempts && quiz.maxAttempts > 0 ? quiz.maxAttempts : 1;
+            const isLimitReached = Boolean(isStudent && !isUnlimited && studentAttemptsCount >= maxAttempts);
 
             return (
               <motion.div
                 key={quiz.id}
                 id={`quiz_card_${quiz.id}`}
-                animate={
+                whileHover={{ y: -3 }}
+                transition={{ duration: 0.2 }}
+                className={`bg-white dark:bg-slate-900 rounded-3xl border overflow-hidden shadow-sm hover:shadow-xl transition-all flex flex-col justify-between group ${
                   isPendingAssignment
-                    ? {
-                        boxShadow: [
-                          '0 0 0 0 rgba(99, 102, 241, 0)',
-                          '0 0 0 3px rgba(99, 102, 241, 0.22)',
-                          '0 0 20px 4px rgba(99, 102, 241, 0.2)',
-                          '0 0 0 0 rgba(99, 102, 241, 0)'
-                        ],
-                        borderColor: [
-                          'rgba(226, 232, 240, 1)',
-                          'rgba(129, 140, 248, 0.85)',
-                          'rgba(99, 102, 241, 0.95)',
-                          'rgba(226, 232, 240, 1)'
-                        ]
-                      }
-                    : {}
-                }
-                transition={
-                  isPendingAssignment
-                    ? {
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: 'easeInOut'
-                      }
-                    : undefined
-                }
-                className={`bg-white dark:bg-slate-900 rounded-3xl border p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative ${
-                  isPendingAssignment
-                    ? 'border-indigo-400 dark:border-indigo-500'
-                    : 'border-slate-200/80 dark:border-slate-800'
+                    ? 'border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-400/20'
+                    : 'border-slate-200/90 dark:border-slate-800'
                 }`}
               >
-                {/* Top Row: Class tag, Status & Metadata */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                      <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-bold truncate max-w-[180px]">
-                        {quiz.classTitle}
-                      </span>
-                      {/* Difficulty Level Badge on Quiz Cards */}
-                      <DifficultyBadge quiz={quiz} size="xs" />
-                    </div>
+                {/* Visual Banner Photo with Floating Chips */}
+                <div className="relative h-44 sm:h-48 w-full overflow-hidden bg-slate-900 shrink-0">
+                  <img
+                    src={bannerUrl}
+                    alt={quiz.title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      // Fallback image if broken
+                      (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1200&q=80';
+                    }}
+                  />
+                  {/* Subtle Dark Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-black/20" />
 
-                    {/* Status badge for Tutors */}
+                  {/* Top Floating Badges */}
+                  <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2 z-10">
+                    <span className="px-3 py-1 rounded-xl bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-mono font-bold border border-white/20 truncate max-w-[200px] shadow-sm">
+                      {quiz.classTitle}
+                    </span>
+
+                    {/* Status badge */}
                     {isTutorOrAdmin ? (
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                        className={`px-3 py-1 rounded-xl text-[10px] font-mono font-bold uppercase backdrop-blur-md shadow-sm border ${
                           quiz.status === 'published'
-                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                            : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                            : 'bg-amber-950/80 text-amber-300 border-amber-500/40'
                         }`}
                       >
                         {quiz.status}
                       </span>
                     ) : studentSubmission ? (
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold uppercase flex items-center gap-1 ${
+                        className={`px-3 py-1 rounded-xl text-[10px] font-mono font-extrabold uppercase flex items-center gap-1.5 backdrop-blur-md shadow-sm border ${
                           studentSubmission.passed
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300'
-                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
+                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
+                            : 'bg-amber-950/80 text-amber-300 border-amber-500/40'
                         }`}
                       >
-                        {studentSubmission.passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                        {studentSubmission.percentage}% - {studentSubmission.passed ? 'Passed' : 'Needs Work'}
+                        {studentSubmission.passed ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 text-amber-400" />
+                        )}
+                        <span>{studentSubmission.percentage}% - {studentSubmission.passed ? 'Passed' : 'Needs Work'}</span>
                       </span>
                     ) : !isEnrolled ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-600 flex items-center gap-1">
-                        <Lock className="w-3 h-3 text-slate-400" /> Enrollment Required
+                      <span className="px-3 py-1 rounded-xl text-[10px] font-mono font-bold bg-slate-900/80 backdrop-blur-md text-slate-300 border border-white/20 flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-amber-400" /> Enrollment Required
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold uppercase bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 flex items-center gap-1.5 shadow-2xs">
+                      <span className="px-3 py-1 rounded-xl text-[10px] font-mono font-black uppercase bg-indigo-950/80 backdrop-blur-md text-indigo-300 border border-indigo-500/50 flex items-center gap-1.5 shadow-md">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>
                         </span>
-                        Pending Assignment
+                        Pending Assessment
                       </span>
                     )}
                   </div>
 
-                  {/* Title & Description */}
-                  <div>
-                    <h4 className="text-sm font-black text-slate-900 dark:text-white line-clamp-1">
+                  {/* Bottom Floating Bar on Banner: Tutor Attribution and Attempt Limit */}
+                  <div className="absolute bottom-3 inset-x-3 flex items-center justify-between gap-2 z-10">
+                    {/* [photo] By [Name] on Banner Overlay */}
+                    <div className="flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/15 max-w-[65%]">
+                      {tutorPhoto ? (
+                        <img
+                          src={tutorPhoto}
+                          alt={tutorName}
+                          className="w-5 h-5 rounded-full object-cover ring-1 ring-white/60 shrink-0"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                          {tutorName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-[11px] text-slate-200 truncate">
+                        By <strong className="font-bold text-white">{tutorName}</strong>
+                      </span>
+                    </div>
+
+                    {/* Attempt Policy Pill */}
+                    <div className="flex items-center gap-1 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/15 text-[10px] font-mono text-slate-200 shrink-0">
+                      {isStudent ? (
+                        isUnlimited ? (
+                          <span className="text-emerald-300 font-bold">♾️ Unlimited</span>
+                        ) : (
+                          <span className={`font-bold flex items-center gap-1 ${isLimitReached ? 'text-rose-400' : 'text-blue-300'}`}>
+                            {isLimitReached && <Lock className="w-2.5 h-2.5" />}
+                            {studentAttemptsCount}/{maxAttempts} Attempts
+                          </span>
+                        )
+                      ) : (
+                        <span>
+                          {isUnlimited ? '♾️ Unlimited' : `Max ${maxAttempts} ${maxAttempts === 1 ? 'Attempt' : 'Attempts'}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Content Area */}
+                <div className="p-5 space-y-4 flex-grow flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <DifficultyBadge quiz={quiz} size="xs" />
+                      <span className="text-[11px] font-mono font-bold text-slate-400 flex items-center gap-1">
+                        <FileQuestion className="w-3.5 h-3.5 text-blue-500" />
+                        {quiz.questions.length} Questions
+                      </span>
+                    </div>
+
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {quiz.title}
-                    </h4>
+                    </h3>
+
                     {quiz.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 mt-1 font-sans">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed font-sans font-normal">
                         {quiz.description}
                       </p>
                     )}
                   </div>
 
-                  {/* Quiz Metrics */}
-                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 font-medium pt-1">
-                    <span className="flex items-center gap-1">
-                      <FileQuestion className="w-3.5 h-3.5 text-blue-500" />
-                      {quiz.questions.length} Questions
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                      {quiz.durationMinutes ? `${quiz.durationMinutes} mins` : 'Untimed'}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5 text-amber-500" />
-                      Pass: {quiz.passingScorePercentage || 50}%
+                  {/* Spec Strip */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        {quiz.durationMinutes ? `${quiz.durationMinutes} mins` : 'Untimed'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Award className="w-3.5 h-3.5 text-emerald-500" />
+                        Pass: {quiz.passingScorePercentage || 50}%
+                      </span>
+                    </div>
+                    <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                      {quiz.totalPoints || quiz.questions.length} Points
                     </span>
                   </div>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 flex flex-wrap items-center justify-between gap-2">
+                {/* Card Footer / Action Buttons */}
+                <div className="p-4 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800/80">
                   {/* Student View */}
                   {isStudent && (
                     <div className="flex items-center gap-2 w-full justify-between">
@@ -580,33 +792,57 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                                 fireQuizSubmissionConfetti(true, studentSubmission.percentage);
                               }
                             }}
-                            className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-2xs"
                             id={`view_result_btn_${quiz.id}`}
                           >
-                            <Eye className="w-3.5 h-3.5" /> View Result
+                            <Eye className="w-3.5 h-3.5 text-blue-500" /> View Result
                           </button>
 
-                          <button
-                            onClick={() => {
-                              setActiveQuizForPlayer(quiz);
-                              setInitialSubmissionForPlayer(null);
-                              setPlayerOpen(true);
-                            }}
-                            className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-blue-200 dark:border-blue-900"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" /> Retake
-                          </button>
+                          {/* Retake button with attempt limit enforcement */}
+                          {isLimitReached ? (
+                            <button
+                              disabled
+                              title={`Maximum limit of ${maxAttempts} submissions reached.`}
+                              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed border border-slate-200 dark:border-slate-700"
+                            >
+                              <Lock className="w-3.5 h-3.5" /> Limit Reached ({studentAttemptsCount}/{maxAttempts})
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setActiveQuizForPlayer(quiz);
+                                setInitialSubmissionForPlayer(null);
+                                setPlayerOpen(true);
+                              }}
+                              className="px-4 py-2 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-blue-200 dark:border-blue-900"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" /> Retake Test
+                            </button>
+                          )}
                         </>
-                      ) : (
+                      ) : isEnrolled ? (
                         <button
                           onClick={() => {
                             setActiveQuizForPlayer(quiz);
                             setInitialSubmissionForPlayer(null);
                             setPlayerOpen(true);
                           }}
-                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+                          className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 cursor-pointer"
                         >
                           <Play className="w-3.5 h-3.5 fill-current" /> Take Assessment Now
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (onNavigateToClass) {
+                              onNavigateToClass(quiz.classId);
+                            } else {
+                              showToast(`Please enroll in "${quiz.classTitle}" to take this assessment.`, 'info');
+                            }
+                          }}
+                          className="w-full py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Lock className="w-3.5 h-3.5 text-amber-500" /> Enroll in Class to Unlock
                         </button>
                       )}
                     </div>
@@ -615,16 +851,17 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                   {/* Tutor / Admin View */}
                   {isTutorOrAdmin && (
                     <div className="flex items-center justify-between w-full gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => {
                             setActiveQuizForSubmissions(quiz);
                             setSubmissionsModalOpen(true);
                           }}
-                          className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-blue-200 dark:border-blue-900"
+                          className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-blue-200 dark:border-blue-900"
                           title="View Student Results"
                         >
-                          <Users className="w-3.5 h-3.5" /> Results
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Results ({totalStaffSubmissions})</span>
                         </button>
 
                         <button
@@ -633,10 +870,11 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
                             setInitialSubmissionForPlayer(null);
                             setPlayerOpen(true);
                           }}
-                          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border border-slate-200 dark:border-slate-700"
                           title="Preview as Student"
                         >
-                          <Eye className="w-3.5 h-3.5" /> Preview
+                          <Eye className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Preview</span>
                         </button>
                       </div>
 
@@ -709,6 +947,7 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
           }}
           currentUser={currentUser}
           initialSubmission={initialSubmissionForPlayer}
+          attemptsCount={studentAttemptsCountByQuiz.get(activeQuizForPlayer.id) || 0}
           onSubmissionSuccess={async (newSub) => {
             if (newSub.id?.startsWith('preview_') || currentUser?.role === 'admin' || currentUser?.role === 'tutor') {
               return;

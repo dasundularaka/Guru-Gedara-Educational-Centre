@@ -582,6 +582,8 @@ export interface Quiz {
   classTitle: string;
   tutorId: string;
   tutorName: string;
+  tutorPhoto?: string;
+  bannerImage?: string; // Custom banner photo URL
   title: string;
   description?: string;
   durationMinutes: number; // 0 for unlimited, or e.g. 10, 15, 30
@@ -590,6 +592,8 @@ export interface Quiz {
   questions: QuizQuestion[];
   totalPoints: number;
   difficulty?: QuizDifficulty;
+  unlimitedAttempts?: boolean; // Smart tick for unlimited submissions (default true)
+  maxAttempts?: number; // Maximum allowed attempts for students when not unlimited (e.g., 1, 2, 3...)
   createdAt: string;
   updatedAt?: string;
 }

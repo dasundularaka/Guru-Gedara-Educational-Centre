@@ -95,6 +95,7 @@ interface QuizPlayerModalProps {
   currentUser?: UserProfile | null;
   onSubmissionSuccess?: (submission: QuizSubmission) => void;
   initialSubmission?: QuizSubmission | null;
+  attemptsCount?: number;
 }
 
 export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
@@ -103,7 +104,8 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
   onClose,
   currentUser,
   onSubmissionSuccess,
-  initialSubmission
+  initialSubmission,
+  attemptsCount = 0
 }) => {
   const { classes, bookings, currentUser: appUser, showToast, realAdminUser, viewAsRole, isViewAsActive } = useApp();
   const effectiveUser = currentUser || appUser;
@@ -120,6 +122,16 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
     isViewAsActive ||
     (typeof window !== 'undefined' && Boolean(localStorage.getItem('local_real_admin_user')))
   );
+
+  // Resolved tutor and attempt policy calculations
+  const targetClass = classes.find(c => c.id === quiz.classId);
+  const resolvedTutorName = quiz.tutorName || targetClass?.tutorName || 'Faculty Instructor';
+  const resolvedTutorPhoto = quiz.tutorPhoto || targetClass?.tutorPhoto || '';
+
+  const isUnlimited = quiz.unlimitedAttempts !== false && !quiz.maxAttempts;
+  const allowedAttempts = quiz.maxAttempts && quiz.maxAttempts > 0 ? quiz.maxAttempts : 1;
+  const usedAttempts = attemptsCount;
+  const isLimitReached = !isStaffPreview && !isUnlimited && usedAttempts >= allowedAttempts;
 
   // Phase: 'briefing' | 'taking' | 'results'
   const [phase, setPhase] = useState<'briefing' | 'taking' | 'results'>(
@@ -392,9 +404,32 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
               <BookOpen className="w-5 h-5 text-blue-200" />
             </div>
             <div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-blue-200 font-bold block">
-                {quiz.classTitle}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-blue-200 font-bold block">
+                  {quiz.classTitle}
+                </span>
+                <span className="text-white/40">•</span>
+                <div className="flex items-center gap-1.5 text-xs text-blue-100">
+                  {resolvedTutorPhoto ? (
+                    <img 
+                      src={resolvedTutorPhoto} 
+                      alt={resolvedTutorName} 
+                      className="w-4 h-4 rounded-full object-cover ring-1 ring-white/60" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full bg-white/20 text-[9px] font-bold flex items-center justify-center text-white">
+                      {resolvedTutorName.charAt(0)}
+                    </div>
+                  )}
+                  <span className="text-[11px] font-medium text-blue-100/90">
+                    By <strong className="text-white font-semibold">{resolvedTutorName}</strong>
+                  </span>
+                </div>
+              </div>
               <h2 className="text-base sm:text-lg font-extrabold text-white line-clamp-1">
                 {quiz.title}
               </h2>
@@ -506,8 +541,8 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
               )}
             </div>
 
-            {/* Assessment Details Metric Grid with Difficulty Badge */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-2xl mx-auto">
+            {/* Assessment Details Metric Grid with Difficulty Badge and Attempt Policy */}
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 max-w-2xl mx-auto">
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">Questions</span>
                 <span className="text-base font-black text-blue-600 dark:text-blue-400 font-mono">
@@ -536,11 +571,31 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-between col-span-2 sm:col-span-1">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">Submissions</span>
+                <span className={`text-xs font-black font-mono block mt-1 ${isLimitReached ? 'text-red-500' : 'text-slate-800 dark:text-slate-200'}`}>
+                  {isStaffPreview ? 'Unlimited' : isUnlimited ? 'Unlimited' : `${usedAttempts}/${allowedAttempts}`}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block mb-1">Difficulty</span>
                 <DifficultyBadge quiz={quiz} size="xs" />
               </div>
             </div>
+
+            {/* Submission Limit Reached Notice for Students */}
+            {isLimitReached && (
+              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-900 dark:text-rose-200 space-y-1.5 max-w-xl mx-auto">
+                <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-300">
+                  <Lock className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <span>Submission Limit Reached ({usedAttempts}/{allowedAttempts} Submissions Used)</span>
+                </div>
+                <p className="text-[11px] text-rose-700/90 dark:text-rose-300/90 leading-relaxed font-normal">
+                  You have already used all permitted attempts for this assessment as configured by the administration. You can inspect your past graded submission and explanations, but no further answers can be submitted.
+                </p>
+              </div>
+            )}
 
             {/* Staff / Admin Preview Notice */}
             {isStaffPreview && (
@@ -565,18 +620,44 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
                 <li>Review each question carefully and select the single best answer.</li>
                 <li>You can freely navigate between questions before submitting.</li>
                 <li>Answers are instantly graded upon submission with diagnostic solutions.</li>
+                {!isUnlimited && !isStaffPreview && (
+                  <li className="font-semibold text-indigo-700 dark:text-indigo-300">
+                    Strict attempt limit: maximum {allowedAttempts} {allowedAttempts === 1 ? 'submission' : 'submissions'} permitted.
+                  </li>
+                )}
               </ul>
             </div>
 
             {/* Action */}
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={handleStartQuiz}
-                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-extrabold shadow-lg shadow-blue-500/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {isStaffPreview ? 'Start Assessment Preview →' : 'Start Quiz Now →'}
-              </button>
+            <div className="text-center pt-2 flex flex-wrap items-center justify-center gap-3">
+              {isLimitReached ? (
+                <>
+                  <button
+                    type="button"
+                    disabled
+                    className="px-8 py-3 bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-2xl text-sm font-extrabold cursor-not-allowed flex items-center gap-2 shadow-xs"
+                  >
+                    <Lock className="w-4 h-4" /> Limit Reached ({usedAttempts}/{allowedAttempts})
+                  </button>
+                  {initialSubmission && (
+                    <button
+                      type="button"
+                      onClick={() => setPhase('results')}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-extrabold shadow-lg shadow-blue-500/25 transition-all cursor-pointer"
+                    >
+                      View Graded Results →
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartQuiz}
+                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-extrabold shadow-lg shadow-blue-500/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  {isStaffPreview ? 'Start Assessment Preview →' : 'Start Quiz Now →'}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1066,13 +1147,24 @@ export const QuizPlayerModal: React.FC<QuizPlayerModalProps> = ({
 
               {/* Results Bottom Action Bar */}
               <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={handleStartQuiz}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> {isStaffPreview ? 'Retake Preview' : 'Retake Test'}
-                </button>
+                {isLimitReached ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed border border-slate-200 dark:border-slate-700"
+                    title={`Maximum ${allowedAttempts} submissions reached.`}
+                  >
+                    <Lock className="w-3.5 h-3.5" /> Re-submission Locked ({usedAttempts}/{allowedAttempts})
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartQuiz}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> {isStaffPreview ? 'Retake Preview' : 'Retake Test'}
+                  </button>
+                )}
 
                 <button
                   type="button"
