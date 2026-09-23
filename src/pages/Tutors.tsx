@@ -5,6 +5,7 @@ import { UserProfile } from '../types';
 import { TutorCard } from '../components/TutorCard';
 import { Search, GraduationCap, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { MultifunctionalSearchFilter, FilterGroup, ActiveFilterTag } from '../components/MultifunctionalSearchFilter';
 
 const TUTOR_SUBJECT_FILTERS = ["All Subjects", "Mathematics", "Physics", "English", "Coding"];
 
@@ -71,48 +72,55 @@ export const Tutors: React.FC = () => {
           <p className="text-xs text-slate-500 mt-1">Connect directly with certified educators, book classes, and start direct chats.</p>
         </motion.div>
 
-        {/* Search controls & Category chips */}
-        <div className="space-y-3 mb-6 sm:mb-8">
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-3.5 sm:p-4 max-w-2xl">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                <Search className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search faculty by name, qualification, or subject..."
-                className="w-full text-xs pl-9 pr-8 py-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-indigo-600 font-sans transition-colors text-slate-900"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
+        {/* Multifunctional Search Bar and Filter Button */}
+        {(() => {
+          const tutorFilterGroups: FilterGroup[] = [
+            {
+              id: 'subject',
+              title: 'Faculty Specialization',
+              value: selectedSubject,
+              onChange: setSelectedSubject,
+              options: TUTOR_SUBJECT_FILTERS.map(sub => ({
+                label: sub,
+                value: sub,
+                badge: sub === 'All Subjects' 
+                  ? tutorsList.length 
+                  : tutorsList.filter(t => (t.tutorDetails?.subjects || t.preferredSubjects || []).some(s => s.toLowerCase().includes(sub.toLowerCase()))).length
+              }))
+            }
+          ];
 
-          {/* Quick Subject Chips */}
-          <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-            {TUTOR_SUBJECT_FILTERS.map(sub => (
-              <button
-                key={sub}
-                onClick={() => setSelectedSubject(sub)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
-                  selectedSubject === sub 
-                    ? 'bg-indigo-600 text-white shadow-xs font-extrabold' 
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {sub}
-              </button>
-            ))}
-          </div>
-        </div>
+          const activeTutorTags: ActiveFilterTag[] = [];
+          if (selectedSubject !== 'All Subjects') {
+            activeTutorTags.push({
+              id: 'subject',
+              label: 'Subject',
+              valueLabel: selectedSubject,
+              onRemove: () => setSelectedSubject('All Subjects')
+            });
+          }
+
+          const resetAllTutorFilters = () => {
+            setSearchTerm('');
+            setSelectedSubject('All Subjects');
+          };
+
+          return (
+            <div className="mb-6 sm:mb-8">
+              <MultifunctionalSearchFilter
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Search faculty by name, qualification, or subject..."
+                searchId="tutors_multifunctional_search_input"
+                filterButtonLabel="Subject Filter"
+                filterGroups={tutorFilterGroups}
+                activeFilterCount={activeTutorTags.length}
+                onResetFilters={resetAllTutorFilters}
+                activeTags={activeTutorTags}
+              />
+            </div>
+          );
+        })()}
 
         {/* Content list */}
         {loading ? (

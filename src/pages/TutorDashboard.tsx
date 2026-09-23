@@ -16,6 +16,7 @@ import { ClassProfileModal } from '../components/ClassProfileModal';
 import { ClassAttendanceQRScannerModal } from '../components/ClassAttendanceQRScannerModal';
 import { ResourceEmbedViewerModal } from '../components/ResourceEmbedViewerModal';
 import { OrbitalLoader } from '../components/OrbitalLoader';
+import { MultifunctionalSearchFilter, FilterGroup, ActiveFilterTag } from '../components/MultifunctionalSearchFilter';
 import { 
   Users, 
   Calendar, 
@@ -2447,85 +2448,81 @@ export const TutorDashboard: React.FC = () => {
                     </span>
                   </div>
                   
-                  {/* Search & Filter Toolbar */}
-                  <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 bg-gray-50/80 p-4 rounded-2xl border border-gray-200">
-                    
-                    {/* Left: Search input & Class Selector */}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                      {/* Search bar */}
-                      <div className="relative flex-1 min-w-[200px]">
-                        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={resourceSearchQuery}
-                          onChange={(e) => setResourceSearchQuery(e.target.value)}
-                          placeholder="Search materials, notes, quizzes, links, files..."
-                          className="w-full text-xs pl-9 pr-8 py-2 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 shadow-2xs"
+                  {/* Multifunctional Search Bar & Filter Button */}
+                  {(() => {
+                    const resourceFilterGroups: FilterGroup[] = [
+                      {
+                        id: 'course',
+                        title: 'Assigned Course',
+                        value: selectedResourceClassId,
+                        onChange: setSelectedResourceClassId,
+                        options: [
+                          { label: 'All Courses', value: 'all', badge: tutorMaterials.length },
+                          ...tutorClasses.map(cls => ({
+                            label: cls.title,
+                            value: cls.id,
+                            badge: tutorMaterials.filter(m => m.classId === cls.id).length
+                          }))
+                        ]
+                      },
+                      {
+                        id: 'type',
+                        title: 'Resource Category',
+                        value: selectedResourceType,
+                        onChange: (val) => setSelectedResourceType(val as any),
+                        options: [
+                          { label: 'All Resources', value: 'all', badge: tutorMaterials.length },
+                          { label: 'Notes (PDF)', value: 'note', badge: tutorMaterials.filter(m => m.type === 'note').length },
+                          { label: 'Quizzes', value: 'quiz', badge: tutorMaterials.filter(m => m.type === 'quiz').length },
+                          { label: 'Files / Docs', value: 'file', badge: tutorMaterials.filter(m => m.type === 'file').length },
+                          { label: 'Links', value: 'link', badge: tutorMaterials.filter(m => m.type === 'link').length },
+                          { label: 'Videos', value: 'video', badge: tutorMaterials.filter(m => m.type === 'video').length },
+                          { label: 'Notices', value: 'announcement', badge: tutorMaterials.filter(m => m.type === 'announcement').length }
+                        ]
+                      }
+                    ];
+
+                    const activeResourceTags: ActiveFilterTag[] = [];
+                    if (selectedResourceClassId !== 'all') {
+                      const cName = tutorClasses.find(c => c.id === selectedResourceClassId)?.title || selectedResourceClassId;
+                      activeResourceTags.push({
+                        id: 'course',
+                        label: 'Course',
+                        valueLabel: cName,
+                        onRemove: () => setSelectedResourceClassId('all')
+                      });
+                    }
+                    if (selectedResourceType !== 'all') {
+                      activeResourceTags.push({
+                        id: 'type',
+                        label: 'Type',
+                        valueLabel: selectedResourceType.toUpperCase(),
+                        onRemove: () => setSelectedResourceType('all')
+                      });
+                    }
+
+                    const resetAllResourceFilters = () => {
+                      setResourceSearchQuery('');
+                      setSelectedResourceClassId('all');
+                      setSelectedResourceType('all');
+                    };
+
+                    return (
+                      <div className="mb-4">
+                        <MultifunctionalSearchFilter
+                          searchValue={resourceSearchQuery}
+                          onSearchChange={setResourceSearchQuery}
+                          searchPlaceholder="Search materials, notes, quizzes, links, files..."
+                          searchId="tutor_resources_multifunctional_search"
+                          filterButtonLabel="Resource Filters"
+                          filterGroups={resourceFilterGroups}
+                          activeFilterCount={activeResourceTags.length}
+                          onResetFilters={resetAllResourceFilters}
+                          activeTags={activeResourceTags}
                         />
-                        {resourceSearchQuery && (
-                          <button
-                            onClick={() => setResourceSearchQuery('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold cursor-pointer"
-                          >
-                            ✕
-                          </button>
-                        )}
                       </div>
-
-                      {/* Class Filter Dropdown */}
-                      <div className="min-w-[190px]">
-                        <select
-                          value={selectedResourceClassId}
-                          onChange={(e) => setSelectedResourceClassId(e.target.value)}
-                          className="w-full text-xs px-3 py-2 bg-white border border-gray-200 rounded-xl outline-none text-gray-800 font-bold focus:border-blue-500 shadow-2xs cursor-pointer"
-                        >
-                          <option value="all">📚 All Assigned Courses ({tutorMaterials.length})</option>
-                          {tutorClasses.map(cls => (
-                            <option key={cls.id} value={cls.id}>
-                              {cls.title} ({tutorMaterials.filter(m => m.classId === cls.id).length})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Right: Resource Type Selector Pills */}
-                    <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 scrollbar-none text-xs font-bold">
-                      {[
-                        { id: 'all', label: 'All', icon: Layers },
-                        { id: 'note', label: 'Notes (PDF)', icon: FileText },
-                        { id: 'quiz', label: 'Quizzes', icon: HelpCircle },
-                        { id: 'file', label: 'Files / Docs', icon: FileSpreadsheet },
-                        { id: 'link', label: 'Links', icon: LinkIcon },
-                        { id: 'video', label: 'Videos', icon: Video },
-                        { id: 'announcement', label: 'Notices', icon: Megaphone }
-                      ].map(typeTab => {
-                        const IconComponent = typeTab.icon;
-                        const count = typeTab.id === 'all'
-                          ? tutorMaterials.length
-                          : tutorMaterials.filter(m => (m.type || 'link') === typeTab.id).length;
-                        const isActive = selectedResourceType === typeTab.id;
-
-                        return (
-                          <button
-                            key={typeTab.id}
-                            onClick={() => setSelectedResourceType(typeTab.id as any)}
-                            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                              isActive
-                                ? 'bg-blue-600 text-white shadow-xs'
-                                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                            }`}
-                          >
-                            <IconComponent className="w-3.5 h-3.5" />
-                            <span>{typeTab.label}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                              {count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Filtered Resource List Grid */}
                   {(() => {

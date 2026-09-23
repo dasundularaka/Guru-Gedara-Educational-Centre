@@ -24,6 +24,7 @@ import { genericFirestoreService } from '../lib/genericFirestore';
 import { binaryStore } from '../lib/binaryStore';
 import { canUserViewStudyResource } from '../utils/accessControl';
 import { recordMaterialAccess, getMaterialAccessInfo } from '../utils/resourceAudit';
+import { MultifunctionalSearchFilter, FilterGroup, ActiveFilterTag } from '../components/MultifunctionalSearchFilter';
 
 interface ClassesProps {
   onNavigateTab: (tab: string) => void;
@@ -411,6 +412,139 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
         (Boolean(currentUser?.email) && Boolean(c.tutorEmail) && currentUser?.email?.toLowerCase() === c.tutorEmail?.toLowerCase())
       );
 
+  // Multifunctional Filter groups for Classes
+  const classFilterGroups: FilterGroup[] = [
+    {
+      id: 'subject',
+      title: 'Subject Stream',
+      value: selectedSubject,
+      onChange: setSelectedSubject,
+      options: subjectCategories.map(sub => ({
+        label: sub,
+        value: sub,
+        badge: sub === 'All Subjects' ? classes.length : classes.filter(c => c.subject.toLowerCase() === sub.toLowerCase()).length
+      }))
+    },
+    {
+      id: 'availability',
+      title: 'Slot Availability',
+      value: availabilityFilter,
+      onChange: (val) => setAvailabilityFilter(val as any),
+      options: [
+        { label: 'All Classes', value: 'all' },
+        { label: 'Available Seats', value: 'open' },
+        { label: 'Fully Booked', value: 'full' }
+      ]
+    },
+    {
+      id: 'sort',
+      title: 'Sort Ordering',
+      value: sortBy,
+      onChange: setSortBy,
+      options: [
+        { label: 'Default Order', value: 'default' },
+        { label: 'Price: Low to High', value: 'price_asc' },
+        { label: 'Price: High to Low', value: 'price_desc' },
+        { label: 'Fewest Seats Left', value: 'spots_left' }
+      ]
+    },
+    {
+      id: 'level',
+      title: 'Academic Level / Grade',
+      value: selectedLevel,
+      onChange: setSelectedLevel,
+      options: ['All Levels', 'Beginner', 'Middle School', 'High School', 'AP Prep', 'Advanced'].map(lvl => ({
+        label: lvl,
+        value: lvl
+      }))
+    },
+    {
+      id: 'day',
+      title: 'Class Day',
+      value: selectedDay,
+      onChange: setSelectedDay,
+      options: ['All Days', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => ({
+        label: d,
+        value: d
+      }))
+    },
+    {
+      id: 'time',
+      title: 'Time of Day',
+      value: selectedTimeOfDay,
+      onChange: setSelectedTimeOfDay,
+      options: ['All Times', 'Morning', 'Afternoon', 'Evening'].map(t => ({
+        label: t,
+        value: t
+      }))
+    }
+  ];
+
+  const activeClassTags: ActiveFilterTag[] = [];
+  if (selectedSubject !== 'All Subjects') {
+    activeClassTags.push({
+      id: 'subject',
+      label: 'Subject',
+      valueLabel: selectedSubject,
+      onRemove: () => setSelectedSubject('All Subjects')
+    });
+  }
+  if (availabilityFilter !== 'all') {
+    activeClassTags.push({
+      id: 'avail',
+      label: 'Availability',
+      valueLabel: availabilityFilter === 'open' ? 'Open' : 'Full',
+      onRemove: () => setAvailabilityFilter('all')
+    });
+  }
+  if (sortBy !== 'default') {
+    const sortLabels: Record<string, string> = {
+      price_asc: 'Price ↑',
+      price_desc: 'Price ↓',
+      spots_left: 'Seats Left'
+    };
+    activeClassTags.push({
+      id: 'sort',
+      label: 'Sort',
+      valueLabel: sortLabels[sortBy] || sortBy,
+      onRemove: () => setSortBy('default')
+    });
+  }
+  if (selectedLevel !== 'All Levels') {
+    activeClassTags.push({
+      id: 'level',
+      label: 'Level',
+      valueLabel: selectedLevel,
+      onRemove: () => setSelectedLevel('All Levels')
+    });
+  }
+  if (selectedDay !== 'All Days') {
+    activeClassTags.push({
+      id: 'day',
+      label: 'Day',
+      valueLabel: selectedDay,
+      onRemove: () => setSelectedDay('All Days')
+    });
+  }
+  if (selectedTimeOfDay !== 'All Times') {
+    activeClassTags.push({
+      id: 'time',
+      label: 'Time',
+      valueLabel: selectedTimeOfDay,
+      onRemove: () => setSelectedTimeOfDay('All Times')
+    });
+  }
+
+  const resetAllClassFilters = () => {
+    setSearchTerm('');
+    setSelectedSubject('All Subjects');
+    setAvailabilityFilter('all');
+    setSortBy('default');
+    setSelectedLevel('All Levels');
+    setSelectedDay('All Days');
+    setSelectedTimeOfDay('All Times');
+  };
+
   return (
     <div className="bg-slate-50/40 min-h-screen py-10" id="classes_search_viewport">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -450,128 +584,19 @@ export const Classes: React.FC<ClassesProps> = ({ onNavigateTab }) => {
               </div>
             )}
 
-            {/* Mobile Category Pill Scroller */}
-            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mb-4">
-              {subjectCategories.map(sub => (
-                <button
-                  key={sub}
-                  onClick={() => setSelectedSubject(sub)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
-                    selectedSubject === sub 
-                      ? 'bg-indigo-600 text-white shadow-sm font-extrabold' 
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {sub}
-                </button>
-              ))}
-            </div>
-
-            {/* Filters and search blocks */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4 sm:p-6 mb-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-center">
-                
-                {/* Search Input */}
-                <div className="relative sm:col-span-2 md:col-span-6">
-                  <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                    <Search className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search classes or tutors..."
-                    className="w-full text-xs pl-9 pr-8 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-900 transition-all font-sans text-slate-900 dark:text-white"
-                  />
-                  {searchTerm && (
-                    <button 
-                      onClick={() => setSearchTerm("")}
-                      className="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Availability status Selector */}
-                <div className="sm:col-span-1 md:col-span-3">
-                  <select
-                    value={availabilityFilter}
-                    onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'open' | 'full')}
-                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
-                  >
-                    <option value="all">Availability: All</option>
-                    <option value="open">Available Slots</option>
-                    <option value="full">Fully Booked</option>
-                  </select>
-                </div>
-
-                {/* Sort order Selector */}
-                <div className="sm:col-span-1 md:col-span-3">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
-                  >
-                    <option value="default">Sort: Default</option>
-                    <option value="price_asc">Price: Low to High</option>
-                    <option value="price_desc">Price: High to Low</option>
-                    <option value="spots_left">Seats Left</option>
-                  </select>
-                </div>
-
-              </div>
-
-              {/* Advanced Course Level, Day of Week, and Time of Day Filters */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                {/* Level Selector */}
-                <div>
-                  <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
-                  >
-                    <option value="All Levels">Level: All Grades</option>
-                    <option value="Beginner">Beginner</option>
-                    <option value="Middle School">Middle School</option>
-                    <option value="High School">High School</option>
-                    <option value="AP Prep">AP Prep</option>
-                    <option value="Advanced">Advanced</option>
-                  </select>
-                </div>
-
-                {/* Day of the Week Selector */}
-                <div>
-                  <select
-                    value={selectedDay}
-                    onChange={(e) => setSelectedDay(e.target.value)}
-                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
-                  >
-                    <option value="All Days">Day: All Days</option>
-                    <option value="Monday">Monday</option>
-                    <option value="Tuesday">Tuesday</option>
-                    <option value="Wednesday">Wednesday</option>
-                    <option value="Thursday">Thursday</option>
-                    <option value="Friday">Friday</option>
-                    <option value="Saturday">Saturday</option>
-                    <option value="Sunday">Sunday</option>
-                  </select>
-                </div>
-
-                {/* Time of Day Selector */}
-                <div>
-                  <select
-                    value={selectedTimeOfDay}
-                    onChange={(e) => setSelectedTimeOfDay(e.target.value)}
-                    className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 outline-none focus:border-indigo-600 transition-all font-semibold text-slate-700 dark:text-slate-300 cursor-pointer"
-                  >
-                    <option value="All Times">Time: All Times</option>
-                    <option value="Morning">Morning</option>
-                    <option value="Afternoon">Afternoon</option>
-                    <option value="Evening">Evening</option>
-                  </select>
-                </div>
-              </div>
+            {/* Multifunctional Search Bar and Filter Button */}
+            <div className="mb-8">
+              <MultifunctionalSearchFilter
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Search classes by title, subject, tutor, or schedule..."
+                searchId="classes_multifunctional_search_input"
+                filterButtonLabel="Class Filters"
+                filterGroups={classFilterGroups}
+                activeFilterCount={activeClassTags.length}
+                onResetFilters={resetAllClassFilters}
+                activeTags={activeClassTags}
+              />
             </div>
 
             {/* Classes grid display */}

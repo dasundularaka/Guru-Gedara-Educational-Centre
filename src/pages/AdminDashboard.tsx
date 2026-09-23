@@ -28,6 +28,7 @@ import { AdminMessagingSection } from '../components/AdminMessagingSection';
 import { MobileSectionSidebar, SectionSidebarItem } from '../components/MobileSectionSidebar';
 import { QuizListSection } from '../components/QuizListSection';
 import { OrbitalLoader } from '../components/OrbitalLoader';
+import { MultifunctionalSearchFilter, FilterGroup, ActiveFilterTag } from '../components/MultifunctionalSearchFilter';
 import { auditLogger } from '../lib/auditLogger';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -506,13 +507,14 @@ export const AdminDashboard: React.FC = () => {
   const [paySearchQuery, setPaySearchQuery] = useState("");
   const [payStatusFilter, setPayStatusFilter] = useState("all");
 
-  // Student specific filters (separate name and username)
-  const [studentSearchName, setStudentSearchName] = useState("");
-  const [studentSearchUsername, setStudentSearchUsername] = useState("");
+  // Student specific filters
+  const [studentSearchQuery, setStudentSearchQuery] = useState("");
+  const [studentStatusFilter, setStudentStatusFilter] = useState("all");
+  const [studentEnrollmentFilter, setStudentEnrollmentFilter] = useState("all");
 
-  // Tutor specific filters (separate name and username)
-  const [tutorSearchName, setTutorSearchName] = useState("");
-  const [tutorSearchUsername, setTutorSearchUsername] = useState("");
+  // Tutor specific filters
+  const [tutorSearchQuery, setTutorSearchQuery] = useState("");
+  const [tutorStatusFilter, setTutorStatusFilter] = useState("all");
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -2848,32 +2850,46 @@ export const AdminDashboard: React.FC = () => {
                     <button 
                       id="admin_btn_add_payment"
                       onClick={() => openAddModal('payment')}
-                      className="px-3.5 py-1.5 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer text-xs"
+                      className="px-3.5 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all flex items-center gap-1 cursor-pointer text-xs whitespace-nowrap shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5" /> Add Ledger Record
                     </button>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-2.5 flex items-center text-gray-400">
-                        <Search className="w-3.5 h-3.5" />
-                      </span>
-                      <input 
-                        type="text" 
-                        value={paySearchQuery}
-                        onChange={(e) => setPaySearchQuery(e.target.value)}
-                        placeholder="Search student or class name..."
-                        className="text-xs pl-8.5 pr-2.5 py-1.5 rounded-lg border border-gray-200 outline-none w-52 font-sans"
+                    <div className="w-full sm:w-80">
+                      <MultifunctionalSearchFilter
+                        searchValue={paySearchQuery}
+                        onSearchChange={setPaySearchQuery}
+                        searchPlaceholder="Search student, class, or reference ID..."
+                        searchId="admin_payments_search_input"
+                        filterButtonLabel="Status"
+                        filterGroups={[
+                          {
+                            id: 'status',
+                            title: 'Payment Status',
+                            value: payStatusFilter,
+                            onChange: setPayStatusFilter,
+                            options: [
+                              { label: 'All Statuses', value: 'all', badge: paymentsList.length },
+                              { label: 'Paid / Settled', value: 'paid', badge: paymentsList.filter(p => p.status === 'paid').length },
+                              { label: 'Pending Verification', value: 'pending', badge: paymentsList.filter(p => p.status === 'pending').length },
+                              { label: 'Failed / Rejected', value: 'failed', badge: paymentsList.filter(p => p.status === 'failed').length }
+                            ]
+                          }
+                        ]}
+                        activeFilterCount={payStatusFilter !== 'all' ? 1 : 0}
+                        onResetFilters={() => {
+                          setPaySearchQuery('');
+                          setPayStatusFilter('all');
+                        }}
+                        activeTags={payStatusFilter !== 'all' ? [
+                          {
+                            id: 'status',
+                            label: 'Status',
+                            valueLabel: payStatusFilter.toUpperCase(),
+                            onRemove: () => setPayStatusFilter('all')
+                          }
+                        ] : []}
                       />
                     </div>
-                    <select
-                      value={payStatusFilter}
-                      onChange={(e) => setPayStatusFilter(e.target.value)}
-                      className="text-xs rounded-lg border border-gray-200 px-2 py-1.5 outline-none font-sans"
-                    >
-                      <option value="all">Logs: All status</option>
-                      <option value="paid">Paid</option>
-                      <option value="pending">Pending</option>
-                      <option value="failed">Failed</option>
-                    </select>
                   </div>
                 </div>
 
@@ -3024,37 +3040,95 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Independent Filtering Controls */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-550 uppercase font-mono mb-1">Filter by Full Name:</label>
-                    <input 
-                      type="text"
-                      placeholder="Search name..."
-                      value={studentSearchName}
-                      onChange={(e) => setStudentSearchName(e.target.value)}
-                      className="w-full text-xs px-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-550 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-550 uppercase font-mono mb-1">Filter by Username (Student ID):</label>
-                    <input 
-                      type="text"
-                      placeholder="Search username (e.g. 10000001)..."
-                      value={studentSearchUsername}
-                      onChange={(e) => setStudentSearchUsername(e.target.value)}
-                      className="w-full text-xs px-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-550 outline-none"
-                    />
-                  </div>
-                </div>
+                {/* Multifunctional Search Bar & Filter Button for Students */}
+                {(() => {
+                  const studentFilterGroups: FilterGroup[] = [
+                    {
+                      id: 'status',
+                      title: 'Account Status',
+                      value: studentStatusFilter,
+                      onChange: setStudentStatusFilter,
+                      options: [
+                        { label: 'All Statuses', value: 'all' },
+                        { label: 'Active Scholars', value: 'active' },
+                        { label: 'Pending Verification', value: 'pending' },
+                        { label: 'Suspended Scholars', value: 'suspended' }
+                      ]
+                    },
+                    {
+                      id: 'enrollment',
+                      title: 'Class Enrollment',
+                      value: studentEnrollmentFilter,
+                      onChange: setStudentEnrollmentFilter,
+                      options: [
+                        { label: 'All Scholars', value: 'all' },
+                        { label: 'Enrolled in Classes', value: 'enrolled' },
+                        { label: 'Not Enrolled', value: 'not_enrolled' }
+                      ]
+                    }
+                  ];
+
+                  const activeStudentTags: ActiveFilterTag[] = [];
+                  if (studentStatusFilter !== 'all') {
+                    activeStudentTags.push({
+                      id: 'status',
+                      label: 'Status',
+                      valueLabel: studentStatusFilter.toUpperCase(),
+                      onRemove: () => setStudentStatusFilter('all')
+                    });
+                  }
+                  if (studentEnrollmentFilter !== 'all') {
+                    activeStudentTags.push({
+                      id: 'enrollment',
+                      label: 'Classes',
+                      valueLabel: studentEnrollmentFilter === 'enrolled' ? 'Enrolled' : 'None',
+                      onRemove: () => setStudentEnrollmentFilter('all')
+                    });
+                  }
+
+                  const resetAllStudentFilters = () => {
+                    setStudentSearchQuery('');
+                    setStudentStatusFilter('all');
+                    setStudentEnrollmentFilter('all');
+                  };
+
+                  return (
+                    <div>
+                      <MultifunctionalSearchFilter
+                        searchValue={studentSearchQuery}
+                        onSearchChange={setStudentSearchQuery}
+                        searchPlaceholder="Search students by name, ID (e.g. 10000001), email, or grade..."
+                        searchId="admin_students_search_input"
+                        filterButtonLabel="Student Filters"
+                        filterGroups={studentFilterGroups}
+                        activeFilterCount={activeStudentTags.length}
+                        onResetFilters={resetAllStudentFilters}
+                        activeTags={activeStudentTags}
+                      />
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {users
                     .filter(u => u.role === 'student')
                     .filter(stud => {
-                      const nameMatch = !studentSearchName.trim() || stud.name.toLowerCase().includes(studentSearchName.toLowerCase());
-                      const usernameMatch = !studentSearchUsername.trim() || (stud.username || '').toLowerCase().includes(studentSearchUsername.toLowerCase());
-                      return nameMatch && usernameMatch;
+                      if (studentStatusFilter !== 'all') {
+                        if (studentStatusFilter === 'pending' && stud.status !== 'pending') return false;
+                        if (studentStatusFilter === 'active' && stud.status === 'pending') return false;
+                        if (studentStatusFilter === 'suspended' && stud.status !== 'suspended') return false;
+                      }
+                      if (studentEnrollmentFilter === 'enrolled' && (!stud.selectedClasses || stud.selectedClasses.length === 0)) return false;
+                      if (studentEnrollmentFilter === 'not_enrolled' && (stud.selectedClasses && stud.selectedClasses.length > 0)) return false;
+
+                      if (!studentSearchQuery.trim()) return true;
+                      const q = studentSearchQuery.toLowerCase();
+                      return (
+                        stud.name.toLowerCase().includes(q) ||
+                        (stud.username || '').toLowerCase().includes(q) ||
+                        (stud.email || '').toLowerCase().includes(q) ||
+                        (stud.studentDetails?.grade || '').toLowerCase().includes(q)
+                      );
                     })
                     .map((stud) => {
                       const isPending = stud.status === 'pending';
@@ -3669,37 +3743,73 @@ export const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Independent Filtering Controls */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-550 uppercase font-mono mb-1">Filter by Full Name:</label>
-                    <input 
-                      type="text"
-                      placeholder="Search tutor name..."
-                      value={tutorSearchName}
-                      onChange={(e) => setTutorSearchName(e.target.value)}
-                      className="w-full text-xs px-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-550 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-550 uppercase font-mono mb-1">Filter by Username (Tutor ID):</label>
-                    <input 
-                      type="text"
-                      placeholder="Search username (e.g. GT00000000)..."
-                      value={tutorSearchUsername}
-                      onChange={(e) => setTutorSearchUsername(e.target.value)}
-                      className="w-full text-xs px-3 py-2 bg-white rounded-lg border border-slate-200 focus:border-indigo-550 outline-none"
-                    />
-                  </div>
-                </div>
+                {/* Multifunctional Search Bar & Filter Button for Tutors */}
+                {(() => {
+                  const tutorFilterGroups: FilterGroup[] = [
+                    {
+                      id: 'status',
+                      title: 'Account Status',
+                      value: tutorStatusFilter,
+                      onChange: setTutorStatusFilter,
+                      options: [
+                        { label: 'All Statuses', value: 'all' },
+                        { label: 'Active Faculty', value: 'active' },
+                        { label: 'Pending Verification', value: 'pending' },
+                        { label: 'Suspended Faculty', value: 'suspended' }
+                      ]
+                    }
+                  ];
+
+                  const activeTutorTags: ActiveFilterTag[] = [];
+                  if (tutorStatusFilter !== 'all') {
+                    activeTutorTags.push({
+                      id: 'status',
+                      label: 'Status',
+                      valueLabel: tutorStatusFilter.toUpperCase(),
+                      onRemove: () => setTutorStatusFilter('all')
+                    });
+                  }
+
+                  const resetAllTutorFilters = () => {
+                    setTutorSearchQuery('');
+                    setTutorStatusFilter('all');
+                  };
+
+                  return (
+                    <div>
+                      <MultifunctionalSearchFilter
+                        searchValue={tutorSearchQuery}
+                        onSearchChange={setTutorSearchQuery}
+                        searchPlaceholder="Search tutors by name, ID (e.g. GT00000000), email, or subject..."
+                        searchId="admin_tutors_search_input"
+                        filterButtonLabel="Faculty Filters"
+                        filterGroups={tutorFilterGroups}
+                        activeFilterCount={activeTutorTags.length}
+                        onResetFilters={resetAllTutorFilters}
+                        activeTags={activeTutorTags}
+                      />
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {users
                     .filter(u => u.role === 'tutor')
                     .filter(tut => {
-                      const nameMatch = !tutorSearchName.trim() || tut.name.toLowerCase().includes(tutorSearchName.toLowerCase());
-                      const usernameMatch = !tutorSearchUsername.trim() || (tut.username || '').toLowerCase().includes(tutorSearchUsername.toLowerCase());
-                      return nameMatch && usernameMatch;
+                      if (tutorStatusFilter !== 'all') {
+                        if (tutorStatusFilter === 'pending' && tut.status !== 'pending') return false;
+                        if (tutorStatusFilter === 'active' && tut.status === 'pending') return false;
+                        if (tutorStatusFilter === 'suspended' && tut.status !== 'suspended') return false;
+                      }
+
+                      if (!tutorSearchQuery.trim()) return true;
+                      const q = tutorSearchQuery.toLowerCase();
+                      return (
+                        tut.name.toLowerCase().includes(q) ||
+                        (tut.username || '').toLowerCase().includes(q) ||
+                        (tut.email || '').toLowerCase().includes(q) ||
+                        (tut.tutorDetails?.subjects || tut.preferredSubjects || []).some(s => s.toLowerCase().includes(q))
+                      );
                     })
                     .map((tut) => (
                     <div 

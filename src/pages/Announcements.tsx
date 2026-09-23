@@ -7,6 +7,7 @@ import {
 import { AdminAnnouncementPanel } from '../components/AdminAnnouncementPanel';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { firestoreService } from '../lib/firestoreService';
+import { MultifunctionalSearchFilter, FilterGroup, ActiveFilterTag } from '../components/MultifunctionalSearchFilter';
 import { 
   Megaphone, 
   Search, 
@@ -351,130 +352,81 @@ export const Announcements: React.FC<AnnouncementsProps> = ({ onNavigateTab }) =
           )}
         </AnimatePresence>
 
-        {/* Search & Filter Bar */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
-          <div className="flex flex-col md:flex-row gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search announcements by keyword, author, or class..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20"
-                id="search_announcements_input"
+        {/* Multifunctional Search Bar & Filter Button */}
+        {(() => {
+          const announcementFilterGroups: FilterGroup[] = [
+            {
+              id: 'priority',
+              title: 'Urgency & Priority',
+              value: selectedPriority,
+              onChange: setSelectedPriority,
+              options: [
+                { label: 'All Priorities', value: 'all', badge: audienceFilteredAnnouncements.length },
+                { label: 'Urgent', value: 'urgent', badge: audienceFilteredAnnouncements.filter(a => a.priority === 'urgent').length },
+                { label: 'High Priority', value: 'high', badge: audienceFilteredAnnouncements.filter(a => a.priority === 'high').length },
+                { label: 'Normal / General', value: 'normal', badge: audienceFilteredAnnouncements.filter(a => a.priority === 'normal').length },
+                { label: 'Routine / Low', value: 'low', badge: audienceFilteredAnnouncements.filter(a => a.priority === 'low').length }
+              ]
+            }
+          ];
+
+          if (availableCategories.length > 0) {
+            announcementFilterGroups.push({
+              id: 'category',
+              title: 'Announcement Category',
+              value: selectedCategory,
+              onChange: setSelectedCategory,
+              options: [
+                { label: 'All Categories', value: 'all' },
+                ...availableCategories.map(cat => ({
+                  label: cat,
+                  value: cat,
+                  badge: audienceFilteredAnnouncements.filter(a => a.category === cat).length
+                }))
+              ]
+            });
+          }
+
+          const activeAnnouncementTags: ActiveFilterTag[] = [];
+          if (selectedPriority !== 'all') {
+            activeAnnouncementTags.push({
+              id: 'priority',
+              label: 'Priority',
+              valueLabel: selectedPriority.toUpperCase(),
+              onRemove: () => setSelectedPriority('all')
+            });
+          }
+          if (selectedCategory !== 'all') {
+            activeAnnouncementTags.push({
+              id: 'category',
+              label: 'Category',
+              valueLabel: selectedCategory,
+              onRemove: () => setSelectedCategory('all')
+            });
+          }
+
+          const resetAllAnnouncementFilters = () => {
+            setSearchTerm('');
+            setSelectedPriority('all');
+            setSelectedCategory('all');
+          };
+
+          return (
+            <div className="mb-6">
+              <MultifunctionalSearchFilter
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Search announcements by keyword, author, or class..."
+                searchId="search_announcements_input"
+                filterButtonLabel="Notice Filters"
+                filterGroups={announcementFilterGroups}
+                activeFilterCount={activeAnnouncementTags.length}
+                onResetFilters={resetAllAnnouncementFilters}
+                activeTags={activeAnnouncementTags}
               />
-              {searchTerm && (
-                <button 
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                >
-                  Clear
-                </button>
-              )}
             </div>
-
-            {/* Priority Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 shrink-0 hidden sm:inline">Priority:</span>
-              <select
-                value={selectedPriority}
-                onChange={(e) => setSelectedPriority(e.target.value)}
-                className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                id="filter_priority_select"
-              >
-                <option value="all">All Priorities</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">High</option>
-                <option value="normal">Normal</option>
-                <option value="low">Low / Routine</option>
-              </select>
-            </div>
-
-            {/* Category Filter */}
-            {availableCategories.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400 shrink-0 hidden sm:inline">Category:</span>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  id="filter_category_select"
-                >
-                  <option value="all">All Categories</option>
-                  {availableCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Priority Tags */}
-          <div className="flex items-center gap-2 overflow-x-auto pt-2 pb-1 border-t border-slate-100 dark:border-slate-800">
-            <span className="text-[11px] font-bold text-slate-400 shrink-0">Quick Filter:</span>
-            
-            <button
-              onClick={() => setSelectedPriority('all')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                selectedPriority === 'all'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-              }`}
-            >
-              All ({audienceFilteredAnnouncements.length})
-            </button>
-
-            <button
-              onClick={() => setSelectedPriority('urgent')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                selectedPriority === 'urgent'
-                  ? 'bg-rose-600 text-white'
-                  : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-              }`}
-            >
-              <AlertCircle className="w-3 h-3" />
-              Urgent ({audienceFilteredAnnouncements.filter(a => a.priority === 'urgent').length})
-            </button>
-
-            <button
-              onClick={() => setSelectedPriority('high')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                selectedPriority === 'high'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-              }`}
-            >
-              <AlertTriangle className="w-3 h-3" />
-              High ({audienceFilteredAnnouncements.filter(a => a.priority === 'high').length})
-            </button>
-
-            <button
-              onClick={() => setSelectedPriority('normal')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                selectedPriority === 'normal'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-              }`}
-            >
-              <Info className="w-3 h-3" />
-              Normal ({audienceFilteredAnnouncements.filter(a => a.priority === 'normal').length})
-            </button>
-
-            <button
-              onClick={() => setSelectedPriority('low')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                selectedPriority === 'low'
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              <Bell className="w-3 h-3" />
-              Routine ({audienceFilteredAnnouncements.filter(a => a.priority === 'low').length})
-            </button>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Announcement List */}
         <div className="space-y-4">

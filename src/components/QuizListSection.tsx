@@ -32,6 +32,7 @@ import { QuizPlayerModal, fireQuizSubmissionConfetti } from './QuizPlayerModal';
 import { QuizSubmissionsModal } from './QuizSubmissionsModal';
 import { ConfirmModal } from './ConfirmModal';
 import { DifficultyBadge } from './DifficultyBadge';
+import { MultifunctionalSearchFilter, FilterGroup, ActiveFilterTag } from './MultifunctionalSearchFilter';
 
 interface QuizListSectionProps {
   classId?: string;
@@ -362,6 +363,114 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
     return { totalVisible, completedCount, passedCount, avgScore, pendingCount };
   }, [filteredQuizzes, latestSubmissionsByQuiz, isStudent]);
 
+  // Multifunctional Filter groups
+  const quizFilterGroups: FilterGroup[] = useMemo(() => {
+    const groups: FilterGroup[] = [];
+
+    // Status group
+    if (isStudent) {
+      groups.push({
+        id: 'status',
+        title: 'Completion Status',
+        value: statusFilter,
+        onChange: (val) => setStatusFilter(val as any),
+        options: [
+          { label: 'All Tests', value: 'all', badge: quizzes.length },
+          { label: 'Pending / To Take', value: 'not_taken', badge: stats.pendingCount },
+          { label: 'Completed & Graded', value: 'completed', badge: stats.completedCount }
+        ]
+      });
+    } else if (isTutorOrAdmin) {
+      groups.push({
+        id: 'status',
+        title: 'Publication Status',
+        value: statusFilter,
+        onChange: (val) => setStatusFilter(val as any),
+        options: [
+          { label: 'All Assessments', value: 'all', badge: quizzes.length },
+          { label: 'Published Only', value: 'published' }
+        ]
+      });
+    }
+
+    // Class selection (if not scoped to single classId)
+    if (!classId && classes && classes.length > 0) {
+      groups.push({
+        id: 'class',
+        title: 'Assigned Course',
+        value: selectedClassFilter,
+        onChange: (val) => setSelectedClassFilter(val),
+        options: [
+          { label: 'All Courses', value: 'all' },
+          ...classes.map(c => ({
+            label: c.title,
+            value: c.id,
+            badge: quizzes.filter(q => q.classId === c.id).length
+          }))
+        ]
+      });
+    }
+
+    // Difficulty level
+    groups.push({
+      id: 'difficulty',
+      title: 'Difficulty Tier',
+      value: difficultyFilter,
+      onChange: (val) => setDifficultyFilter(val as any),
+      options: [
+        { label: 'All Tiers', value: 'all' },
+        { label: '🟢 Beginner', value: 'beginner' },
+        { label: '🟡 Intermediate', value: 'intermediate' },
+        { label: '🟣 Advanced', value: 'advanced' }
+      ]
+    });
+
+    return groups;
+  }, [isStudent, isTutorOrAdmin, statusFilter, quizzes, stats, classId, classes, selectedClassFilter, difficultyFilter]);
+
+  // Active filter tags for quick removal
+  const activeQuizFilterTags: ActiveFilterTag[] = useMemo(() => {
+    const tags: ActiveFilterTag[] = [];
+    if (statusFilter !== 'all') {
+      const label = statusFilter === 'completed' ? 'Completed' : statusFilter === 'not_taken' ? 'Pending' : 'Published';
+      tags.push({
+        id: 'status',
+        label: 'Status',
+        valueLabel: label,
+        onRemove: () => setStatusFilter('all')
+      });
+    }
+    if (selectedClassFilter !== 'all') {
+      const clsName = classes?.find(c => c.id === selectedClassFilter)?.title || selectedClassFilter;
+      tags.push({
+        id: 'class',
+        label: 'Class',
+        valueLabel: clsName,
+        onRemove: () => setSelectedClassFilter('all')
+      });
+    }
+    if (difficultyFilter !== 'all') {
+      tags.push({
+        id: 'difficulty',
+        label: 'Level',
+        valueLabel: difficultyFilter.charAt(0).toUpperCase() + difficultyFilter.slice(1),
+        onRemove: () => setDifficultyFilter('all')
+      });
+    }
+    return tags;
+  }, [statusFilter, selectedClassFilter, difficultyFilter, classes]);
+
+  const activeFilterCount = (statusFilter !== 'all' ? 1 : 0) + 
+    (selectedClassFilter !== 'all' ? 1 : 0) + 
+    (difficultyFilter !== 'all' ? 1 : 0);
+
+  const resetAllQuizFilters = () => {
+    setStatusFilter('all');
+    setSelectedClassFilter('all');
+    setDifficultyFilter('all');
+    setSearchTerm('');
+  };
+
   return (
     <div className={`space-y-6 ${className}`}>
       {/* Modern Top Header */}
@@ -434,130 +543,18 @@ export const QuizListSection: React.FC<QuizListSectionProps> = ({
         </div>
       </div>
 
-      {/* Modern Filter & Search Controls */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Search Bar */}
-          <div className="relative flex-grow max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search assessment titles, subjects, descriptions..."
-              className="w-full pl-10 pr-9 py-2 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl outline-none focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 dark:text-white transition-all font-sans"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Quick Selectors */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Class Filter Dropdown (if not scoped to single class) */}
-            {!classId && classes && classes.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs">
-                <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  value={selectedClassFilter}
-                  onChange={(e) => setSelectedClassFilter(e.target.value)}
-                  className="bg-transparent text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
-                >
-                  <option value="all">All Classes</option>
-                  {classes.map(c => (
-                    <option key={c.id} value={c.id}>{c.title}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Difficulty Level Dropdown */}
-            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs">
-              <span className="text-[10px] text-slate-400 uppercase font-mono font-bold">Level:</span>
-              <select
-                value={difficultyFilter}
-                onChange={(e) => setDifficultyFilter(e.target.value as any)}
-                className="bg-transparent text-slate-700 dark:text-slate-200 font-bold outline-none cursor-pointer text-xs"
-                id="filter_difficulty_select"
-                title="Filter by Difficulty Level"
-              >
-                <option value="all">All Levels</option>
-                <option value="beginner">🟢 Beginner</option>
-                <option value="intermediate">🟡 Intermediate</option>
-                <option value="advanced">🟣 Advanced</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-              statusFilter === 'all'
-                ? 'bg-blue-600 text-white shadow-xs font-black'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <span>All Assessments</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10">
-              {filteredQuizzes.length}
-            </span>
-          </button>
-
-          {isStudent && (
-            <>
-              <button
-                onClick={() => setStatusFilter('not_taken')}
-                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === 'not_taken'
-                    ? 'bg-blue-600 text-white shadow-xs font-black'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                <span>Pending / To Take</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10">
-                  {stats.pendingCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setStatusFilter('completed')}
-                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                  statusFilter === 'completed'
-                    ? 'bg-emerald-600 text-white shadow-xs font-black'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Completed & Graded</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10">
-                  {stats.completedCount}
-                </span>
-              </button>
-            </>
-          )}
-
-          {isTutorOrAdmin && (
-            <button
-              onClick={() => setStatusFilter('published')}
-              className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                statusFilter === 'published'
-                  ? 'bg-blue-600 text-white shadow-xs font-black'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <span>Published Only</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Unified Compact Multifunctional Filter Button & Search Bar */}
+      <MultifunctionalSearchFilter
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search assessment titles, subjects, descriptions..."
+        searchId="search_quizzes_input"
+        filterButtonLabel="Assessment Filters"
+        filterGroups={quizFilterGroups}
+        activeFilterCount={activeFilterCount}
+        onResetFilters={resetAllQuizFilters}
+        activeTags={activeQuizFilterTags}
+      />
 
       {/* Quizzes List Cards */}
       {loading ? (
