@@ -98,35 +98,30 @@ export const MultifunctionalSearchFilter: React.FC<MultifunctionalSearchFilterPr
 
   return (
     <div className={`space-y-2.5 ${className}`} ref={containerRef}>
-      {/* Unified Compact Single Bar: [ Filter Button ] before [ Multifunctional Search Bar ] */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 relative">
+      {/* Unified Compact Single Bar: [ Filter Button ] and [ Multifunctional Search Bar ] in ONE LINE */}
+      <div className="flex flex-row items-center gap-2 relative w-full">
         
-        {/* Multifunctional Filter Button before Search Bar */}
+        {/* Multifunctional Filter Button before Search Bar (No text words, icon + badge only) */}
         <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setIsOpen(prev => !prev)}
             aria-expanded={isOpen}
-            className={`w-full sm:w-auto h-10 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between sm:justify-center gap-2 border cursor-pointer select-none shadow-2xs ${
+            className={`h-10 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer select-none shrink-0 shadow-2xs ${
               hasActiveFilters || isOpen
                 ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
                 : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80'
             }`}
-            title="Open multifunctional filters"
+            title="Filters"
+            aria-label="Filter parameters"
           >
-            <div className="flex items-center gap-2">
-              <Filter className={`w-3.5 h-3.5 ${hasActiveFilters ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`} />
-              <span className="truncate">{filterButtonLabel}</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 ml-1">
-              {activeFilterCount > 0 && (
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-            </div>
+            <Filter className={`w-4 h-4 ${hasActiveFilters ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400'}`} />
+            {activeFilterCount > 0 && (
+              <span className="min-w-4.5 h-4.5 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Floating Multifunctional Filter Dropdown Popover */}
@@ -137,7 +132,7 @@ export const MultifunctionalSearchFilter: React.FC<MultifunctionalSearchFilterPr
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 4, scale: 0.98 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute left-0 top-11 z-50 w-[92vw] sm:w-80 md:w-96 max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-4 space-y-4 text-xs"
+                className="absolute left-0 top-11 z-50 w-[88vw] sm:w-80 md:w-96 max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-4 space-y-4 text-xs"
               >
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
@@ -241,7 +236,7 @@ export const MultifunctionalSearchFilter: React.FC<MultifunctionalSearchFilterPr
         </div>
 
         {/* Multifunctional Search Bar */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"

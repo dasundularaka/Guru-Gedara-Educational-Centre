@@ -140,27 +140,50 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <motion.div 
+          key="mobile_profile_modal_portal"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
+        >
           {/* Backdrop */}
           <motion.div
+            key="mobile_profile_backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
           />
 
-          {/* Modal / Sheet Canvas */}
+          {/* Modal / Sheet Canvas - Slide up with spring physics from bottom */}
           <motion.div
-            initial={{ y: '100%', opacity: 0 }}
+            key="mobile_profile_sheet"
+            initial={{ y: '100%', opacity: 1 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col z-10 overflow-hidden"
+            exit={{ y: '100%', opacity: 0.9 }}
+            transition={{ 
+              type: 'spring', 
+              damping: 24, 
+              stiffness: 260, 
+              mass: 0.75 
+            }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.05, bottom: 0.5 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 90 || info.velocity.y > 450) {
+                onClose();
+              }
+            }}
+            className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col z-10 overflow-hidden touch-pan-y will-change-transform"
             id="mobile_profile_sheet"
           >
             {/* Sheet Handle */}
-            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mt-3 mb-1 shrink-0 sm:hidden" />
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-3 mb-1 shrink-0 sm:hidden cursor-grab active:cursor-grabbing" />
 
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
@@ -572,7 +595,7 @@ export const MobileProfileModal: React.FC<MobileProfileModalProps> = ({
               </div>
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );
