@@ -22,8 +22,8 @@ function resolveActingUsername(explicitUsername?: string): string {
     const cachedRealAdmin = localStorage.getItem('local_real_admin_user');
     if (cachedRealAdmin) {
       const parsed = JSON.parse(cachedRealAdmin);
-      if (parsed?.name) return `${parsed.name} (Admin)`;
-      if (parsed?.username) return `${parsed.username} (Admin)`;
+      if (parsed?.username) return parsed.username;
+      if (parsed?.name) return parsed.name;
     }
   } catch {
     // Ignore JSON parse errors
@@ -34,9 +34,9 @@ function resolveActingUsername(explicitUsername?: string): string {
     const cachedUser = localStorage.getItem('guru_current_user');
     if (cachedUser) {
       const parsed: UserProfile = JSON.parse(cachedUser);
-      if (parsed?.name) return parsed.name;
       if (parsed?.username) return parsed.username;
-      if (parsed?.email) return parsed.email;
+      if (parsed?.name) return parsed.name;
+      if (parsed?.email) return parsed.email.split('@')[0];
     }
   } catch {
     // Ignore JSON parse errors

@@ -133,7 +133,7 @@ export const AdminDashboard: React.FC = () => {
     refreshNotifications,
     executeWriteWithRetry
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'quizzes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'messages' | 'live_logs' | 'users_approvals' | 'payments' | 'students' | 'tutors' | 'classes' | 'quizzes' | 'pathways' | 'banners' | 'notices' | 'admins' | 'reviews' | 'progress' | 'email_templates'>('analytics');
   const [previousTab, setPreviousTab] = useState<typeof activeTab>('analytics');
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'announcements' | 'payments' | 'reminders'>('all');
   const [showEmailLogsModal, setShowEmailLogsModal] = useState<boolean>(false);
@@ -2030,6 +2030,7 @@ export const AdminDashboard: React.FC = () => {
               const pendingApprovalsCount = (bookings.filter(b => b.status === 'pending_approval').length) + (users.filter(u => u.status === 'pending').length);
               const adminSectionItems: SectionSidebarItem[] = [
                 { id: 'analytics', label: 'Insights & Analytics', icon: <BarChart3 className="w-4 h-4 text-blue-500" />, description: 'Overview & metrics' },
+                { id: 'live_logs', label: 'Live Logs', icon: <Activity className="w-4 h-4 text-emerald-500" />, description: 'Live system activity ledger & user logs' },
                 { id: 'messages', label: 'Direct Messages', icon: <MessageSquare className="w-4 h-4 text-emerald-500" />, description: 'Chat with any user' },
                 { id: 'users_approvals', label: 'Users & Approvals', icon: <ShieldCheck className="w-4 h-4 text-indigo-500" />, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, description: 'QR scanner, profiles & approvals' },
                 { id: 'payments', label: 'Global Ledger', icon: <CreditCard className="w-4 h-4 text-emerald-500" />, description: 'Financial transactions' },
@@ -2074,6 +2075,7 @@ export const AdminDashboard: React.FC = () => {
                       <div className="flex items-center gap-2.5 text-xs font-black text-slate-800 dark:text-white">
                         <span className="p-1.5 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 rounded-xl">
                           {activeTab === 'analytics' && <BarChart3 className="w-4 h-4" />}
+                          {activeTab === 'live_logs' && <Activity className="w-4 h-4 text-emerald-500" />}
                           {activeTab === 'messages' && <MessageSquare className="w-4 h-4 text-emerald-500" />}
                           {activeTab === 'users_approvals' && <ShieldCheck className="w-4 h-4 text-indigo-600" />}
                           {activeTab === 'payments' && <CreditCard className="w-4 h-4" />}
@@ -2091,6 +2093,7 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         <span className="capitalize">
                           {activeTab === 'analytics' && 'Insights & Analytics'}
+                          {activeTab === 'live_logs' && 'Live Logs'}
                           {activeTab === 'messages' && 'Direct Messages'}
                           {activeTab === 'users_approvals' && 'Users & Approvals'}
                           {activeTab === 'payments' && 'Global Ledger'}
@@ -2388,6 +2391,35 @@ export const AdminDashboard: React.FC = () => {
               </motion.div>
             )}
 
+            {/* Tab: Live Logs (Live System Activity Ledger, Multifunctional Search, Modern Categorized Filters & User QR Scanner) */}
+            {activeTab === 'live_logs' && (
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+                id="admin_tab_live_logs_view"
+              >
+                <SystemActivityFeed 
+                  users={users}
+                  classes={classesList}
+                  payments={paymentsList}
+                  bookings={bookingsList}
+                  attendanceRecords={attendanceRecords}
+                  onRefresh={fetchAdminDatasets}
+                  onViewUserProfile={(targetUser) => {
+                    if (targetUser.role === 'student') {
+                      setSelectedStudentForProfile(targetUser);
+                    } else if (targetUser.role === 'tutor') {
+                      setSelectedTutorForProfile(targetUser);
+                    } else {
+                      setSelectedUserForIdCard(targetUser);
+                    }
+                  }}
+                />
+              </motion.div>
+            )}
+
             {/* Tab 0: Insights & Analytics Dashboard */}
             {activeTab === 'analytics' && (
               <motion.div
@@ -2678,15 +2710,6 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                 </div>
-
-                {/* System Activity Feed Component with live Firestore data stream */}
-                <SystemActivityFeed 
-                  users={users}
-                  classes={classesList}
-                  payments={paymentsList}
-                  bookings={bookingsList}
-                  onRefresh={fetchAdminDatasets}
-                />
 
                 {/* CSV exporter card block */}
                 <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white shadow-md shadow-blue-100">
